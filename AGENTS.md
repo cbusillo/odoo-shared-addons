@@ -24,5 +24,5 @@ Treat this repo as the canonical home for reusable cross-client addon code.
 ## Related Repos
 
 - `odoo-devkit` owns workspace assembly and local runtime tooling.
-- `odoo-control-plane` owns canonical runtime env truth and release tuples.
+- `harbor` owns canonical runtime env truth and release tuples.
 - Tenant repos own tenant-specific addons and docs.

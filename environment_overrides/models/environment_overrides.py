@@ -1,5 +1,9 @@
+import base64
+import binascii
+import json
 import logging
 import os
+from collections.abc import Iterable, Mapping
 
 from odoo import models
 from odoo.exceptions import ValidationError
@@ -7,6 +11,7 @@ from odoo.exceptions import ValidationError
 _logger = logging.getLogger(__name__)
 
 CONFIG_PARAM_PREFIX = "ENV_OVERRIDE_CONFIG_PARAM__"
+ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY = "ODOO_INSTANCE_OVERRIDES_PAYLOAD_B64"
 SHOPIFY_PREFIX = "ENV_OVERRIDE_SHOPIFY__"
 SHOPIFY_ALLOW_PRODUCTION_KEY = f"{SHOPIFY_PREFIX}ALLOW_PRODUCTION"
 AUTHENTIK_PREFIX = "ENV_OVERRIDE_AUTHENTIK__"
@@ -39,49 +44,113 @@ def _parse_boolean(raw_value: str | None, *, default: bool) -> bool:
     return default
 
 
+def _normalize_scalar_override_value(raw_value: object) -> str:
+    if isinstance(raw_value, bool):
+        return "True" if raw_value else "False"
+    return _normalize_config_param_value(str(raw_value))
+
+
+def _normalized_env_suffixes(*, prefix: str, excluded_suffixes: Iterable[str] = ()) -> dict[str, str]:
+    overrides: dict[str, str] = {}
+    normalized_exclusions = {item.strip().lower() for item in excluded_suffixes if item.strip()}
+    prefix_length = len(prefix)
+    for raw_key, raw_value in os.environ.items():
+        if not raw_key.startswith(prefix):
+            continue
+        if len(raw_key) <= prefix_length:
+            continue
+        suffix = raw_key[prefix_length:].strip().lower()
+        if not suffix or suffix in normalized_exclusions:
+            continue
+        overrides[suffix] = raw_value
+    return overrides
+
+
+def _load_override_payload() -> Mapping[str, object] | None:
+    encoded_payload = os.environ.get(ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY, "").strip()
+    if not encoded_payload:
+        return None
+    try:
+        decoded_payload = base64.b64decode(encoded_payload, validate=True)
+        payload = json.loads(decoded_payload.decode("utf-8"))
+    except (ValueError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError) as error:
+        raise ValidationError("Invalid Odoo instance override payload.") from error
+    if not isinstance(payload, dict):
+        raise ValidationError("Odoo instance override payload must decode to an object.")
+    return payload
+
+
+def _payload_items(payload: Mapping[str, object] | None, key: str) -> tuple[Mapping[str, object], ...]:
+    if payload is None:
+        return ()
+    raw_items = payload.get(key)
+    if raw_items is None:
+        return ()
+    if not isinstance(raw_items, list):
+        raise ValidationError(f"Odoo instance override payload field '{key}' must be a list.")
+    items: list[Mapping[str, object]] = []
+    for raw_item in raw_items:
+        if not isinstance(raw_item, dict):
+            raise ValidationError(f"Odoo instance override payload field '{key}' must contain objects.")
+        items.append(raw_item)
+    return tuple(items)
+
+
+def _payload_value_for_setting(*, raw_value: object, override_name: str) -> str:
+    if not isinstance(raw_value, dict):
+        raise ValidationError(f"Odoo override '{override_name}' has an invalid value payload.")
+    source = str(raw_value.get("source") or "").strip()
+    if source == "literal":
+        if "value" not in raw_value:
+            raise ValidationError(f"Odoo override '{override_name}' is missing a literal value.")
+        return _normalize_scalar_override_value(raw_value.get("value"))
+    if source == "secret_binding":
+        environment_variable = str(raw_value.get("environment_variable") or "").strip()
+        if not environment_variable:
+            raise ValidationError(
+                f"Secret-backed Odoo override '{override_name}' is missing its runtime environment variable."
+            )
+        if environment_variable not in os.environ:
+            raise ValidationError(
+                f"Secret-backed Odoo override '{override_name}' is missing environment variable {environment_variable}."
+            )
+        return os.environ.get(environment_variable, "")
+    raise ValidationError(f"Odoo override '{override_name}' has unsupported source '{source}'.")
+
+
 class EnvironmentOverrides(models.AbstractModel):
     _name = "environment.overrides"
     _description = "Environment Overrides"
 
     def apply_from_env(self) -> None:
-        self._apply_config_param_overrides()
-        self._apply_authentik_overrides()
-        self._apply_shopify_overrides()
+        payload = _load_override_payload()
+        self._apply_config_param_overrides(payload=payload)
+        self._apply_authentik_overrides(payload=payload)
+        self._apply_shopify_overrides(payload=payload)
 
-    def _apply_authentik_overrides(self) -> None:
-        has_authentik_overrides = any(raw_key.startswith(AUTHENTIK_PREFIX) for raw_key in os.environ)
-        if not has_authentik_overrides:
-            return
-
-        authentik_config_model = self.env.get(AUTHENTIK_CONFIG_MODEL)
-        if authentik_config_model is None:
-            return
-
-        apply_from_env = getattr(authentik_config_model.sudo(), "apply_from_env", None)
-        if callable(apply_from_env):
-            apply_from_env()
-
-        group_mapping_model = self.env.get(AUTHENTIK_GROUP_MAPPING_MODEL)
-        if group_mapping_model is None:
-            return
-
-        ensure_default_mappings = getattr(group_mapping_model.sudo(), "ensure_default_mappings", None)
-        if callable(ensure_default_mappings):
-            ensure_default_mappings()
-
-    def _apply_config_param_overrides(self) -> None:
+    def _payload_config_param_overrides(self, payload: Mapping[str, object] | None) -> dict[str, str]:
         overrides: dict[str, str] = {}
-        prefix_length = len(CONFIG_PARAM_PREFIX)
-        for raw_key, raw_value in os.environ.items():
-            if not raw_key.startswith(CONFIG_PARAM_PREFIX):
-                continue
-            if len(raw_key) <= prefix_length:
-                continue
-            suffix = raw_key[prefix_length:]
-            if not suffix:
-                continue
-            param_key = suffix.replace("__", ".").lower()
+        for item in _payload_items(payload, "config_parameters"):
+            key = str(item.get("key") or "").strip().lower()
+            if not key:
+                raise ValidationError("Odoo config parameter override payload entries require key.")
+            overrides[key] = _payload_value_for_setting(raw_value=item.get("value"), override_name=key)
+        return overrides
+
+    def _env_config_param_overrides(self, *, excluded_keys: Iterable[str] = ()) -> dict[str, str]:
+        overrides: dict[str, str] = {}
+        for suffix, raw_value in _normalized_env_suffixes(
+            prefix=CONFIG_PARAM_PREFIX,
+            excluded_suffixes=[key.replace(".", "__") for key in excluded_keys],
+        ).items():
+            param_key = suffix.replace("__", ".")
             overrides[param_key] = _normalize_config_param_value(raw_value)
+        return overrides
+
+    def _apply_config_param_overrides(self, *, payload: Mapping[str, object] | None = None) -> None:
+        payload_overrides = self._payload_config_param_overrides(payload)
+        overrides = self._env_config_param_overrides(excluded_keys=payload_overrides)
+        overrides.update(payload_overrides)
 
         if not overrides:
             return
@@ -94,16 +163,68 @@ class EnvironmentOverrides(models.AbstractModel):
         for key, value in overrides.items():
             parameter_model.set_param(key, value)
 
-    def _apply_shopify_overrides(self) -> None:
-        shop_url_key = os.environ.get(f"{SHOPIFY_PREFIX}SHOP_URL_KEY", "").strip()
-        api_token = os.environ.get(f"{SHOPIFY_PREFIX}API_TOKEN", "").strip()
-        webhook_key = os.environ.get(f"{SHOPIFY_PREFIX}WEBHOOK_KEY", "").strip()
-        api_version = os.environ.get(f"{SHOPIFY_PREFIX}API_VERSION", "").strip()
-        test_store_raw = os.environ.get(f"{SHOPIFY_PREFIX}TEST_STORE")
-        test_store = _parse_boolean(test_store_raw, default=False)
-        allow_production = _parse_boolean(os.environ.get(SHOPIFY_ALLOW_PRODUCTION_KEY), default=False)
+    def _payload_addon_overrides(
+        self,
+        payload: Mapping[str, object] | None,
+        *,
+        addon_names: Iterable[str],
+    ) -> dict[str, str]:
+        normalized_addons = {addon.strip().lower() for addon in addon_names if addon.strip()}
+        overrides: dict[str, str] = {}
+        for item in _payload_items(payload, "addon_settings"):
+            addon_name = str(item.get("addon") or "").strip().lower()
+            if addon_name not in normalized_addons:
+                continue
+            setting_name = str(item.get("setting") or "").strip().lower()
+            if not setting_name:
+                raise ValidationError("Odoo addon override payload entries require setting.")
+            override_name = f"{addon_name}.{setting_name}"
+            overrides[setting_name] = _payload_value_for_setting(
+                raw_value=item.get("value"),
+                override_name=override_name,
+            )
+        return overrides
 
-        indicators_raw = os.environ.get(f"{SHOPIFY_PREFIX}PRODUCTION_INDICATORS")
+    def _apply_authentik_overrides(self, *, payload: Mapping[str, object] | None = None) -> None:
+        payload_overrides = self._payload_addon_overrides(payload, addon_names=("authentik", "authentik_sso"))
+        env_overrides = _normalized_env_suffixes(
+            prefix=AUTHENTIK_PREFIX,
+            excluded_suffixes=payload_overrides,
+        )
+        overrides = dict(env_overrides)
+        overrides.update(payload_overrides)
+        if not overrides:
+            return
+
+        authentik_config_model = self.env.get(AUTHENTIK_CONFIG_MODEL)
+        if authentik_config_model is None:
+            return
+
+        apply_from_env = getattr(authentik_config_model.sudo(), "apply_from_env", None)
+        apply_from_values = getattr(authentik_config_model.sudo(), "apply_from_values", None)
+        if callable(apply_from_values):
+            apply_from_values(overrides)
+        elif callable(apply_from_env):
+            apply_from_env()
+
+        group_mapping_model = self.env.get(AUTHENTIK_GROUP_MAPPING_MODEL)
+        if group_mapping_model is None:
+            return
+
+        ensure_default_mappings = getattr(group_mapping_model.sudo(), "ensure_default_mappings", None)
+        if callable(ensure_default_mappings):
+            ensure_default_mappings()
+
+    def _apply_shopify_overrides_from_values(self, overrides: Mapping[str, str]) -> None:
+        shop_url_key = overrides.get("shop_url_key", "").strip()
+        api_token = overrides.get("api_token", "").strip()
+        webhook_key = overrides.get("webhook_key", "").strip()
+        api_version = overrides.get("api_version", "").strip()
+        test_store_raw = overrides.get("test_store")
+        test_store = _parse_boolean(test_store_raw, default=False)
+        allow_production = _parse_boolean(overrides.get("allow_production"), default=False)
+
+        indicators_raw = overrides.get("production_indicators")
         if indicators_raw is None:
             production_indicators = list(DEFAULT_PRODUCTION_INDICATORS)
         else:
@@ -146,6 +267,18 @@ class EnvironmentOverrides(models.AbstractModel):
         parameter_model.set_param("shopify.test_store", "True" if test_store else "False")
         self._remove_shopify_legacy_keys()
         self._update_shopify_external_urls(shop_url_key)
+
+    def _apply_shopify_overrides(self, *, payload: Mapping[str, object] | None = None) -> None:
+        payload_overrides = self._payload_addon_overrides(payload, addon_names=("shopify",))
+        env_overrides = _normalized_env_suffixes(
+            prefix=SHOPIFY_PREFIX,
+            excluded_suffixes=payload_overrides,
+        )
+        overrides = dict(env_overrides)
+        overrides.update(payload_overrides)
+        if not overrides:
+            return
+        self._apply_shopify_overrides_from_values(overrides)
 
     def _clear_shopify_config(self) -> None:
         parameter_model = self.env["ir.config_parameter"].sudo()

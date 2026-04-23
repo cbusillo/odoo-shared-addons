@@ -53,6 +53,22 @@ class TestAuthentikSso(UnitTestCase):
 
         self.assertEqual(groups, {"Admins", "Users"})
 
+    def test_apply_from_values_creates_provider(self) -> None:
+        self.env["authentik.sso.config"].apply_from_values(
+            {
+                "base_url": "https://auth.example.com/",
+                "client_id": "client-123",
+                "login_label": "Login with Authentik",
+            }
+        )
+
+        provider = self.env["auth.oauth.provider"].search([("name", "=", "Authentik")], limit=1)
+        self.assertTrue(provider)
+        self.assertEqual(provider.client_id, "client-123")
+        self.assertEqual(provider.auth_endpoint, "https://auth.example.com/application/o/authorize/")
+        self.assertEqual(provider.validation_endpoint, "https://auth.example.com/application/o/userinfo/")
+        self.assertTrue(provider.enabled)
+
     def test_sync_authentik_groups_applies_mapping(self) -> None:
         provider = self.env["auth.oauth.provider"].create(
             {

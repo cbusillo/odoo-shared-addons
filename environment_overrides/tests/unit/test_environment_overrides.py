@@ -1,10 +1,16 @@
+import base64
+import json
 import os
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
 
 from odoo.exceptions import ValidationError
 
-from ...models.environment_overrides import _normalize_config_param_value, _parse_boolean
+from ...models.environment_overrides import (
+    ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY,
+    _normalize_config_param_value,
+    _parse_boolean,
+)
 from ..common_imports import common
 from ..fixtures.base import UnitTestCase
 
@@ -29,6 +35,11 @@ def _set_env(values: Mapping[str, str | None]) -> Iterator[None]:
 
 @common.tagged(*common.UNIT_TAGS)
 class TestEnvironmentOverrides(UnitTestCase):
+    @staticmethod
+    def _payload_env(payload: Mapping[str, object]) -> dict[str, str]:
+        encoded = base64.b64encode(json.dumps(payload, sort_keys=True).encode("utf-8")).decode("ascii")
+        return {ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: encoded}
+
     def test_normalize_config_param_value(self) -> None:
         self.assertEqual(_normalize_config_param_value(" true "), "True")
         self.assertEqual(_normalize_config_param_value("false"), "False")
@@ -54,6 +65,51 @@ class TestEnvironmentOverrides(UnitTestCase):
             self.Overrides._apply_config_param_overrides()
 
         self.assertEqual(self.ConfigParameter.get_param("test.value"), "True")
+
+    def test_apply_config_param_overrides_from_payload(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "config_parameters": [
+                {
+                    "key": "test.value",
+                    "value": {
+                        "source": "literal",
+                        "value": False,
+                    },
+                }
+            ],
+            "addon_settings": [],
+        }
+
+        with _set_env(self._payload_env(payload)):
+            self.Overrides.apply_from_env()
+
+        self.assertEqual(self.ConfigParameter.get_param("test.value"), "False")
+
+    def test_payload_config_param_overrides_take_precedence_over_legacy_env(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "config_parameters": [
+                {
+                    "key": "test.value",
+                    "value": {
+                        "source": "literal",
+                        "value": "from-payload",
+                    },
+                }
+            ],
+            "addon_settings": [],
+        }
+
+        with _set_env(
+            {
+                **self._payload_env(payload),
+                "ENV_OVERRIDE_CONFIG_PARAM__TEST__VALUE": "from-env",
+            }
+        ):
+            self.Overrides.apply_from_env()
+
+        self.assertEqual(self.ConfigParameter.get_param("test.value"), "from-payload")
 
     def test_shopify_overrides_rejects_production_urls(self) -> None:
         env_values = {
@@ -89,3 +145,59 @@ class TestEnvironmentOverrides(UnitTestCase):
         self.assertFalse(self.ConfigParameter.get_param("shopify.api_token"))
         self.assertFalse(self.ConfigParameter.get_param("shopify.webhook_key"))
         self.assertFalse(self.ConfigParameter.get_param("shopify.api_version"))
+
+    def test_apply_shopify_overrides_from_payload_secret_binding_env(self) -> None:
+        payload = {
+            "schema_version": 1,
+            "config_parameters": [],
+            "addon_settings": [
+                {
+                    "addon": "shopify",
+                    "setting": "shop_url_key",
+                    "value": {"source": "literal", "value": "typed-store"},
+                },
+                {
+                    "addon": "shopify",
+                    "setting": "api_token",
+                    "value": {
+                        "source": "secret_binding",
+                        "secret_binding_id": "binding-shopify-token",
+                        "environment_variable": "SHOPIFY_TOKEN_FROM_SECRET",
+                    },
+                },
+                {
+                    "addon": "shopify",
+                    "setting": "webhook_key",
+                    "value": {"source": "literal", "value": "hook"},
+                },
+                {
+                    "addon": "shopify",
+                    "setting": "api_version",
+                    "value": {"source": "literal", "value": "2025-01"},
+                },
+                {
+                    "addon": "shopify",
+                    "setting": "test_store",
+                    "value": {"source": "literal", "value": True},
+                },
+            ],
+        }
+
+        with _set_env(
+            {
+                **self._payload_env(payload),
+                "SHOPIFY_TOKEN_FROM_SECRET": "token-from-secret",
+            }
+        ):
+            self.Overrides.apply_from_env()
+
+        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "typed-store")
+        self.assertEqual(self.ConfigParameter.get_param("shopify.api_token"), "token-from-secret")
+        self.assertEqual(self.ConfigParameter.get_param("shopify.webhook_key"), "hook")
+        self.assertEqual(self.ConfigParameter.get_param("shopify.api_version"), "2025-01")
+        self.assertEqual(self.ConfigParameter.get_param("shopify.test_store"), "True")
+
+    def test_apply_from_env_rejects_invalid_payload(self) -> None:
+        with _set_env({ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: "not-base64"}):
+            with self.assertRaises(ValidationError):
+                self.Overrides.apply_from_env()

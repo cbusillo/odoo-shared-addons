@@ -1,5 +1,6 @@
 import logging
 import os
+from collections.abc import Mapping
 
 from odoo import models
 from odoo.exceptions import AccessError, UserError, ValidationError
@@ -33,11 +34,27 @@ class AuthentikSsoConfig(models.AbstractModel):
     _description = "Authentik SSO configuration"
 
     def apply_from_env(self) -> None:
-        self._disable_oauth_providers()
-        self._apply_authentik_provider()
+        self.apply_from_values(self._values_from_env())
 
-    def _disable_oauth_providers(self) -> None:
-        disabled_raw = os.environ.get(f"{AUTHENTIK_PREFIX}DISABLE_PROVIDERS")
+    def apply_from_values(self, overrides: Mapping[str, str | None]) -> None:
+        self._disable_oauth_providers(overrides)
+        self._apply_authentik_provider(overrides)
+
+    @staticmethod
+    def _values_from_env() -> dict[str, str]:
+        overrides: dict[str, str] = {}
+        prefix_length = len(AUTHENTIK_PREFIX)
+        for raw_key, raw_value in os.environ.items():
+            if not raw_key.startswith(AUTHENTIK_PREFIX):
+                continue
+            suffix = raw_key[prefix_length:].strip().lower()
+            if not suffix:
+                continue
+            overrides[suffix] = raw_value
+        return overrides
+
+    def _disable_oauth_providers(self, overrides: Mapping[str, str | None]) -> None:
+        disabled_raw = overrides.get("disable_providers")
         disabled_names = _split_list(disabled_raw)
         if not disabled_names:
             return
@@ -61,18 +78,18 @@ class AuthentikSsoConfig(models.AbstractModel):
         to_disable.write({"enabled": False})
         _logger.info("Disabled OAuth providers: %s", ", ".join(sorted(to_disable.mapped("name"))))
 
-    def _apply_authentik_provider(self) -> None:
-        provider_name = os.environ.get(f"{AUTHENTIK_PREFIX}PROVIDER_NAME", DEFAULT_PROVIDER_NAME).strip()
+    def _apply_authentik_provider(self, overrides: Mapping[str, str | None]) -> None:
+        provider_name = (overrides.get("provider_name") or DEFAULT_PROVIDER_NAME).strip()
         if not provider_name:
             provider_name = DEFAULT_PROVIDER_NAME
-        client_id = os.environ.get(f"{AUTHENTIK_PREFIX}CLIENT_ID", "").strip()
-        base_url = _normalize_base_url(os.environ.get(f"{AUTHENTIK_PREFIX}BASE_URL"))
-        authorization_endpoint = os.environ.get(f"{AUTHENTIK_PREFIX}AUTHORIZATION_ENDPOINT", "").strip()
-        userinfo_endpoint = os.environ.get(f"{AUTHENTIK_PREFIX}USERINFO_ENDPOINT", "").strip()
-        scope = os.environ.get(f"{AUTHENTIK_PREFIX}SCOPE", DEFAULT_SCOPE).strip()
-        login_label = os.environ.get(f"{AUTHENTIK_PREFIX}LOGIN_LABEL", DEFAULT_LOGIN_LABEL).strip()
-        css_class = os.environ.get(f"{AUTHENTIK_PREFIX}CSS_CLASS", DEFAULT_CSS_CLASS).strip()
-        data_endpoint = os.environ.get(f"{AUTHENTIK_PREFIX}DATA_ENDPOINT", "").strip()
+        client_id = (overrides.get("client_id") or "").strip()
+        base_url = _normalize_base_url(overrides.get("base_url"))
+        authorization_endpoint = (overrides.get("authorization_endpoint") or "").strip()
+        userinfo_endpoint = (overrides.get("userinfo_endpoint") or "").strip()
+        scope = (overrides.get("scope") or DEFAULT_SCOPE).strip()
+        login_label = (overrides.get("login_label") or DEFAULT_LOGIN_LABEL).strip()
+        css_class = (overrides.get("css_class") or DEFAULT_CSS_CLASS).strip()
+        data_endpoint = (overrides.get("data_endpoint") or "").strip()
 
         if base_url:
             if not authorization_endpoint:

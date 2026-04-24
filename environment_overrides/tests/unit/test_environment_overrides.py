@@ -153,6 +153,11 @@ class TestEnvironmentOverrides(UnitTestCase):
             "addon_settings": [
                 {
                     "addon": "shopify",
+                    "setting": "action",
+                    "value": {"source": "literal", "value": "apply"},
+                },
+                {
+                    "addon": "shopify",
                     "setting": "shop_url_key",
                     "value": {"source": "literal", "value": "typed-store"},
                 },
@@ -196,6 +201,32 @@ class TestEnvironmentOverrides(UnitTestCase):
         self.assertEqual(self.ConfigParameter.get_param("shopify.webhook_key"), "hook")
         self.assertEqual(self.ConfigParameter.get_param("shopify.api_version"), "2025-01")
         self.assertEqual(self.ConfigParameter.get_param("shopify.test_store"), "True")
+
+    def test_apply_shopify_clear_action_from_payload(self) -> None:
+        self.ConfigParameter.set_param("shopify.shop_url_key", "store")
+        self.ConfigParameter.set_param("shopify.api_token", "token")
+        self.ConfigParameter.set_param("shopify.webhook_key", "hook")
+        self.ConfigParameter.set_param("shopify.api_version", "2025-01")
+
+        payload = {
+            "schema_version": 1,
+            "config_parameters": [],
+            "addon_settings": [
+                {
+                    "addon": "shopify",
+                    "setting": "action",
+                    "value": {"source": "literal", "value": "clear"},
+                },
+            ],
+        }
+
+        with _set_env(self._payload_env(payload)):
+            self.Overrides.apply_from_env()
+
+        self.assertFalse(self.ConfigParameter.get_param("shopify.shop_url_key"))
+        self.assertFalse(self.ConfigParameter.get_param("shopify.api_token"))
+        self.assertFalse(self.ConfigParameter.get_param("shopify.webhook_key"))
+        self.assertFalse(self.ConfigParameter.get_param("shopify.api_version"))
 
     def test_apply_from_env_rejects_invalid_payload(self) -> None:
         with _set_env({ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: "not-base64"}):

@@ -14,6 +14,9 @@ CONFIG_PARAM_PREFIX = "ENV_OVERRIDE_CONFIG_PARAM__"
 ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY = "ODOO_INSTANCE_OVERRIDES_PAYLOAD_B64"
 SHOPIFY_PREFIX = "ENV_OVERRIDE_SHOPIFY__"
 SHOPIFY_ALLOW_PRODUCTION_KEY = f"{SHOPIFY_PREFIX}ALLOW_PRODUCTION"
+SHOPIFY_ACTION_SETTING = "action"
+SHOPIFY_ACTION_APPLY = "apply"
+SHOPIFY_ACTION_CLEAR = "clear"
 AUTHENTIK_PREFIX = "ENV_OVERRIDE_AUTHENTIK__"
 AUTHENTIK_CONFIG_MODEL = "authentik.sso.config"
 AUTHENTIK_GROUP_MAPPING_MODEL = "authentik.sso.group.mapping"
@@ -270,6 +273,10 @@ class EnvironmentOverrides(models.AbstractModel):
 
     def _apply_shopify_overrides(self, *, payload: Mapping[str, object] | None = None) -> None:
         payload_overrides = self._payload_addon_overrides(payload, addon_names=("shopify",))
+        payload_action = payload_overrides.get(SHOPIFY_ACTION_SETTING, "").strip().lower()
+        if payload_action:
+            self._apply_shopify_payload_action(payload_overrides)
+            return
         env_overrides = _normalized_env_suffixes(
             prefix=SHOPIFY_PREFIX,
             excluded_suffixes=payload_overrides,
@@ -279,6 +286,35 @@ class EnvironmentOverrides(models.AbstractModel):
         if not overrides:
             return
         self._apply_shopify_overrides_from_values(overrides)
+
+    def _apply_shopify_payload_action(self, overrides: Mapping[str, str]) -> None:
+        payload_action = overrides.get(SHOPIFY_ACTION_SETTING, "").strip().lower()
+        if payload_action == SHOPIFY_ACTION_CLEAR:
+            self._clear_shopify_config()
+            _logger.info("Applied Launchplane Shopify clear action.")
+            return
+        if payload_action != SHOPIFY_ACTION_APPLY:
+            raise ValidationError(f"Unsupported Shopify override action '{payload_action}'.")
+
+        shop_url_key = overrides.get("shop_url_key", "").strip()
+        api_token = overrides.get("api_token", "").strip()
+        webhook_key = overrides.get("webhook_key", "").strip()
+        api_version = overrides.get("api_version", "").strip()
+        required_values = [shop_url_key, api_token, webhook_key, api_version]
+        if not all(required_values):
+            raise ValidationError("Launchplane Shopify apply action is missing required values.")
+
+        test_store_raw = overrides.get("test_store")
+        test_store = _parse_boolean(test_store_raw, default=False)
+
+        parameter_model = self.env["ir.config_parameter"].sudo()
+        parameter_model.set_param("shopify.shop_url_key", shop_url_key)
+        parameter_model.set_param("shopify.api_token", api_token)
+        parameter_model.set_param("shopify.webhook_key", webhook_key)
+        parameter_model.set_param("shopify.api_version", api_version)
+        parameter_model.set_param("shopify.test_store", "True" if test_store else "False")
+        self._remove_shopify_legacy_keys()
+        self._update_shopify_external_urls(shop_url_key)
 
     def _clear_shopify_config(self) -> None:
         parameter_model = self.env["ir.config_parameter"].sudo()

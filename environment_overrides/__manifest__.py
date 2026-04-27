@@ -9,19 +9,9 @@
     "depends": [
         "base",
         "launchplane_settings",
-        "mail",
-        "product",
-        "web",
     ],
     "data": [],
-    "assets": {
-        "web.assets_backend": [
-            "environment_overrides/static/src/js/notification_permission_patch.js",
-        ],
-        "web.assets_unit_tests": [
-            "environment_overrides/static/tests/*.test.js",
-        ],
-    },
+    "assets": {},
     "installable": True,
     "application": False,
     "license": "LGPL-3",

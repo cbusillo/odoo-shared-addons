@@ -8,6 +8,7 @@
     "maintainers": ["cbusillo"],
     "depends": [
         "base",
+        "launchplane_settings",
         "mail",
         "product",
         "web",

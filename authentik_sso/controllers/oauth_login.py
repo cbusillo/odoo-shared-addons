@@ -11,18 +11,20 @@ from odoo.addons.web.controllers.utils import ensure_db
 from odoo.http import request
 from werkzeug.exceptions import BadRequest
 
-AUTHENTIK_PREFIX = "ENV_OVERRIDE_AUTHENTIK__"
-DEFAULT_AUTHENTIK_PROVIDER_NAME = "Authentik"
+from odoo.addons.authentik_sso.models.authentik_config import (
+    AUTHENTIK_PROVIDER_NAME_PARAM,
+    DEFAULT_PROVIDER_NAME,
+)
 
 _logger = logging.getLogger(__name__)
 
 
-def _authentik_provider_name() -> str:
-    raw_value = os.environ.get(f"{AUTHENTIK_PREFIX}PROVIDER_NAME")
-    if raw_value is None:
-        return DEFAULT_AUTHENTIK_PROVIDER_NAME
+def _authentik_provider_name(env) -> str:
+    raw_value = (
+        env["ir.config_parameter"].sudo().get_param(AUTHENTIK_PROVIDER_NAME_PARAM) or ""
+    )
     cleaned = raw_value.strip()
-    return cleaned or DEFAULT_AUTHENTIK_PROVIDER_NAME
+    return cleaned or DEFAULT_PROVIDER_NAME
 
 
 def _build_authentik_auth_link(
@@ -65,7 +67,7 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
         providers = super().list_providers()
         if not providers:
             return providers
-        authentik_provider_name = _authentik_provider_name()
+        authentik_provider_name = _authentik_provider_name(request.env)
         for provider in providers:
             if provider.get("name") != authentik_provider_name:
                 continue
@@ -79,7 +81,9 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
                 continue
             redirect_url = request.httprequest.url_root + "auth_oauth/signin"
             state = self.get_state(provider)
-            provider["auth_link"] = _build_authentik_auth_link(provider, state, redirect_url)
+            provider["auth_link"] = _build_authentik_auth_link(
+                provider, state, redirect_url
+            )
         return providers
 
     @http.route()
@@ -89,7 +93,7 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
     @http.route("/authentik/login", type="http", auth="none", sitemap=False)
     def authentik_login(self, **_kwargs: object) -> object:
         ensure_db()
-        provider_name = _authentik_provider_name()
+        provider_name = _authentik_provider_name(request.env)
         provider = (
             request.env["auth.oauth.provider"]
             .sudo()

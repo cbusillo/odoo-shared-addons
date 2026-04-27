@@ -1,27 +1,38 @@
 import html
 import json
 import logging
-import os
 
 from odoo import Command, api, models
 from odoo.addons.auth_signup.models.res_users import SignupError
 from odoo.exceptions import AccessDenied, UserError
 
+from .authentik_config import (
+    AUTHENTIK_GROUP_CLAIM_PARAM,
+    AUTHENTIK_LOGIN_CLAIMS_PARAM,
+    AUTHENTIK_NAME_CLAIMS_PARAM,
+    AUTHENTIK_PROVIDER_NAME_PARAM,
+    AUTHENTIK_USER_ID_CLAIMS_PARAM,
+    DEFAULT_GROUP_CLAIM,
+    DEFAULT_LOGIN_CLAIMS,
+    DEFAULT_NAME_CLAIMS,
+    DEFAULT_PROVIDER_NAME,
+    DEFAULT_USER_ID_CLAIMS,
+)
+
 _logger = logging.getLogger(__name__)
 
-AUTHENTIK_PREFIX = "ENV_OVERRIDE_AUTHENTIK__"
-DEFAULT_AUTHENTIK_PROVIDER_NAME = "Authentik"
-DEFAULT_AUTHENTIK_GROUP_CLAIM = "groups"
-DEFAULT_AUTHENTIK_USER_ID_CLAIMS = ("user_id", "sub", "id", "uid")
-DEFAULT_AUTHENTIK_LOGIN_CLAIMS = ("email", "preferred_username", "username", "login")
-DEFAULT_AUTHENTIK_NAME_CLAIMS = (
-    "name",
-    "full_name",
-    "display_name",
-    "preferred_username",
-    "username",
-    "email",
-)
+DEFAULT_AUTHENTIK_USER_ID_CLAIMS = tuple(DEFAULT_USER_ID_CLAIMS.split(","))
+DEFAULT_AUTHENTIK_LOGIN_CLAIMS = tuple(DEFAULT_LOGIN_CLAIMS.split(","))
+DEFAULT_AUTHENTIK_NAME_CLAIMS = tuple(DEFAULT_NAME_CLAIMS.split(","))
+
+
+def _split_claims(
+    raw_value: str | None, *, default: tuple[str, ...]
+) -> tuple[str, ...]:
+    if raw_value is None:
+        return default
+    cleaned = tuple(item.strip() for item in raw_value.split(",") if item.strip())
+    return cleaned or default
 
 
 class ResUsers(models.Model):
@@ -34,14 +45,18 @@ class ResUsers(models.Model):
         )
         return template_user.exists() if template_user else self.env["res.users"]
 
-    def _create_user_from_template(self, values: "odoo.values.res_users") -> "odoo.model.res_users":
+    def _create_user_from_template(
+        self, values: "odoo.values.res_users"
+    ) -> "odoo.model.res_users":
         if self.env.context.get("oauth_use_internal_template"):
             template_user = self._resolve_authentik_template_user()
             if template_user:
                 if not values.get("login"):
                     raise ValueError(self.env._("Signup: no login given for new user"))
                 if not values.get("partner_id") and not values.get("name"):
-                    raise ValueError(self.env._("Signup: no name or partner given for new user"))
+                    raise ValueError(
+                        self.env._("Signup: no name or partner given for new user")
+                    )
                 if "signature" not in values:
                     signature_name = values.get("name")
                     if signature_name:
@@ -51,52 +66,57 @@ class ResUsers(models.Model):
                         values["signature"] = False
                 values["active"] = True
                 return template_user.with_context(no_reset_password=True).copy(values)
-            _logger.warning("Authentik template user not found; falling back to default template user.")
+            _logger.warning(
+                "Authentik template user not found; falling back to default template user."
+            )
         return super()._create_user_from_template(values)
 
     @api.model
-    def _signup_create_user(self, values: "odoo.values.res_users") -> "odoo.model.res_users":
+    def _signup_create_user(
+        self, values: "odoo.values.res_users"
+    ) -> "odoo.model.res_users":
         if self.env.context.get("oauth_use_internal_template"):
             return self._create_user_from_template(values)
         return super()._signup_create_user(values)
 
-    @staticmethod
-    def _authentik_provider_name() -> str:
-        raw_value = os.environ.get(f"{AUTHENTIK_PREFIX}PROVIDER_NAME")
-        if raw_value is None:
-            return DEFAULT_AUTHENTIK_PROVIDER_NAME
-        cleaned = raw_value.strip()
-        return cleaned or DEFAULT_AUTHENTIK_PROVIDER_NAME
+    def _authentik_setting(self, key: str, *, default: str) -> str:
+        value = self.env["ir.config_parameter"].sudo().get_param(key) or ""
+        cleaned = value.strip()
+        return cleaned or default
 
-    @staticmethod
-    def _authentik_group_claim() -> str:
-        raw_value = os.environ.get(f"{AUTHENTIK_PREFIX}GROUP_CLAIM")
-        if raw_value is None:
-            return DEFAULT_AUTHENTIK_GROUP_CLAIM
-        return raw_value.strip()
+    def _authentik_provider_name(self) -> str:
+        return self._authentik_setting(
+            AUTHENTIK_PROVIDER_NAME_PARAM, default=DEFAULT_PROVIDER_NAME
+        )
 
-    @staticmethod
-    def _authentik_user_id_claims() -> tuple[str, ...]:
-        raw_value = os.environ.get(f"{AUTHENTIK_PREFIX}USER_ID_CLAIMS")
-        if raw_value is None:
-            return DEFAULT_AUTHENTIK_USER_ID_CLAIMS
-        cleaned = tuple(item.strip() for item in raw_value.split(",") if item.strip())
-        return cleaned or DEFAULT_AUTHENTIK_USER_ID_CLAIMS
+    def _authentik_group_claim(self) -> str:
+        return self._authentik_setting(
+            AUTHENTIK_GROUP_CLAIM_PARAM, default=DEFAULT_GROUP_CLAIM
+        )
 
-    @staticmethod
-    def _authentik_login_claims() -> tuple[str, ...]:
-        raw_value = os.environ.get(f"{AUTHENTIK_PREFIX}LOGIN_CLAIMS")
-        if raw_value is None:
-            return DEFAULT_AUTHENTIK_LOGIN_CLAIMS
-        cleaned = tuple(item.strip() for item in raw_value.split(",") if item.strip())
-        return cleaned or DEFAULT_AUTHENTIK_LOGIN_CLAIMS
+    def _authentik_user_id_claims(self) -> tuple[str, ...]:
+        return _split_claims(
+            self._authentik_setting(
+                AUTHENTIK_USER_ID_CLAIMS_PARAM, default=DEFAULT_USER_ID_CLAIMS
+            ),
+            default=DEFAULT_AUTHENTIK_USER_ID_CLAIMS,
+        )
 
-    @staticmethod
-    def _authentik_name_claims() -> tuple[str, ...]:
-        raw_value = os.environ.get(f"{AUTHENTIK_PREFIX}NAME_CLAIMS")
-        if raw_value is None:
-            return DEFAULT_AUTHENTIK_NAME_CLAIMS
-        return tuple(item.strip() for item in raw_value.split(",") if item.strip())
+    def _authentik_login_claims(self) -> tuple[str, ...]:
+        return _split_claims(
+            self._authentik_setting(
+                AUTHENTIK_LOGIN_CLAIMS_PARAM, default=DEFAULT_LOGIN_CLAIMS
+            ),
+            default=DEFAULT_AUTHENTIK_LOGIN_CLAIMS,
+        )
+
+    def _authentik_name_claims(self) -> tuple[str, ...]:
+        return _split_claims(
+            self._authentik_setting(
+                AUTHENTIK_NAME_CLAIMS_PARAM, default=DEFAULT_NAME_CLAIMS
+            ),
+            default=DEFAULT_AUTHENTIK_NAME_CLAIMS,
+        )
 
     @staticmethod
     def _claim_to_string(value: object) -> str | None:
@@ -112,20 +132,28 @@ class ResUsers(models.Model):
                 return cleaned or None
         return None
 
-    def _first_claim_value(self, payload: dict[str, object], claims: tuple[str, ...]) -> str | None:
+    def _first_claim_value(
+        self, payload: dict[str, object], claims: tuple[str, ...]
+    ) -> str | None:
         for claim in claims:
             value = self._claim_to_string(payload.get(claim))
             if value:
                 return value
         return None
 
-    def _normalize_authentik_validation(self, validation: dict[str, object]) -> dict[str, object]:
+    def _normalize_authentik_validation(
+        self, validation: dict[str, object]
+    ) -> dict[str, object]:
         normalized = dict(validation)
-        user_id_value = self._first_claim_value(normalized, self._authentik_user_id_claims())
+        user_id_value = self._first_claim_value(
+            normalized, self._authentik_user_id_claims()
+        )
         if user_id_value:
             normalized.setdefault("user_id", user_id_value)
 
-        login_value = self._first_claim_value(normalized, self._authentik_login_claims())
+        login_value = self._first_claim_value(
+            normalized, self._authentik_login_claims()
+        )
         if not login_value and user_id_value:
             login_value = user_id_value
         if login_value:
@@ -140,7 +168,9 @@ class ResUsers(models.Model):
             if combined_name:
                 normalized["name"] = combined_name
         if not normalized.get("name"):
-            name_value = self._first_claim_value(normalized, self._authentik_name_claims())
+            name_value = self._first_claim_value(
+                normalized, self._authentik_name_claims()
+            )
             if name_value:
                 normalized["name"] = name_value
         if not normalized.get("name") and normalized.get("login"):
@@ -198,11 +228,15 @@ class ResUsers(models.Model):
 
         target_group_ids = set(matching_mappings.mapped("odoo_groups").ids)
         base_user_group = self.env.ref("base.group_user", raise_if_not_found=False)
-        base_user_group = base_user_group.exists() if base_user_group else self.env["res.groups"]
+        base_user_group = (
+            base_user_group.exists() if base_user_group else self.env["res.groups"]
+        )
         if base_user_group:
             target_group_ids.add(base_user_group.id)
         else:
-            _logger.warning("Authentik group mapping skipped; base user group not found.")
+            _logger.warning(
+                "Authentik group mapping skipped; base user group not found."
+            )
             return
 
         managed_group_ids = set(mappings.mapped("odoo_groups").ids)
@@ -220,7 +254,11 @@ class ResUsers(models.Model):
         params: dict[str, str],
     ) -> str | None:
         provider_record = self.env["auth.oauth.provider"].sudo().browse(provider)
-        if provider_record and provider_record.exists() and provider_record.name == self._authentik_provider_name():
+        if (
+            provider_record
+            and provider_record.exists()
+            and provider_record.name == self._authentik_provider_name()
+        ):
             normalized_validation = self._normalize_authentik_validation(validation)
         else:
             normalized_validation = validation
@@ -251,12 +289,18 @@ class ResUsers(models.Model):
                 return None
             state = json.loads(params["state"])
             token = state.get("t")
-            values = self._generate_signup_values(provider, normalized_validation, params)
+            values = self._generate_signup_values(
+                provider, normalized_validation, params
+            )
             try:
-                login, _ = self.with_context(oauth_use_internal_template=True).signup(values, token)
+                login, _ = self.with_context(oauth_use_internal_template=True).signup(
+                    values, token
+                )
                 created_user = self.search([("login", "=", login)], limit=1)
                 if created_user:
-                    self._sync_authentik_groups(created_user, normalized_validation, provider)
+                    self._sync_authentik_groups(
+                        created_user, normalized_validation, provider
+                    )
                 return login
             except (SignupError, UserError) as error:
                 _logger.warning(

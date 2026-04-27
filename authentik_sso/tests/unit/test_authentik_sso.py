@@ -1,29 +1,13 @@
-import os
-from collections.abc import Iterator
-from contextlib import contextmanager
-
 from ..common_imports import common
 from ..fixtures.base import UnitTestCase
 
 
-@contextmanager
-def _set_env(key: str, value: str | None) -> Iterator[None]:
-    previous = os.environ.get(key)
-    if value is None:
-        os.environ.pop(key, None)
-    else:
-        os.environ[key] = value
-    try:
-        yield
-    finally:
-        if previous is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = previous
-
-
 @common.tagged(*common.UNIT_TAGS)
 class TestAuthentikSso(UnitTestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.ConfigParameter = self.env["ir.config_parameter"].sudo()
+
     def test_normalize_authentik_validation_defaults(self) -> None:
         payload = {"sub": "user-1", "email": "user@example.com"}
 
@@ -37,21 +21,55 @@ class TestAuthentikSso(UnitTestCase):
     def test_normalize_authentik_validation_empty_claim_overrides(self) -> None:
         payload = {"sub": "user-2", "email": "user2@example.com"}
 
-        with _set_env("ENV_OVERRIDE_AUTHENTIK__USER_ID_CLAIMS", " "):
-            with _set_env("ENV_OVERRIDE_AUTHENTIK__LOGIN_CLAIMS", " "):
-                normalized = self.Users._normalize_authentik_validation(payload)
+        self.ConfigParameter.set_param("authentik_sso.user_id_claims", " ")
+        self.ConfigParameter.set_param("authentik_sso.login_claims", " ")
+        normalized = self.Users._normalize_authentik_validation(payload)
 
         self.assertEqual(normalized.get("user_id"), "user-2")
         self.assertEqual(normalized.get("login"), "user2@example.com")
         self.assertEqual(normalized.get("email"), "user2@example.com")
 
     def test_extract_authentik_groups(self) -> None:
-        payload = {"groups": ["Admins", " Users ", ""]}
+        payload = {"roles": ["Admins", " Users ", ""]}
 
-        with _set_env("ENV_OVERRIDE_AUTHENTIK__GROUP_CLAIM", "groups"):
-            groups = self.Users._extract_authentik_groups(payload)
+        self.ConfigParameter.set_param("authentik_sso.group_claim", "roles")
+        groups = self.Users._extract_authentik_groups(payload)
 
         self.assertEqual(groups, {"Admins", "Users"})
+
+    def test_apply_from_values_stores_runtime_settings(self) -> None:
+        self.env["authentik.sso.config"].apply_from_values(
+            {
+                "admin_group": "Odoo Admins",
+                "group_claim": "roles",
+                "login_claims": "preferred_username,email",
+                "name_claims": "display_name,email",
+                "provider_name": "Internal SSO",
+                "user_id_claims": "sub,email",
+            }
+        )
+
+        self.assertEqual(
+            self.ConfigParameter.get_param("authentik_sso.admin_group"), "Odoo Admins"
+        )
+        self.assertEqual(
+            self.ConfigParameter.get_param("authentik_sso.group_claim"), "roles"
+        )
+        self.assertEqual(
+            self.ConfigParameter.get_param("authentik_sso.login_claims"),
+            "preferred_username,email",
+        )
+        self.assertEqual(
+            self.ConfigParameter.get_param("authentik_sso.name_claims"),
+            "display_name,email",
+        )
+        self.assertEqual(
+            self.ConfigParameter.get_param("authentik_sso.provider_name"),
+            "Internal SSO",
+        )
+        self.assertEqual(
+            self.ConfigParameter.get_param("authentik_sso.user_id_claims"), "sub,email"
+        )
 
     def test_apply_from_values_creates_provider(self) -> None:
         self.env["authentik.sso.config"].apply_from_values(
@@ -62,11 +80,18 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
 
-        provider = self.env["auth.oauth.provider"].search([("name", "=", "Authentik")], limit=1)
+        provider = self.env["auth.oauth.provider"].search(
+            [("name", "=", "Authentik")], limit=1
+        )
         self.assertTrue(provider)
         self.assertEqual(provider.client_id, "client-123")
-        self.assertEqual(provider.auth_endpoint, "https://auth.example.com/application/o/authorize/")
-        self.assertEqual(provider.validation_endpoint, "https://auth.example.com/application/o/userinfo/")
+        self.assertEqual(
+            provider.auth_endpoint, "https://auth.example.com/application/o/authorize/"
+        )
+        self.assertEqual(
+            provider.validation_endpoint,
+            "https://auth.example.com/application/o/userinfo/",
+        )
         self.assertTrue(provider.enabled)
 
     def test_sync_authentik_groups_applies_mapping(self) -> None:
@@ -105,7 +130,9 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
 
-        self.Users._sync_authentik_groups(user, {"groups": ["Engineering"]}, provider.id)
+        self.Users._sync_authentik_groups(
+            user, {"groups": ["Engineering"]}, provider.id
+        )
 
         self.assertIn(user, engineering_group.user_ids)
         self.assertTrue(user.has_group("base.group_user"))
@@ -121,7 +148,9 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
         fallback_group = self.env["res.groups"].create({"name": "Fallback Team"})
-        fallback_mapping = self.AuthentikMapping.search([("is_fallback", "=", True)], limit=1)
+        fallback_mapping = self.AuthentikMapping.search(
+            [("is_fallback", "=", True)], limit=1
+        )
         if not fallback_mapping:
             fallback_mapping = self.AuthentikMapping.create({"is_fallback": True})
         fallback_mapping.write({"odoo_groups": [(4, fallback_group.id)]})
@@ -154,13 +183,19 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
 
-        with self.assertLogs("odoo.addons.authentik_sso.models.res_users", level="WARNING") as log_capture:
-            self.Users._sync_authentik_groups(user, {"groups": ["Engineering"]}, provider.id)
+        with self.assertLogs(
+            "odoo.addons.authentik_sso.models.res_users", level="WARNING"
+        ) as log_capture:
+            self.Users._sync_authentik_groups(
+                user, {"groups": ["Engineering"]}, provider.id
+            )
 
         warning_messages = " ".join(log_capture.output)
         self.assertIn("no mappings configured", warning_messages)
 
-    def test_ensure_default_mappings_does_not_override_custom_admin_mapping(self) -> None:
+    def test_ensure_default_mappings_does_not_override_custom_admin_mapping(
+        self,
+    ) -> None:
         admin_user = self.env.ref("base.user_admin")
         system_group = self.env.ref("base.group_system")
         mapping = self.env.ref("authentik_sso.authentik_group_mapping_admins")

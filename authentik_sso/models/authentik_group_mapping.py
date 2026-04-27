@@ -1,13 +1,11 @@
 import logging
-import os
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
 
-_logger = logging.getLogger(__name__)
+from .authentik_config import AUTHENTIK_ADMIN_GROUP_PARAM, DEFAULT_ADMIN_GROUP
 
-AUTHENTIK_PREFIX = "ENV_OVERRIDE_AUTHENTIK__"
-DEFAULT_AUTHENTIK_ADMIN_GROUP = "authentik Admins"
+_logger = logging.getLogger(__name__)
 
 
 class AuthentikSsoGroupMapping(models.Model):
@@ -34,25 +32,34 @@ class AuthentikSsoGroupMapping(models.Model):
                 continue
             fallback_count = self.search_count([("is_fallback", "=", True)])
             if fallback_count > 1:
-                raise ValidationError(self.env._("Only one fallback mapping is allowed."))
+                raise ValidationError(
+                    self.env._("Only one fallback mapping is allowed.")
+                )
 
     @api.constrains("authentik_group", "is_fallback")
     def _check_authentik_group(self) -> None:
         for record in self:
             if record.is_fallback:
                 if record.authentik_group:
-                    raise ValidationError(self.env._("Fallback mapping must not set an Authentik group."))
+                    raise ValidationError(
+                        self.env._("Fallback mapping must not set an Authentik group.")
+                    )
                 continue
             if not record.authentik_group:
-                raise ValidationError(self.env._("Authentik group is required unless this is a fallback."))
+                raise ValidationError(
+                    self.env._("Authentik group is required unless this is a fallback.")
+                )
 
     @api.model
     def _resolve_admin_group_name(self) -> str:
-        raw_value = os.environ.get(f"{AUTHENTIK_PREFIX}ADMIN_GROUP")
-        if raw_value is None:
-            return DEFAULT_AUTHENTIK_ADMIN_GROUP
+        raw_value = (
+            self.env["ir.config_parameter"]
+            .sudo()
+            .get_param(AUTHENTIK_ADMIN_GROUP_PARAM)
+            or ""
+        )
         cleaned = raw_value.strip()
-        return cleaned or DEFAULT_AUTHENTIK_ADMIN_GROUP
+        return cleaned or DEFAULT_ADMIN_GROUP
 
     @api.model
     def _default_admin_groups(self) -> list[int]:
@@ -93,11 +100,15 @@ class AuthentikSsoGroupMapping(models.Model):
         fallback_mapping = mapping_model.search([("is_fallback", "=", True)], limit=1)
         if not fallback_mapping:
             base_user_group = self.env.ref("base.group_user", raise_if_not_found=False)
-            base_user_group = base_user_group.exists() if base_user_group else self.env["res.groups"]
+            base_user_group = (
+                base_user_group.exists() if base_user_group else self.env["res.groups"]
+            )
             mapping_model.create(
                 {
                     "is_fallback": True,
-                    "odoo_groups": [(6, 0, [base_user_group.id])] if base_user_group else [],
+                    "odoo_groups": [(6, 0, [base_user_group.id])]
+                    if base_user_group
+                    else [],
                     "sequence": 10,
                 }
             )
@@ -120,9 +131,13 @@ class AuthentikSsoGroupMapping(models.Model):
                 }
             )
 
-        default_record = self.env.ref("authentik_sso.authentik_group_mapping_admins", raise_if_not_found=False)
+        default_record = self.env.ref(
+            "authentik_sso.authentik_group_mapping_admins", raise_if_not_found=False
+        )
         default_record = (
-            default_record.exists() if default_record else self.env["authentik.sso.group.mapping"]
+            default_record.exists()
+            if default_record
+            else self.env["authentik.sso.group.mapping"]
         )
         system_group = self.env.ref("base.group_system", raise_if_not_found=False)
         system_group = system_group.exists() if system_group else self.env["res.groups"]
@@ -139,4 +154,7 @@ class AuthentikSsoGroupMapping(models.Model):
             return
 
         admin_mapping.write({"odoo_groups": [(6, 0, admin_group_ids)]})
-        _logger.info("Initialized Authentik admin group mapping with %d groups.", len(admin_group_ids))
+        _logger.info(
+            "Initialized Authentik admin group mapping with %d groups.",
+            len(admin_group_ids),
+        )

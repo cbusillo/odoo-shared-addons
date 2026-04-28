@@ -1,5 +1,4 @@
 import logging
-import os
 from collections.abc import Mapping
 
 from odoo import models
@@ -7,7 +6,6 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
 
-AUTHENTIK_PREFIX = "ENV_OVERRIDE_AUTHENTIK__"
 AUTHENTIK_ADMIN_GROUP_PARAM = "authentik_sso.admin_group"
 AUTHENTIK_GROUP_CLAIM_PARAM = "authentik_sso.group_claim"
 AUTHENTIK_LOGIN_CLAIMS_PARAM = "authentik_sso.login_claims"
@@ -51,26 +49,10 @@ class AuthentikSsoConfig(models.AbstractModel):
     _name = "authentik.sso.config"
     _description = "Authentik SSO configuration"
 
-    def apply_from_env(self) -> None:
-        self.apply_from_values(self._values_from_env())
-
     def apply_from_values(self, overrides: Mapping[str, str | None]) -> None:
         self._apply_runtime_settings(overrides)
         self._disable_oauth_providers(overrides)
         self._apply_authentik_provider(overrides)
-
-    @staticmethod
-    def _values_from_env() -> dict[str, str]:
-        overrides: dict[str, str] = {}
-        prefix_length = len(AUTHENTIK_PREFIX)
-        for raw_key, raw_value in os.environ.items():
-            if not raw_key.startswith(AUTHENTIK_PREFIX):
-                continue
-            suffix = raw_key[prefix_length:].strip().lower()
-            if not suffix:
-                continue
-            overrides[suffix] = raw_value
-        return overrides
 
     def _apply_runtime_settings(self, overrides: Mapping[str, str | None]) -> None:
         parameter_model = self.env["ir.config_parameter"].sudo()

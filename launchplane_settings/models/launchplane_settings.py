@@ -166,12 +166,9 @@ class LaunchplaneSettings(models.AbstractModel):
         if authentik_config_model is None:
             return
 
-        apply_from_env = getattr(authentik_config_model.sudo(), "apply_from_env", None)
         apply_from_values = getattr(authentik_config_model.sudo(), "apply_from_values", None)
         if callable(apply_from_values):
             apply_from_values(payload_overrides)
-        elif callable(apply_from_env):
-            apply_from_env()
 
         group_mapping_model = self.env.get(AUTHENTIK_GROUP_MAPPING_MODEL)
         if group_mapping_model is None:

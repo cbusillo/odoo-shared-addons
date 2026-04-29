@@ -1,5 +1,40 @@
 {
   "defaultBranch": "main",
+  "projectType": "odoo-shared-addon-collection",
+  "docs": {
+    "index": "README.md",
+    "addonGuides": [
+      "environment_banner/AGENTS.md",
+      "environment_banner/README.md",
+      "transaction_utilities/AGENTS.md",
+      "hr_employee_name_extended/AGENTS.md",
+      "hr_employee_name_extended/README.md",
+      "discuss_record_links/AGENTS.md",
+      "external_ids/AGENTS.md"
+    ]
+  },
+  "qualityGate": {
+    "test": {
+      "addonOdoo": "odoo-bin --test-enable --stop-after-init -i <addon>",
+      "validatedThrough": ["odoo-tenant-cm", "odoo-tenant-opw"]
+    },
+    "inspection": {
+      "tool": "jetbrains",
+      "ide": "PyCharm",
+      "scopePreference": ["changed_files", "directory", "whole_project"]
+    },
+    "docsRequiredWhen": [
+      "behavior changes",
+      "api changes",
+      "config changes",
+      "operations changes",
+      "ownership boundaries change",
+      "addon behavior changes",
+      "addon dependency changes",
+      "security/access-rule changes",
+      "tenant validation routing changes"
+    ]
+  },
   "importantWorkflows": [],
   "qaLabels": [],
   "deployLabels": [],
@@ -11,8 +46,41 @@
     "launchplane"
   ],
   "validatedThrough": ["odoo-tenant-cm", "odoo-tenant-opw"],
+  "githubSignals": {
+    "postMerge": {
+      "waitForActions": true,
+      "checkSecurityAndQuality": true
+    },
+    "capabilities": {
+      "codeScanning": "available",
+      "secretScanning": "available",
+      "dependabotAlerts": "available",
+      "securityAdvisories": "available"
+    },
+    "refreshWhen": [
+      "repo visibility changes",
+      "GitHub plan changes",
+      "security settings change",
+      "token permissions change"
+    ]
+  },
   "cleanup": {
     "deleteMergedLocalBranches": true,
     "removeMergedCleanWorktrees": true
+  },
+  "metadataFreshness": {
+    "updateWhen": [
+      "docs routing changes",
+      "validation gates change",
+      "primary commands change",
+      "important workflows change",
+      "repo relationship changes",
+      "validated-through repos change",
+      "cleanup policy changes",
+      "ownership boundaries change",
+      "addon list changes",
+      "addon dependency changes",
+      "tenant validation routing changes"
+    ]
   }
 }

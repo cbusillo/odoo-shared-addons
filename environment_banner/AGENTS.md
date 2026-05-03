@@ -14,7 +14,10 @@ Shared backend banner for non-production environments.
 - `environment_banner.enabled` (default True)
 - `environment_banner.production_hostnames` (comma or whitespace-separated hostnames)
 
-## References
+## Implementation Notes
 
-- @docs/policies/coding-standards.md
-- @docs/style/javascript.md
+- Keep banner behavior tenant-neutral; do not encode client-specific hostname
+  policy beyond the configurable production hostname list.
+- Keep JavaScript small and Odoo-service oriented, with browser validation
+  routed through the assembled workspace or tenant environment when behavior
+  depends on the web client.

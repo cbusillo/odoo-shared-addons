@@ -14,6 +14,9 @@ Testing
 - Unit: resolving IDs to records and back.
 - Security: ensure non‑admins can’t unlink core data.
 
-References
+Implementation Notes
 
-- @docs/odoo/security.md, @docs/workflows/debugging.md
+- Keep inspection surfaces read-only unless an operation is explicitly gated by
+  the right Odoo group and covered by security tests.
+- Debugging guidance should stay addon-specific here; workspace runtime tooling
+  and assembled-environment workflows belong in `odoo-devkit` or tenant repos.

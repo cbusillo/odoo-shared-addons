@@ -13,6 +13,9 @@ Testing
 - Unit: link generation; access rules respected.
 - Tour: open a record from Discuss and verify view loads.
 
-References
+Implementation Notes
 
-- @docs/odoo/security.md, @docs/style/browser-automation.md
+- Respect Odoo access rules when generating record links; non-admin users must
+  not receive shortcuts to records they cannot read.
+- Validate browser or tour behavior through an assembled workspace or tenant
+  environment when Discuss web-client behavior is involved.

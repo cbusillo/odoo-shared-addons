@@ -3,6 +3,9 @@
   "projectType": "odoo-shared-addon-collection",
   "docs": {
     "index": "README.md",
+    "routingNotes": [
+      "This repo does not own a local @docs tree; addon AGENTS guidance must stay local or explicitly name the owning external workspace."
+    ],
     "addonGuides": [
       "environment_banner/AGENTS.md",
       "environment_banner/README.md",

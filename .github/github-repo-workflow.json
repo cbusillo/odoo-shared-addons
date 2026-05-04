@@ -7,13 +7,17 @@
       "This repo does not own a local @docs tree; addon AGENTS guidance must stay local or explicitly name the owning external workspace."
     ],
     "addonGuides": [
+      "authentik_sso/AGENTS.md",
+      "discuss_record_links/AGENTS.md",
       "environment_banner/AGENTS.md",
       "environment_banner/README.md",
-      "transaction_utilities/AGENTS.md",
+      "external_ids/AGENTS.md",
       "hr_employee_name_extended/AGENTS.md",
       "hr_employee_name_extended/README.md",
-      "discuss_record_links/AGENTS.md",
-      "external_ids/AGENTS.md"
+      "launchplane_settings/AGENTS.md",
+      "notification_permission_patch/AGENTS.md",
+      "test_support/AGENTS.md",
+      "transaction_utilities/AGENTS.md"
     ]
   },
   "qualityGate": {

@@ -14,6 +14,15 @@ Treat this repo as the canonical home for reusable cross-client addon code.
 - Promote tenant logic here only when it is genuinely reusable across tenants.
 - Keep addon-level docs and tests close to the addon they describe.
 
+## Docs Routing
+
+- This repo does not own a local `@docs` tree. Do not point addon guidance at
+  `@docs/...` paths unless the owning workspace explicitly provides that alias.
+- Keep reusable addon guidance in the addon guide itself, or name the owning
+  repo/workspace when the authoritative docs live outside this repo.
+- Validation that depends on assembled tenants, browser tours, or runtime
+  tooling should route through the relevant workspace or tenant repo.
+
 ## Do Not Do Here
 
 - Do not add tenant-specific wrappers, menus, or rollout notes.

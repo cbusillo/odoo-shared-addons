@@ -22,13 +22,16 @@
   },
   "qualityGate": {
     "test": {
-      "addonOdoo": "odoo-bin --test-enable --stop-after-init -i <addon>",
-      "validatedThrough": ["odoo-tenant-cm", "odoo-tenant-opw"]
+      "addonOdoo": "odoo-bin --test-enable --stop-after-init -i <addon>"
     },
     "inspection": {
       "tool": "jetbrains",
       "ide": "PyCharm",
-      "scopePreference": ["changed_files", "directory", "whole_project"]
+      "scopePreference": [
+        "changed_files",
+        "directory",
+        "whole_project"
+      ]
     },
     "docsRequiredWhen": [
       "behavior changes",
@@ -52,7 +55,6 @@
     "odoo-tenant-opw",
     "launchplane"
   ],
-  "validatedThrough": ["odoo-tenant-cm", "odoo-tenant-opw"],
   "githubSignals": {
     "postMerge": {
       "waitForActions": true,
@@ -82,7 +84,6 @@
       "primary commands change",
       "important workflows change",
       "repo relationship changes",
-      "validated-through repos change",
       "cleanup policy changes",
       "ownership boundaries change",
       "addon list changes",

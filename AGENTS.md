@@ -33,7 +33,7 @@ Treat this repo as the canonical home for reusable cross-client addon code.
 ## Related Repos
 
 - Keep non-secret workflow facts and validation routing in
-  [`.github/github-repo-workflow.json`](.github/github-repo-workflow.json).
+  [`.github/github.json`](.github/github.json).
 - `odoo-devkit` owns workspace assembly and local runtime tooling.
 - `launchplane` owns canonical runtime env truth, release tuples, and
   promotion/deploy orchestration.

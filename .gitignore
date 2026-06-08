@@ -44,3 +44,4 @@ htmlcov/
 *.egg-info/
 odoo.*.cfg
 odoo.*.conf
+/handoff*.md

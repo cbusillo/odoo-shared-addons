@@ -48,7 +48,6 @@
   "importantWorkflows": [],
   "qaLabels": [],
   "deployLabels": [],
-  "healthUrls": [],
   "relatedRepos": [
     "odoo-devkit",
     "odoo-tenant-cm",

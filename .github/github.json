@@ -45,7 +45,8 @@
       "tenant validation routing changes"
     ]
   },
-  "importantWorkflows": [],
+  "importantWorkflows": ["CodeQL"],
+  "requiredStatusChecks": ["Analyze (python)", "Analyze (javascript-typescript)"],
   "qaLabels": [],
   "deployLabels": [],
   "relatedRepos": [

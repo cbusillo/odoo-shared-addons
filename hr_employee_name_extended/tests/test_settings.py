@@ -22,7 +22,7 @@ class TestNameSettings(common.TransactionCase):
         fmt = (self.ICP.get_param("user_name_extended.format") or "").strip()
         self.assertEqual(fmt, "asian")
 
-        emp.invalidate_recordset(["name"])  # recompute under new format
+        self.Employee._action_recompute_names()
         self.assertEqual(emp.name, "Zhang Wei")
 
     def test_settings_custom_pattern_applies(self) -> None:
@@ -41,5 +41,5 @@ class TestNameSettings(common.TransactionCase):
         self.assertEqual(fmt, "custom")
         self.assertIn("{last_name}", pat)
 
-        emp.invalidate_recordset(["name"])  # recompute with custom pattern
+        self.Employee._action_recompute_names()
         self.assertEqual(emp.name, "Johnson, Robert (Bob)")

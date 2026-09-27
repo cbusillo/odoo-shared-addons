@@ -21,15 +21,12 @@ class HrEmployee(models.Model):
         help="Optional per-employee override for name order.",
     )
 
-    name = fields.Char(
-        compute="_compute_name",
-        inverse="_inverse_name",
-        store=True,
-        readonly=False,
-        index=True,
-    )
+    # Odoo 19 keeps ``name`` related to ``resource_id.name``. A related field
+    # ignores ``compute``/``inverse`` overrides, so create() and write() keep
+    # ``name`` and the name parts in step instead.
+    name = fields.Char(index=True)
 
-    # Use name_get instead of storing a custom display name
+    _NAME_PART_FIELDS = frozenset({"first_name", "last_name", "nick_name", "name_format"})
 
     @api.model_create_multi
     def create(self, vals_list: "list[odoo.values.hr_employee]") -> "odoo.model.hr_employee":
@@ -40,6 +37,11 @@ class HrEmployee(models.Model):
                 raise ValidationError(_("At least one of First Name or Last Name is required."))
             if not vals.get("nick_name"):
                 vals["nick_name"] = first or last
+            # Odoo 19 hr.employee reads vals["name"] to create the resource.
+            if not vals.get("name"):
+                vals["name"] = NameFormatter.compose_legal_name(
+                    self.env, first, last, vals.get("nick_name"), fmt_override=vals.get("name_format") or None
+                )
         recs = super().create(vals_list)
         return recs
 
@@ -56,14 +58,24 @@ class HrEmployee(models.Model):
         if "nick_name" in vals and not (vals["nick_name"] or "").strip() and "first_name" not in vals:
             vals = dict(vals)
             vals["nick_name"] = self.first_name
-        return super().write(vals)
+        if "name" in vals and self.env.context.get("keep_employee_name") and not self._NAME_PART_FIELDS.intersection(vals):
+            vals = {key: value for key, value in vals.items() if key != "name"}
+        result = super().write(vals)
+        if self._NAME_PART_FIELDS.intersection(vals):
+            self._sync_name_from_parts()
+        elif vals.get("name"):
+            self._sync_parts_from_name()
+        return result
 
-    @api.depends("first_name", "last_name", "name_format")
-    def _compute_name(self) -> None:
+    def _sync_name_from_parts(self) -> None:
         for rec in self:
-            rec.name = NameFormatter.compose_legal_name(rec.env, rec.first_name or "", rec.last_name or "", rec.name_format or None)
+            name = NameFormatter.compose_legal_name(
+                rec.env, rec.first_name or "", rec.last_name or "", rec.nick_name, fmt_override=rec.name_format or None
+            )
+            if name and name != rec.name:
+                super(HrEmployee, rec).write({"name": name})
 
-    def _inverse_name(self) -> None:
+    def _sync_parts_from_name(self) -> None:
         for rec in self:
             if not rec.name:
                 continue
@@ -80,20 +92,16 @@ class HrEmployee(models.Model):
             if vals:
                 rec.with_context(skip_name_propagation=True).write(vals)
 
-    def name_get(self):  # type: ignore[override]
-        res = []
+    @api.depends("nick_name", "first_name")
+    def _compute_display_name(self) -> None:
+        super()._compute_display_name()
+        if not self.browse().has_access("read"):
+            return
         for rec in self:
             nick = (rec.nick_name or "").strip()
             first = (rec.first_name or "").strip()
-            if nick and nick != first:
-                base = rec.name or NameFormatter.compose_legal_name(
-                    rec.env, rec.first_name or "", rec.last_name or "", rec.name_format or None
-                )
-                name = f"{nick} ({base})"
-            else:
-                name = rec.name or ""
-            res.append((rec.id, name))
-        return res
+            if nick and nick != first and rec.name:
+                rec.display_name = f"{nick} ({rec.name})"
 
     @api.constrains("first_name", "last_name", "nick_name")
     def _check_name_parts(self) -> None:
@@ -123,8 +131,5 @@ class HrEmployee(models.Model):
             batch = self.search([("id", ">", last_id)], order="id", limit=limit)
             if not batch:
                 break
-            # Invalidate and force recompute of stored name
-            batch.invalidate_recordset(["name"])  # type: ignore[arg-type]
-            # Force compute by reading
-            batch.mapped("name")
+            batch._sync_name_from_parts()
             last_id = batch[-1].id

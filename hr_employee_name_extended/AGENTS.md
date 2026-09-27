@@ -9,8 +9,9 @@ Key Models/Fields
 
 - `hr.employee` adds: `first_name`, `last_name`, `nick_name`, and
   `name_format` (selection: western|asian|custom).
-- `name`: stored compute + inverse; composes from parts; inverse parses back to
-  parts.
+- `name`: Odoo 19 keeps it related to `resource_id.name`, which ignores
+  compute/inverse overrides. `create()` and `write()` compose it from the parts,
+  and a write of `name` alone parses back to parts.
 
 Settings
 

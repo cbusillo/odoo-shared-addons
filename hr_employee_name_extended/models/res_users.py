@@ -6,7 +6,12 @@ class ResUsers(models.Model):
     _inherit = ["res.users", "hr.name.sync.mixin"]
 
     def write(self, vals: "odoo.values.res_users") -> bool:
-        res = super().write(vals)
+        users = self
+        if "name" in vals and not self.env.context.get("allow_employee_sync"):
+            # Odoo's hr module copies a user's new name onto the employee; keep
+            # the employee's name parts unless the caller opts in.
+            users = self.with_context(keep_employee_name=True)
+        res = super(ResUsers, users).write(vals)
         if "name" in vals and self.env.context.get("allow_employee_sync") and not self.env.context.get("skip_employee_sync"):
             self._sync_name_to_employees(vals["name"])
         return res

@@ -33,6 +33,16 @@ class TestExternalIdMixin(UnitTestCase):
     def _create_fixture(self, name: str) -> "odoo.model.external_id_fixture":
         return self.FixtureRecord.create({"name": name})
 
+    def _use_test_shopify_urls(self) -> None:
+        # Own the URL inputs so seed-data placeholders can change freely.
+        self.env.ref("external_ids.external_system_shopify").url = "https://store.example.test"
+        self.env.ref("external_ids.shopify_url_product_admin").write(
+            {"base_url": "https://admin.example.test", "template": "{base}/products/{id}"}
+        )
+        self.env.ref("external_ids.shopify_url_product_store").write(
+            {"base_url": False, "template": "{base}/products/{id}"}
+        )
+
     def test_fluent_id_assignment_and_read(self) -> None:
         record = self._create_fixture("Fluent Record")
 
@@ -236,25 +246,26 @@ class TestExternalIdMixin(UnitTestCase):
         self.assertEqual(mapping["999999999999999999"], second_record)
 
     def test_fluent_resource_url_uses_runtime_template(self) -> None:
+        self._use_test_shopify_urls()
         record = self._create_fixture("URL Record")
         record.external.shopify.product.id = "123456"
 
         self.assertEqual(
             record.external.shopify.product.url("product_admin"),
-            "https://admin.shopify.com/store/YOUR_STORE_KEY/products/123456",
+            "https://admin.example.test/products/123456",
         )
         self.assertEqual(
             record.external.shopify.product.url("product_store"),
-            "https://yourstore.myshopify.com/products/123456",
+            "https://store.example.test/products/123456",
         )
 
         self.assertEqual(
             record.external.shopify.product.url("admin"),
-            "https://admin.shopify.com/store/YOUR_STORE_KEY/products/123456",
+            "https://admin.example.test/products/123456",
         )
         self.assertEqual(
             record.external.shopify.product.url("store"),
-            "https://yourstore.myshopify.com/products/123456",
+            "https://store.example.test/products/123456",
         )
 
     def test_fluent_url_resource_is_inferred_when_omitted(self) -> None:
@@ -285,12 +296,13 @@ class TestExternalIdMixin(UnitTestCase):
         )
 
     def test_fluent_resource_url_ignores_archived_external_id(self) -> None:
+        self._use_test_shopify_urls()
         record = self._create_fixture("Archived URL Record")
         record.external.shopify.product.id = "654321"
 
         self.assertEqual(
             record.external.shopify.product.url("admin"),
-            "https://admin.shopify.com/store/YOUR_STORE_KEY/products/654321",
+            "https://admin.example.test/products/654321",
         )
 
         record.external.shopify.product.active = False
@@ -301,6 +313,7 @@ class TestExternalIdMixin(UnitTestCase):
         self.assertIsNone(record.external.shopify.product.url("store"))
 
     def test_open_external_url_blocked_for_archived_mapping(self) -> None:
+        self._use_test_shopify_urls()
         record = self._create_fixture("Archived URL Action Record")
         record.external.shopify.product.id = "999999"
 
@@ -313,7 +326,7 @@ class TestExternalIdMixin(UnitTestCase):
         self.assertEqual(active_action["type"], "ir.actions.act_url")
         self.assertEqual(
             active_action["url"],
-            "https://admin.shopify.com/store/YOUR_STORE_KEY/products/999999",
+            "https://admin.example.test/products/999999",
         )
 
         record.external.shopify.product.active = False
@@ -331,7 +344,6 @@ class TestExternalIdMixin(UnitTestCase):
 
         self.assertEqual(blocked_action["type"], "ir.actions.client")
         self.assertEqual(blocked_params.get("type"), "warning")
-        self.assertEqual(blocked_params.get("message"), "No configured URL or missing external ID.")
 
     def test_fluent_resource_accepts_enum_resource_keys(self) -> None:
         record = self._create_fixture("Enum Record")

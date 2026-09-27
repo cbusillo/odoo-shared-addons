@@ -56,7 +56,7 @@ class TestCronBudgetMixin(UnitTestCase):
             with self.assertRaises(cron_budget_mixin.CronRuntimeBudgetExceeded) as raised_error:
                 model_with_deadline._raise_if_cron_runtime_budget_exhausted(job_name="Sample Import")
 
-        self.assertEqual(str(raised_error.exception), "Sample Import: paused after reaching runtime budget (90s)")
+        self.assertIn("Sample Import", str(raised_error.exception))
 
     def test_compute_cron_runtime_budget_seconds_respects_safety_margin(self) -> None:
         runtime_budget = self.cron_budget_model._compute_cron_runtime_budget_seconds(

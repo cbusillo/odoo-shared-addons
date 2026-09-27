@@ -23,6 +23,21 @@ Treat this repo as the canonical home for reusable cross-client addon code.
 - Validation that depends on assembled tenants, browser tours, or runtime
   tooling should route through the relevant workspace or tenant repo.
 
+## Tests
+
+- A test must fail when the product is broken and pass when someone makes an
+  intended change.
+- Do not assert a literal defined elsewhere: versions, build numbers,
+  toolchain pins, hashes, seed-data placeholders, or user-facing message
+  wording. Give the test its own inputs, or compare against the one source of
+  truth.
+- Do not assert workflow or config text. Enforce that rule where it runs.
+- Verification code must not depend on the state of the working tree.
+- Keep byte-exact and hash checks for real artifacts and immutable evidence.
+- Odoo runs only the `test_*` modules that `tests/__init__.py` exposes. Wire a
+  new test module through `expose_subdirectory_tests` or an explicit import, and
+  confirm that the run log counts it.
+
 ## Do Not Do Here
 
 - Do not add tenant-specific wrappers, menus, or rollout notes.

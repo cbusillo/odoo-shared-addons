@@ -18,6 +18,13 @@ class TestEmployeeName(common.TransactionCase):
         self.assertEqual(emp.name, "John Doe")
         self.assertEqual(emp.display_name, "John Doe")
 
+    def test_part_write_updates_name_and_resource(self) -> None:
+        emp = self.Employee.create({"first_name": "John", "last_name": "Doe"})
+        self.assertEqual(emp.resource_id.name, emp.name)
+        emp.write({"first_name": "Jack"})
+        self.assertEqual(emp.name, "Jack Doe")
+        self.assertEqual(emp.resource_id.name, "Jack Doe")
+
     def test_display_with_nickname(self) -> None:
         emp = self.Employee.create({"first_name": "William", "last_name": "Gates", "nick_name": "Bill"})
         self.assertEqual(emp.display_name, "Bill (William Gates)")

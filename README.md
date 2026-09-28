@@ -25,5 +25,5 @@ Addon Inventory
   settings inside Odoo.
 - `notification_permission_patch`: browser notification permission observer for
   the Odoo web client.
-- `test_support`: shared fixtures, test helpers, and recorded tour support.
+- `test_support`: shared fixtures, test helpers, and base test cases.
 - `transaction_utilities`: transaction and cron runtime-budget helpers.

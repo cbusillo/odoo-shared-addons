@@ -95,3 +95,12 @@ class TestEmployeeName(common.TransactionCase):
     def test_user_created_with_employee(self) -> None:
         user = self.env["res.users"].create({"name": "Sam Roe", "login": "sam.roe@example.com", "create_employee": True})
         self.assertEqual((user.employee_ids.first_name, user.employee_ids.last_name), ("Sam", "Roe"))
+
+    def test_bulk_part_write_recomposes_each_name(self) -> None:
+        employees = self.Employee.create([{"first_name": f"First{i}", "last_name": f"Last{i}"} for i in range(64)])
+
+        employees.write({"last_name": "Bulk"})
+
+        for index, employee in enumerate(employees):
+            self.assertEqual(employee.name, f"First{index} Bulk")
+            self.assertEqual(employee.resource_id.name, f"First{index} Bulk")

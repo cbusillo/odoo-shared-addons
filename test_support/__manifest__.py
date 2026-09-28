@@ -1,7 +1,7 @@
 {
     "name": "Test Support",
     "version": "19.0.1.0.0",
-    "summary": "Shared test fixtures, helpers, and recorded web tour support",
+    "summary": "Shared test fixtures, helpers, and base test cases",
     "author": "Chris Busillo (Shiny Computers)",
     "maintainers": ["cbusillo"],
     "depends": [

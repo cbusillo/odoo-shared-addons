@@ -25,3 +25,6 @@ Implementation Notes
   values that arrive in the Odoo process.
 - Fail loudly for invalid override payloads, but keep absent optional addon
   adapters as no-ops so this addon stays reusable.
+- Outside `PLATFORM_INSTANCE=prod`, clear Shopify credentials whenever no
+  explicit Shopify `apply` or `clear` arrives, including when there is no
+  payload at all. An empty or unknown instance counts as non-production.

@@ -11,6 +11,8 @@ from odoo.exceptions import ValidationError
 _logger = logging.getLogger(__name__)
 
 ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY = "ODOO_INSTANCE_OVERRIDES_PAYLOAD_B64"
+PLATFORM_INSTANCE_ENV_KEY = "PLATFORM_INSTANCE"
+PRODUCTION_PLATFORM_INSTANCE = "prod"
 SHOPIFY_ACTION_SETTING = "action"
 SHOPIFY_ACTION_APPLY = "apply"
 SHOPIFY_ACTION_CLEAR = "clear"
@@ -46,6 +48,12 @@ def _normalize_scalar_override_value(raw_value: object) -> str:
     if isinstance(raw_value, bool):
         return "True" if raw_value else "False"
     return _normalize_config_param_value(str(raw_value))
+
+
+def _is_production_instance() -> bool:
+    # An empty or unknown instance name counts as non-production so the Shopify
+    # clear below fails closed.
+    return os.environ.get(PLATFORM_INSTANCE_ENV_KEY, "").strip() == PRODUCTION_PLATFORM_INSTANCE
 
 
 def _load_override_payload() -> Mapping[str, object] | None:
@@ -107,6 +115,7 @@ class LaunchplaneSettings(models.AbstractModel):
     def apply_from_env(self) -> None:
         payload = _load_override_payload()
         if payload is None:
+            self._clear_shopify_config_outside_production(reason="no Launchplane override payload")
             return
         self._apply_config_param_overrides(payload=payload)
         self._apply_authentik_overrides(payload=payload)
@@ -185,6 +194,18 @@ class LaunchplaneSettings(models.AbstractModel):
             return
         if payload_overrides:
             raise ValidationError("Launchplane Shopify settings require an action.")
+        self._clear_shopify_config_outside_production(reason="no Shopify action in the Launchplane payload")
+
+    def _clear_shopify_config_outside_production(self, *, reason: str) -> None:
+        if _is_production_instance():
+            return
+        platform_instance = os.environ.get(PLATFORM_INSTANCE_ENV_KEY, "").strip() or "<unset>"
+        self._clear_shopify_config()
+        _logger.warning(
+            "Cleared Shopify credentials on non-production instance %s: %s.",
+            platform_instance,
+            reason,
+        )
 
     def _apply_shopify_payload_action(self, overrides: Mapping[str, str]) -> None:
         payload_action = overrides.get(SHOPIFY_ACTION_SETTING, "").strip().lower()

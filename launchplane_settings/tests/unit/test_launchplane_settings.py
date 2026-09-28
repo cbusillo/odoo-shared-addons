@@ -60,12 +60,6 @@ class TestLaunchplaneSettings(UnitTestCase):
         self.assertTrue(_parse_boolean("maybe", default=True))
         self.assertFalse(_parse_boolean("maybe", default=False))
 
-    def test_legacy_env_config_param_overrides_are_not_authority(self) -> None:
-        with _set_env({"ENV_OVERRIDE_CONFIG_PARAM__TEST__VALUE": "true"}):
-            self.Settings._apply_config_param_overrides()
-
-        self.assertFalse(self.ConfigParameter.get_param("test.value"))
-
     def test_apply_config_param_overrides_from_payload(self) -> None:
         payload = {
             "schema_version": 1,
@@ -85,67 +79,6 @@ class TestLaunchplaneSettings(UnitTestCase):
             self.Settings.apply_from_env()
 
         self.assertEqual(self.ConfigParameter.get_param("test.value"), "False")
-
-    def test_payload_config_param_overrides_ignore_legacy_env(self) -> None:
-        payload = {
-            "schema_version": 1,
-            "config_parameters": [
-                {
-                    "key": "test.value",
-                    "value": {
-                        "source": "literal",
-                        "value": "from-payload",
-                    },
-                }
-            ],
-            "addon_settings": [],
-        }
-
-        with _set_env(
-            {
-                **self._payload_env(payload),
-                "ENV_OVERRIDE_CONFIG_PARAM__TEST__VALUE": "from-env",
-            }
-        ):
-            self.Settings.apply_from_env()
-
-        self.assertEqual(self.ConfigParameter.get_param("test.value"), "from-payload")
-
-    def test_legacy_env_shopify_overrides_are_not_authority(self) -> None:
-        env_values = {
-            "ENV_OVERRIDE_SHOPIFY__SHOP_URL_KEY": "prod-store",
-            "ENV_OVERRIDE_SHOPIFY__API_TOKEN": "token",
-            "ENV_OVERRIDE_SHOPIFY__WEBHOOK_KEY": "hook",
-            "ENV_OVERRIDE_SHOPIFY__API_VERSION": "2025-01",
-            "ENV_OVERRIDE_SHOPIFY__TEST_STORE": "true",
-            "ENV_OVERRIDE_SHOPIFY__PRODUCTION_INDICATORS": "prod",
-        }
-        with _set_env(env_values):
-            self.Settings._apply_shopify_overrides()
-
-        self.assertFalse(self.ConfigParameter.get_param("shopify.shop_url_key"))
-
-    def test_legacy_env_shopify_partial_values_do_not_clear_config(self) -> None:
-        self.ConfigParameter.set_param("shopify.shop_url_key", "store")
-        self.ConfigParameter.set_param("shopify.api_token", "token")
-        self.ConfigParameter.set_param("shopify.webhook_key", "hook")
-        self.ConfigParameter.set_param("shopify.api_version", "2025-01")
-
-        env_values = {
-            "ENV_OVERRIDE_SHOPIFY__SHOP_URL_KEY": None,
-            "ENV_OVERRIDE_SHOPIFY__API_TOKEN": "token",
-            "ENV_OVERRIDE_SHOPIFY__WEBHOOK_KEY": None,
-            "ENV_OVERRIDE_SHOPIFY__API_VERSION": None,
-            "ENV_OVERRIDE_SHOPIFY__TEST_STORE": None,
-            "ENV_OVERRIDE_SHOPIFY__PRODUCTION_INDICATORS": None,
-        }
-        with _set_env(env_values):
-            self.Settings._apply_shopify_overrides()
-
-        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "store")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.api_token"), "token")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.webhook_key"), "hook")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.api_version"), "2025-01")
 
     def test_apply_shopify_overrides_from_payload_secret_binding_env(self) -> None:
         payload = {

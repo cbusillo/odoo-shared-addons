@@ -5,6 +5,11 @@ import sys
 from collections.abc import Iterable
 
 
+def _raise_import_error(package_name: str) -> None:
+    # ``pkgutil.walk_packages`` calls this while handling the import failure.
+    raise ImportError(f"Failed to import test package {package_name}") from sys.exc_info()[1]
+
+
 def expose_subdirectory_tests(package_name: str, package_path: Iterable[str]) -> set[str]:
     """Expose nested ``test_*`` modules at package level for Odoo discovery."""
     package_logger = logging.getLogger(package_name)
@@ -12,16 +17,14 @@ def expose_subdirectory_tests(package_name: str, package_path: Iterable[str]) ->
     package_prefix = f"{package_name}."
     exported_aliases: set[str] = set()
 
-    for _, module_full_name, _ in pkgutil.walk_packages(package_path, package_prefix):
+    # A test module or package that fails to import must fail the run; skipping
+    # it would silently drop its tests.
+    for _, module_full_name, _ in pkgutil.walk_packages(package_path, package_prefix, onerror=_raise_import_error):
         module_base_name = module_full_name.rsplit(".", 1)[-1]
         if not module_base_name.startswith("test_"):
             continue
 
-        try:
-            imported_module = importlib.import_module(module_full_name)
-        except ImportError as import_error:
-            package_logger.warning("Failed to import test module %s: %s", module_full_name, import_error)
-            continue
+        imported_module = importlib.import_module(module_full_name)
 
         alias_name = module_base_name
         if alias_name in exported_aliases:
@@ -57,11 +60,15 @@ def expose_module_alias(
 
     try:
         imported_module = importlib.import_module(module_full_name)
-    except ImportError as import_error:
+    except ModuleNotFoundError as import_error:
+        # Only an absent module is optional; a module that exists but fails to
+        # import must fail the run.
+        if import_error.name != module_full_name:
+            raise
         if warn_on_missing:
-            package_logger.warning("Failed to import %s: %s", module_full_name, import_error)
+            package_logger.warning("Missing module %s", module_full_name)
         else:
-            package_logger.debug("Skipped optional module %s: %s", module_full_name, import_error)
+            package_logger.debug("Skipped optional module %s", module_full_name)
         return False
 
     setattr(package_module, alias_name, imported_module)

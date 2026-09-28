@@ -2,8 +2,7 @@
 
 Purpose
 
-- Provide shared test fixtures, helpers, base cases, and recorded tour support
-  for reusable addons.
+- Provide shared test fixtures, helpers, and base cases for reusable addons.
 
 Scope
 
@@ -14,8 +13,9 @@ Scope
 Testing
 
 - Keep helper tests close to the helper modules they validate.
-- When changing discovery or recorded-tour helpers, verify both direct unit
-  usage and Odoo test discovery behavior.
+- When changing discovery helpers, verify both direct unit usage and Odoo test
+  discovery behavior. Discovery fails the run when a test module or package
+  cannot be imported; do not turn that back into a warning.
 
 Implementation Notes
 

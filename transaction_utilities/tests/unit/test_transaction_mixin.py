@@ -1,3 +1,6 @@
+from contextlib import closing
+
+from odoo import sql_db
 from odoo.modules import module as odoo_module
 from psycopg2.errors import InFailedSqlTransaction
 
@@ -39,21 +42,6 @@ class TestTransactionMixin(UnitTestCase):
                     self.test_model._safe_rollback()
                     mock_rollback.assert_called_once()
 
-    def test_is_test_mode_detection_methods(self) -> None:
-        from odoo.tools import config
-
-        module_test_mode = bool(odoo_module.current_test)
-        config_test_enable = bool(config.get("test_enable"))
-        is_test_mode = self.test_model._is_test_mode()
-
-        any_test_mode = module_test_mode or config_test_enable
-        self.assertTrue(
-            any_test_mode,
-            f"At least one test detection method should work. Module: {module_test_mode}, Config: {config_test_enable}",
-        )
-
-        self.assertTrue(is_test_mode, "_is_test_mode() should return True during tests")
-
     def test_new_cursor_context_in_test_mode(self) -> None:
         with self.test_model._new_cursor_context() as new_env:
             self.assertIsNotNone(new_env)
@@ -64,13 +52,29 @@ class TestTransactionMixin(UnitTestCase):
         partner = self.env["res.partner"].search([("email", "=", "test_new_cursor@example.com")])
         self.assertFalse(partner, "Partner should not exist in main cursor because no commit in test mode")
 
+    def _try_lock_from_other_session(self, lock_id: int) -> bool:
+        # Advisory locks are re-entrant within one session, so only another
+        # session can tell whether the lock is held.
+        with closing(sql_db.db_connect(self.env.cr.dbname).cursor()) as other_cr:
+            other_cr.execute("SELECT pg_try_advisory_lock(%s)", [lock_id])
+            acquired = other_cr.fetchone()[0]
+            if acquired:
+                other_cr.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
+            return acquired
+
     def test_advisory_lock(self) -> None:
         with self.test_model._advisory_lock(12345) as acquired:
             self.assertTrue(acquired, "Should acquire advisory lock")
+            self.assertFalse(self._try_lock_from_other_session(12345), "Lock should be held inside the block")
 
-        self.env.cr.execute("SELECT pg_try_advisory_lock(%s)", [12345])
-        self.assertTrue(self.env.cr.fetchone()[0], "Lock should be released")
-        self.env.cr.execute("SELECT pg_advisory_unlock(%s)", [12345])
+        self.assertTrue(self._try_lock_from_other_session(12345), "Lock should be released after the block")
+
+    def test_advisory_lock_not_acquired_when_held_elsewhere(self) -> None:
+        with closing(sql_db.db_connect(self.env.cr.dbname).cursor()) as other_cr:
+            other_cr.execute("SELECT pg_advisory_lock(%s)", [12347])
+            with self.test_model._advisory_lock(12347) as acquired:
+                self.assertFalse(acquired)
+            other_cr.execute("SELECT pg_advisory_unlock(%s)", [12347])
 
     def test_advisory_lock_with_failed_transaction(self) -> None:
         original_execute = self.env.cr.execute

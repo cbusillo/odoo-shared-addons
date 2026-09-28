@@ -34,6 +34,18 @@ class HrEmployee(models.Model):
             first = (vals.get("first_name") or "").strip()
             last = (vals.get("last_name") or "").strip()
             if not first and not last:
+                # Odoo's own flows (a user's Create Employee, users created
+                # with an employee) pass only ``name``; split it into parts.
+                parsed = NameFormatter.split_full_name(
+                    (vals.get("name") or "").strip(), self._effective_name_format(vals.get("name_format"))
+                )
+                first = parsed["first_name"]
+                last = parsed["last_name"]
+                if first:
+                    vals["first_name"] = first
+                if last:
+                    vals["last_name"] = last
+            if not first and not last:
                 raise ValidationError(_("At least one of First Name or Last Name is required."))
             if not vals.get("nick_name"):
                 vals["nick_name"] = first or last
@@ -75,13 +87,16 @@ class HrEmployee(models.Model):
             if name and name != rec.name:
                 super(HrEmployee, rec).write({"name": name})
 
+    @api.model
+    def _effective_name_format(self, name_format: str | None) -> str:
+        icp = self.env["ir.config_parameter"].sudo()
+        return (name_format or icp.get_param("user_name_extended.format") or "western").strip().lower()
+
     def _sync_parts_from_name(self) -> None:
         for rec in self:
             if not rec.name:
                 continue
-            icp = rec.env["ir.config_parameter"].sudo()
-            eff_fmt = (rec.name_format or (icp.get_param("user_name_extended.format") or "western")).strip().lower()
-            parsed = NameFormatter.split_full_name(rec.name, eff_fmt)
+            parsed = NameFormatter.split_full_name(rec.name, rec._effective_name_format(rec.name_format))
             vals = {}
             fn = parsed.get("first_name", "").strip()
             ln = parsed.get("last_name", "").strip()

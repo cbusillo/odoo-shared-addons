@@ -7,6 +7,8 @@ Structured first/last/nickname fields for `hr.employee` with locale-aware format
 - First/Last/Nickname fields with chatter tracking
 - `name` stays Odoo's field (related to the employee's resource). Creating or writing the name parts sets `name`, and
   writing `name` alone (imports/API) is parsed back into structured parts
+- Creating an employee from `name` alone, as Odoo does for a user's Create Employee action, splits the name into
+  first and last name using the effective name format
 - Locale-aware formatting: western (First Last) or asian (Last First)
 - Per-employee override (`name_format`) with optional default from Settings
 - Search across `name`, `first_name`, `last_name`, `nick_name`

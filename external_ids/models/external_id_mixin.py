@@ -4,6 +4,7 @@ from typing import Any, ClassVar, Self, overload
 
 from lxml import etree
 from odoo import api, fields, models
+from odoo.exceptions import ValidationError
 from psycopg2.errors import UniqueViolation
 
 from .external_reference import (
@@ -528,6 +529,8 @@ class ExternalIdMixin(models.AbstractModel):
         conflicting = external_id_model_all.search(conflicting_domain, limit=1)
         if conflicting and conflicting.res_model == self._name:
             if existing and existing.id != conflicting.id:
+                # Active IDs cannot be deleted directly; archive first.
+                existing.write({"active": False})
                 existing.unlink()
             if conflicting.res_id != self.id or not conflicting.active:
                 conflicting.write(
@@ -567,7 +570,11 @@ class ExternalIdMixin(models.AbstractModel):
                     }
                 )
                 return True
-        except UniqueViolation:
+        except (UniqueViolation, ValidationError) as error:
+            # external.id.create() reports a unique violation as a
+            # ValidationError; anything else (e.g. an ID format error) is real.
+            if not isinstance(error, UniqueViolation) and not isinstance(error.__cause__, UniqueViolation):
+                raise
             existing_after_conflict = external_id_model_all.search(record_domain, limit=1)
             if existing_after_conflict:
                 update_values = {}

@@ -67,3 +67,31 @@ class TestEmployeeName(common.TransactionCase):
         emp.invalidate_recordset(["first_name", "last_name", "name"])
         self.assertEqual(emp.first_name, "Carl")
         self.assertEqual(emp.last_name, "Sagan")
+
+    def test_create_from_name_only_splits_parts(self) -> None:
+        emp = self.Employee.create({"name": "Mary Major"})
+        self.assertEqual((emp.first_name, emp.last_name, emp.nick_name), ("Mary", "Major", "Mary"))
+        self.assertEqual(emp.name, "Mary Major")
+
+    def test_create_from_name_only_respects_asian_format(self) -> None:
+        self.ICP.set_param("user_name_extended.format", "asian")
+        emp = self.Employee.create({"name": "Zhang Wei"})
+        self.assertEqual((emp.first_name, emp.last_name), ("Wei", "Zhang"))
+
+    def test_create_from_single_word_name(self) -> None:
+        emp = self.Employee.create({"name": "Cher"})
+        self.assertEqual(emp.first_name, "Cher")
+        self.assertFalse(emp.last_name)
+
+    def test_create_without_any_name_is_rejected(self) -> None:
+        with self.assertRaises(ValidationError):
+            self.Employee.create({"name": "   "})
+
+    def test_user_create_employee_action(self) -> None:
+        user = self.env["res.users"].create({"name": "Pat Doe", "login": "pat.doe@example.com"})
+        user.action_create_employee()
+        self.assertEqual((user.employee_ids.first_name, user.employee_ids.last_name), ("Pat", "Doe"))
+
+    def test_user_created_with_employee(self) -> None:
+        user = self.env["res.users"].create({"name": "Sam Roe", "login": "sam.roe@example.com", "create_employee": True})
+        self.assertEqual((user.employee_ids.first_name, user.employee_ids.last_name), ("Sam", "Roe"))

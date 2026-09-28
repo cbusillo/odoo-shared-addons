@@ -2,29 +2,8 @@ import { rpc as rpcCall } from "@web/core/network/rpc"
 import { patch } from "@web/core/utils/patch"
 import { Message } from "@mail/core/common/message"
 
-const DRL_DISABLE_FLAG = "__drlDisable"
 const INTERNAL_URL_PATTERN = "https?://\\S+/(?:web#|odoo[#/])\\S+"
 const INTERNAL_URL_REGEX = new RegExp(INTERNAL_URL_PATTERN, "gi")
-const isLabelerDisabled = () => {
-    try {
-        if (window[DRL_DISABLE_FLAG]) {
-            return true
-        }
-        const locationOrigin = window.location?.origin || "http://localhost"
-        const locationHref = window.location?.href || ""
-        const url = new URL(locationHref || locationOrigin, locationOrigin)
-        if (
-            url.searchParams.get("drl_disable") === "1" ||
-            (url.hash?.startsWith("#") &&
-                new URLSearchParams(url.hash.slice(1)).get("drl_disable") ===
-                    "1")
-        ) {
-            window[DRL_DISABLE_FLAG] = true
-            return true
-        }
-    } catch {}
-    return false
-}
 
 function parseInternalUrl(href) {
     try {
@@ -106,15 +85,6 @@ const originalPrepareMessageBody = Message.prototype.prepareMessageBody
 
 const prepareMessageBody = function (bodyEl) {
     try {
-        // Test-only guard: allow disabling labeler via URL param for red/green runs
-        if (isLabelerDisabled()) {
-            if (originalPrepareMessageBody) {
-                try {
-                    originalPrepareMessageBody.apply(this, arguments)
-                } catch {}
-            }
-            return
-        }
         if (originalPrepareMessageBody) {
             try {
                 originalPrepareMessageBody.apply(this, arguments)

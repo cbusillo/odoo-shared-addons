@@ -19,7 +19,6 @@ AUTHENTIK_GROUP_MAPPING_MODEL = "authentik.sso.group.mapping"
 
 FALSE_VALUES = {"", "0", "false", "no", "off"}
 TRUE_VALUES = {"1", "true", "yes", "on"}
-DEFAULT_PRODUCTION_INDICATORS = ("production", "live", "prod-")
 
 
 def _normalize_config_param_value(raw_value: str) -> str:
@@ -178,67 +177,14 @@ class LaunchplaneSettings(models.AbstractModel):
         if callable(ensure_default_mappings):
             ensure_default_mappings()
 
-    def _apply_shopify_overrides_from_values(self, overrides: Mapping[str, str]) -> None:
-        shop_url_key = overrides.get("shop_url_key", "").strip()
-        api_token = overrides.get("api_token", "").strip()
-        webhook_key = overrides.get("webhook_key", "").strip()
-        api_version = overrides.get("api_version", "").strip()
-        test_store_raw = overrides.get("test_store")
-        test_store = _parse_boolean(test_store_raw, default=False)
-        allow_production = _parse_boolean(overrides.get("allow_production"), default=False)
-
-        indicators_raw = overrides.get("production_indicators")
-        if indicators_raw is None:
-            production_indicators = list(DEFAULT_PRODUCTION_INDICATORS)
-        else:
-            cleaned = [item.strip().lower() for item in indicators_raw.split(",") if item.strip()]
-            production_indicators = cleaned or list(DEFAULT_PRODUCTION_INDICATORS)
-
-        required_values = [shop_url_key, api_token, webhook_key, api_version]
-        if not all(required_values):
-            self._clear_shopify_config()
-            if any(required_values):
-                _logger.warning("Shopify overrides incomplete; cleared Shopify configuration.")
-            else:
-                _logger.info("Shopify overrides missing; cleared Shopify configuration.")
-            return
-
-        shop_url_lower = shop_url_key.lower()
-        matched_indicator = ""
-        for indicator in production_indicators:
-            if indicator and indicator in shop_url_lower:
-                matched_indicator = indicator
-                break
-        if matched_indicator and not allow_production:
-            raise ValidationError(
-                "Shopify shop_url_key "
-                f"'{shop_url_key}' appears to be production (indicator: '{matched_indicator}'). "
-                "Set the Launchplane Shopify allow_production setting only when this is intentional."
-            )
-        if matched_indicator and allow_production:
-            _logger.warning(
-                "Allowing production-like Shopify key '%s' because Launchplane supplied allow_production=true.",
-                shop_url_key,
-            )
-
-        parameter_model = self.env["ir.config_parameter"].sudo()
-        parameter_model.set_param("shopify.shop_url_key", shop_url_key)
-        parameter_model.set_param("shopify.api_token", api_token)
-        parameter_model.set_param("shopify.webhook_key", webhook_key)
-        parameter_model.set_param("shopify.api_version", api_version)
-        parameter_model.set_param("shopify.test_store", "True" if test_store else "False")
-        self._remove_shopify_legacy_keys()
-        self._update_shopify_external_urls(shop_url_key)
-
     def _apply_shopify_overrides(self, *, payload: Mapping[str, object] | None = None) -> None:
         payload_overrides = self._payload_addon_overrides(payload, addon_names=("shopify",))
         payload_action = payload_overrides.get(SHOPIFY_ACTION_SETTING, "").strip().lower()
         if payload_action:
             self._apply_shopify_payload_action(payload_overrides)
             return
-        if not payload_overrides:
-            return
-        self._apply_shopify_overrides_from_values(payload_overrides)
+        if payload_overrides:
+            raise ValidationError("Launchplane Shopify settings require an action.")
 
     def _apply_shopify_payload_action(self, overrides: Mapping[str, str]) -> None:
         payload_action = overrides.get(SHOPIFY_ACTION_SETTING, "").strip().lower()

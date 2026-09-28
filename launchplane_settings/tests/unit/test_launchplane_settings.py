@@ -136,7 +136,8 @@ class TestLaunchplaneSettings(UnitTestCase):
         self.assertEqual(self.ConfigParameter.get_param("shopify.api_version"), "2025-01")
         self.assertEqual(self.ConfigParameter.get_param("shopify.test_store"), "True")
 
-    def test_payload_shopify_values_reject_production_like_store_without_allow(self) -> None:
+    def test_payload_shopify_settings_without_action_are_rejected(self) -> None:
+        self.ConfigParameter.set_param("shopify.shop_url_key", "existing-store")
         payload = {
             "schema_version": 1,
             "config_parameters": [],
@@ -144,27 +145,7 @@ class TestLaunchplaneSettings(UnitTestCase):
                 {
                     "addon": "shopify",
                     "setting": "shop_url_key",
-                    "value": {"source": "literal", "value": "prod-store"},
-                },
-                {
-                    "addon": "shopify",
-                    "setting": "api_token",
-                    "value": {"source": "literal", "value": "token"},
-                },
-                {
-                    "addon": "shopify",
-                    "setting": "webhook_key",
-                    "value": {"source": "literal", "value": "hook"},
-                },
-                {
-                    "addon": "shopify",
-                    "setting": "api_version",
-                    "value": {"source": "literal", "value": "2025-01"},
-                },
-                {
-                    "addon": "shopify",
-                    "setting": "production_indicators",
-                    "value": {"source": "literal", "value": "prod"},
+                    "value": {"source": "literal", "value": "other-store"},
                 },
             ],
         }
@@ -172,6 +153,7 @@ class TestLaunchplaneSettings(UnitTestCase):
         with _set_env(self._payload_env(payload)):
             with self.assertRaises(ValidationError):
                 self.Settings.apply_from_env()
+        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "existing-store")
 
     def test_apply_shopify_clear_action_from_payload(self) -> None:
         self.ConfigParameter.set_param("shopify.shop_url_key", "store")

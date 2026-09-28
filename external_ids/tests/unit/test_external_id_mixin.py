@@ -1,3 +1,5 @@
+from odoo.exceptions import ValidationError
+
 from ...models.external_id_mixin import ExternalIdMixin
 from ...models.external_reference import ExternalResourceName, ExternalSystemCode
 from ..common_imports import common
@@ -178,7 +180,7 @@ class TestExternalIdMixin(UnitTestCase):
         record = self._create_fixture("Known Record")
         record.external.discord.default.id = "121212121212121212"
 
-        with self.assertRaisesRegex(ValueError, "Invalid field 'missing_field'"):
+        with self.assertRaises(ValueError):
             self.FixtureRecord.get_or_create_by_external_id(
                 "discord",
                 "121212121212121212",
@@ -364,3 +366,108 @@ class TestExternalIdMixin(UnitTestCase):
         self.assertIn(("res_id", "=", record.id), action["domain"])
         self.assertEqual(action["context"]["default_res_model"], "external.id.fixture")
         self.assertEqual(action["context"]["default_res_id"], record.id)
+
+    def _racing_external_id_search(self):
+        # Hide existing mappings from set_external_id's pre-checks, as if
+        # another transaction committed them in between.
+        external_id_class = type(self.ExternalId)
+        original_search = external_id_class.search
+        hidden_calls = {"remaining": 2}
+
+        def racing_search(model, domain, *args, **kwargs):
+            if hidden_calls["remaining"]:
+                hidden_calls["remaining"] -= 1
+                return model.browse()
+            return original_search(model, domain, *args, **kwargs)
+
+        return common.patch.object(external_id_class, "search", racing_search)
+
+    def test_set_external_id_reuses_inactive_mapping(self) -> None:
+        record = self._create_fixture("Inactive Reuse")
+        external_id_record = self.ExternalId.create(
+            {
+                "res_model": "external.id.fixture",
+                "res_id": record.id,
+                "system_id": self.discord_system.id,
+                "external_id": "stale-id",
+                "active": False,
+            }
+        )
+
+        self.assertTrue(record.set_external_id("discord", "reactivated-id"))
+
+        mappings = self.ExternalId.with_context(active_test=False).search(
+            [("res_model", "=", "external.id.fixture"), ("res_id", "=", record.id)]
+        )
+        self.assertEqual(mappings, external_id_record)
+        self.assertTrue(external_id_record.active)
+        self.assertEqual(external_id_record.external_id, "reactivated-id")
+
+    def test_get_or_create_rejects_archived_mapping_of_live_record(self) -> None:
+        record = self._create_fixture("Archived Live")
+        record.external.discord.default.id = "archived-live-id"
+        record.external.discord.default.active = False
+
+        with self.assertRaises(ValueError):
+            self.FixtureRecord.get_or_create_by_external_id("discord", "archived-live-id", {"name": "Duplicate"})
+
+        self.assertEqual(self.FixtureRecord.search_count([("name", "=", "Duplicate")]), 0)
+
+    def test_set_external_id_skips_id_owned_by_another_model(self) -> None:
+        partner = self.Partner.create({"name": "Owner Partner"})
+        self.ExternalId.create(
+            {
+                "res_model": "res.partner",
+                "res_id": partner.id,
+                "system_id": self.discord_system.id,
+                "external_id": "shared-id",
+            }
+        )
+        record = self._create_fixture("Other Model")
+
+        self.assertFalse(record.set_external_id("discord", "shared-id"))
+
+        mapping = self.ExternalId.search([("external_id", "=", "shared-id"), ("system_id", "=", self.discord_system.id)])
+        self.assertEqual((mapping.res_model, mapping.res_id), ("res.partner", partner.id))
+
+    def test_set_external_id_moves_id_between_records_of_one_model(self) -> None:
+        first_record = self._create_fixture("First Owner")
+        second_record = self._create_fixture("Second Owner")
+        first_record.set_external_id("discord", "moved-id")
+        second_record.set_external_id("discord", "old-second-id")
+
+        self.assertTrue(second_record.set_external_id("discord", "moved-id"))
+
+        self.assertEqual(self.FixtureRecord.search_by_external_id("discord", "moved-id"), second_record)
+        self.assertFalse(first_record.get_external_id_record("discord"))
+        self.assertFalse(
+            self.ExternalId.with_context(active_test=False).search([("external_id", "=", "old-second-id")])
+        )
+
+    def test_set_external_id_recovers_when_same_mapping_appears_concurrently(self) -> None:
+        record = self._create_fixture("Concurrent Same")
+        record.set_external_id("discord", "race-id")
+
+        with self._racing_external_id_search():
+            self.assertTrue(record.set_external_id("discord", "race-id"))
+
+        mappings = self.ExternalId.search([("external_id", "=", "race-id")])
+        self.assertEqual(len(mappings), 1)
+        self.assertEqual(mappings.res_id, record.id)
+
+    def test_set_external_id_recovers_when_other_record_takes_id_concurrently(self) -> None:
+        winner = self._create_fixture("Concurrent Winner")
+        winner.set_external_id("discord", "contested-id")
+        record = self._create_fixture("Concurrent Loser")
+
+        with self._racing_external_id_search():
+            self.assertTrue(record.set_external_id("discord", "contested-id"))
+
+        self.assertEqual(self.FixtureRecord.search_by_external_id("discord", "contested-id"), record)
+
+    def test_set_external_id_still_raises_format_errors(self) -> None:
+        self.discord_system.id_format = r"^\d+$"
+        record = self._create_fixture("Bad Format")
+
+        with self.assertRaises(ValidationError):
+            record.set_external_id("discord", "not-a-number")

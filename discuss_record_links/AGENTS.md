@@ -17,5 +17,9 @@ Implementation Notes
 
 - Respect Odoo access rules when generating record links; non-admin users must
   not receive shortcuts to records they cannot read.
+- The `/discuss_record_links/search` and `/labels` routes are for internal
+  users only and run with the caller's rights (no `sudo`). `/labels` labels
+  only configured models and omits records the caller cannot read; the client
+  labels other internal links through the user's own ORM `read`.
 - Validate browser or tour behavior through an assembled workspace or tenant
   environment when Discuss web-client behavior is involved.

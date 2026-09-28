@@ -148,11 +148,9 @@ describe("@discuss_record_links Message link label transformer", () => {
                     throw new Error("RPC failure")
                 },
                 orm: {
-                    call: async (model, method, args) => {
+                    call: async (model, method) => {
                         expect(model).toBe("product.product")
-                        expect(method).toBe("read")
-                        // args: [[ids], [fields]]
-                        expect(Array.isArray(args?.[0])).toBe(true)
+                        expect(method).toBe("search_read")
                         return [{ id: 7, display_name: "Fallback Name" }]
                     },
                 },

@@ -8,6 +8,8 @@ from odoo.exceptions import ValidationError
 
 from ...models.launchplane_settings import (
     ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY,
+    PLATFORM_INSTANCE_ENV_KEY,
+    PRODUCTION_PLATFORM_INSTANCE,
     _normalize_config_param_value,
     _parse_boolean,
 )
@@ -39,6 +41,21 @@ class TestLaunchplaneSettings(UnitTestCase):
     def _payload_env(payload: Mapping[str, object]) -> dict[str, str]:
         encoded = base64.b64encode(json.dumps(payload, sort_keys=True).encode("utf-8")).decode("ascii")
         return {ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: encoded}
+
+    def _set_production_shopify_credentials(self) -> None:
+        self.ConfigParameter.set_param("shopify.shop_url_key", "live-store")
+        self.ConfigParameter.set_param("shopify.api_token", "live-token")
+        self.ConfigParameter.set_param("shopify.webhook_key", "live-hook")
+
+    def _assert_shopify_credentials_cleared(self) -> None:
+        self.assertFalse(self.ConfigParameter.get_param("shopify.shop_url_key"))
+        self.assertFalse(self.ConfigParameter.get_param("shopify.api_token"))
+        self.assertFalse(self.ConfigParameter.get_param("shopify.webhook_key"))
+
+    def _assert_production_shopify_credentials_kept(self) -> None:
+        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "live-store")
+        self.assertEqual(self.ConfigParameter.get_param("shopify.api_token"), "live-token")
+        self.assertEqual(self.ConfigParameter.get_param("shopify.webhook_key"), "live-hook")
 
     def test_normalize_config_param_value(self) -> None:
         self.assertEqual(_normalize_config_param_value(" true "), "True")
@@ -185,3 +202,71 @@ class TestLaunchplaneSettings(UnitTestCase):
         with _set_env({ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: "not-base64"}):
             with self.assertRaises(ValidationError):
                 self.Settings.apply_from_env()
+
+    def test_non_production_without_payload_clears_shopify_credentials(self) -> None:
+        for platform_instance in ("testing", "", None):
+            with self.subTest(platform_instance=platform_instance):
+                self._set_production_shopify_credentials()
+                with _set_env(
+                    {
+                        ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: None,
+                        PLATFORM_INSTANCE_ENV_KEY: platform_instance,
+                    }
+                ):
+                    self.Settings.apply_from_env()
+
+                self._assert_shopify_credentials_cleared()
+
+    def test_non_production_payload_without_shopify_clears_shopify_credentials(self) -> None:
+        self._set_production_shopify_credentials()
+        payload = {
+            "schema_version": 1,
+            "config_parameters": [
+                {"key": "test.value", "value": {"source": "literal", "value": "kept"}},
+            ],
+            "addon_settings": [],
+        }
+
+        with _set_env({**self._payload_env(payload), PLATFORM_INSTANCE_ENV_KEY: "testing"}):
+            self.Settings.apply_from_env()
+
+        self._assert_shopify_credentials_cleared()
+        self.assertEqual(self.ConfigParameter.get_param("test.value"), "kept")
+
+    def test_non_production_explicit_shopify_apply_is_kept(self) -> None:
+        self._set_production_shopify_credentials()
+        payload = {
+            "schema_version": 1,
+            "config_parameters": [],
+            "addon_settings": [
+                {"addon": "shopify", "setting": setting, "value": {"source": "literal", "value": value}}
+                for setting, value in (
+                    ("action", "apply"),
+                    ("shop_url_key", "dev-store"),
+                    ("api_token", "dev-token"),
+                    ("webhook_key", "dev-hook"),
+                    ("api_version", "2025-01"),
+                    ("test_store", True),
+                )
+            ],
+        }
+
+        with _set_env({**self._payload_env(payload), PLATFORM_INSTANCE_ENV_KEY: "testing"}):
+            self.Settings.apply_from_env()
+
+        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "dev-store")
+        self.assertEqual(self.ConfigParameter.get_param("shopify.api_token"), "dev-token")
+        self.assertEqual(self.ConfigParameter.get_param("shopify.webhook_key"), "dev-hook")
+
+    def test_production_without_shopify_action_keeps_shopify_credentials(self) -> None:
+        payload_without_shopify = {"schema_version": 1, "config_parameters": [], "addon_settings": []}
+        for payload_env in (
+            {ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: None},
+            self._payload_env(payload_without_shopify),
+        ):
+            with self.subTest(payload_present=payload_env[ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY] is not None):
+                self._set_production_shopify_credentials()
+                with _set_env({**payload_env, PLATFORM_INSTANCE_ENV_KEY: PRODUCTION_PLATFORM_INSTANCE}):
+                    self.Settings.apply_from_env()
+
+                self._assert_production_shopify_credentials_kept()

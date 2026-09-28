@@ -174,6 +174,7 @@ const prepareMessageBody = function (bodyEl) {
             if (!orm) {
                 return
             }
+            const silentOrm = orm.silent || orm
             const labelled = new Set(
                 (rows || []).map((r) => `${r.model}:${r.id}`),
             )
@@ -182,7 +183,14 @@ const prepareMessageBody = function (bodyEl) {
                     (id) => !labelled.has(`${model}:${id}`),
                 )
                 if (!ids.length) continue
-                orm.call(model, "read", [ids, ["display_name"]], {})
+                // search_read applies record rules, so one unreadable link
+                // does not stop the readable ones from being labelled.
+                silentOrm
+                    .call(model, "search_read", [], {
+                        domain: [["id", "in", ids]],
+                        fields: ["display_name"],
+                        context: { active_test: false },
+                    })
                     .then((rr) =>
                         applyLabels(
                             rr.map((r) => ({

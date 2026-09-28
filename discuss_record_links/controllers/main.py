@@ -117,8 +117,17 @@ class DiscussRecordLinks(http.Controller):
             try:
                 rows = records.read(_display_fields(model_cfg))
             except AccessError:
-                # A template field is restricted for this user; label with display_name only.
-                rows = records.read(["display_name"])
+                # A template field (or a computed name) is restricted for this
+                # user: label each record by display_name, and skip any record
+                # whose name the user cannot compute.
+                for record in records:
+                    try:
+                        # Compute alone so one failing record does not fail its batch.
+                        display_name = record.with_prefetch(record._ids).display_name
+                    except AccessError:
+                        continue
+                    result.append({"model": model, "id": record.id, "label": display_name})
+                continue
             for r in rows:
                 result.append({"model": model, "id": r["id"], "label": _render_label(model_cfg, r)})
 

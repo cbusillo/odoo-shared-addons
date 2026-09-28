@@ -168,31 +168,39 @@ const prepareMessageBody = function (bodyEl) {
                 a.removeAttribute("data-drl-pending")
             }
         }
+        // Fallback: display_name via the user's own ORM access, for links the
+        // server did not label (unconfigured models or a failed request).
+        const labelRemaining = (rows) => {
+            if (!orm) {
+                return
+            }
+            const labelled = new Set(
+                (rows || []).map((r) => `${r.model}:${r.id}`),
+            )
+            for (const [model, idSet] of byModel.entries()) {
+                const ids = Array.from(idSet).filter(
+                    (id) => !labelled.has(`${model}:${id}`),
+                )
+                if (!ids.length) continue
+                orm.call(model, "read", [ids, ["display_name"]], {})
+                    .then((rr) =>
+                        applyLabels(
+                            rr.map((r) => ({
+                                model,
+                                id: r.id,
+                                label: r.display_name,
+                            })),
+                        ),
+                    )
+                    .catch(() => {})
+            }
+        }
         rpc("/discuss_record_links/labels", { targets: payload })
             .then((rows) => {
-                if (!rows || !rows.length) throw new Error("empty")
                 applyLabels(rows)
+                labelRemaining(rows)
             })
-            .catch(() => {
-                // Fallback: display_name
-                if (!orm) {
-                    return
-                }
-                for (const [model, idSet] of byModel.entries()) {
-                    const ids = Array.from(idSet)
-                    orm.call(model, "read", [ids, ["display_name"]], {})
-                        .then((rr) =>
-                            applyLabels(
-                                rr.map((r) => ({
-                                    model,
-                                    id: r.id,
-                                    label: r.display_name,
-                                })),
-                            ),
-                        )
-                        .catch(() => {})
-                }
-            })
+            .catch(() => labelRemaining([]))
     } catch (e) {
         // swallow to avoid Owl lifecycle crashes
     }

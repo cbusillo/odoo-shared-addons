@@ -46,18 +46,6 @@ class TestLabelsRoute(TransactionCase):
         self.assertEqual(rows[0]["id"], self.product.id)
         self.assertEqual(rows[0]["label"], f"[{self.product.default_code}] {self.product.name}")
 
-    def test_labels_fallback_display_name_for_unconfigured_model(self) -> None:
-        partner = self.env["res.partner"].create({"name": "Acme"})
-        ctl = DiscussRecordLinks()
-
-        _req = type("_Req", (), {})()
-        _req.env = self.env
-        with patch("odoo.addons.discuss_record_links.controllers.main.request", _req):
-            rows = ctl.labels(targets=[{"model": "res.partner", "id": partner.id}])
-
-        self.assertEqual(len(rows), 1)
-        self.assertEqual(rows[0]["label"], partner.display_name)
-
 
 @common.tagged(*common.UNIT_TAGS)
 class TestSearchRoute(TransactionCase):

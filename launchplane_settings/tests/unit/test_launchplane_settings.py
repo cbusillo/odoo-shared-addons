@@ -3,6 +3,7 @@ import json
 import os
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from unittest.mock import MagicMock, patch
 
 from odoo.exceptions import ValidationError
 
@@ -270,3 +271,102 @@ class TestLaunchplaneSettings(UnitTestCase):
                     self.Settings.apply_from_env()
 
                 self._assert_production_shopify_credentials_kept()
+
+    @staticmethod
+    def _shopify_apply_payload(*, shop_url_key: str = "dev-store", test_store: bool | None = True) -> dict[str, object]:
+        settings: list[tuple[str, object]] = [
+            ("action", "apply"),
+            ("shop_url_key", shop_url_key),
+            ("api_token", "dev-token"),
+            ("webhook_key", "dev-hook"),
+            ("api_version", "2025-01"),
+        ]
+        if test_store is not None:
+            settings.append(("test_store", test_store))
+        return {
+            "schema_version": 1,
+            "config_parameters": [],
+            "addon_settings": [
+                {"addon": "shopify", "setting": setting, "value": {"source": "literal", "value": value}}
+                for setting, value in settings
+            ],
+        }
+
+    @staticmethod
+    def _shopify_clear_payload() -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "config_parameters": [],
+            "addon_settings": [{"addon": "shopify", "setting": "action", "value": {"source": "literal", "value": "clear"}}],
+        }
+
+    @contextmanager
+    def _recorded_store_state(self) -> Iterator[MagicMock]:
+        adapter = MagicMock()
+        with patch.object(type(self.Settings), "_shopify_store_state_adapter", return_value=adapter):
+            yield adapter
+
+    def _handed_off_state(self, payload: Mapping[str, object] | None, platform_instance: str) -> MagicMock:
+        payload_env = self._payload_env(payload) if payload is not None else {ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: None}
+        with self._recorded_store_state() as adapter:
+            with _set_env({**payload_env, PLATFORM_INSTANCE_ENV_KEY: platform_instance}):
+                self.Settings.apply_from_env()
+        return adapter
+
+    def test_verified_development_store_is_handed_to_shopify_sync_as_verified(self) -> None:
+        self._set_production_shopify_credentials()
+
+        adapter = self._handed_off_state(self._shopify_apply_payload(), "testing")
+
+        adapter.assert_called_once_with(dev_store_verified=True)
+        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "dev-store")
+
+    def test_store_without_test_store_is_not_a_verified_development_store(self) -> None:
+        for test_store in (False, None):
+            with self.subTest(test_store=test_store):
+                adapter = self._handed_off_state(self._shopify_apply_payload(test_store=test_store), "testing")
+
+                adapter.assert_called_once_with(dev_store_verified=False)
+
+    def test_read_back_that_does_not_match_the_applied_store_is_not_verified(self) -> None:
+        self.ConfigParameter.set_param("shopify.test_store", "True")
+        self.ConfigParameter.set_param("shopify.shop_url_key", "some-other-store")
+
+        with _set_env({PLATFORM_INSTANCE_ENV_KEY: "testing"}):
+            self.assertFalse(self.Settings._shopify_dev_store_verified("dev-store"))
+            self.assertFalse(self.Settings._shopify_dev_store_verified(""))
+            self.assertTrue(self.Settings._shopify_dev_store_verified("some-other-store"))
+
+    def test_clear_or_missing_shopify_settings_hand_off_an_unverified_store(self) -> None:
+        payload_without_shopify = {"schema_version": 1, "config_parameters": [], "addon_settings": []}
+        for label, payload in (
+            ("clear action", self._shopify_clear_payload()),
+            ("no Shopify action", payload_without_shopify),
+            ("no payload", None),
+        ):
+            for platform_instance in ("testing", ""):
+                with self.subTest(case=label, platform_instance=platform_instance):
+                    self._set_production_shopify_credentials()
+
+                    adapter = self._handed_off_state(payload, platform_instance)
+
+                    adapter.assert_called_once_with(dev_store_verified=False)
+                    self._assert_shopify_credentials_cleared()
+
+    def test_production_dispatcher_is_never_handed_off(self) -> None:
+        for label, payload in (
+            ("apply", self._shopify_apply_payload(shop_url_key="live-store", test_store=False)),
+            ("clear action", self._shopify_clear_payload()),
+            ("no payload", None),
+        ):
+            with self.subTest(case=label):
+                adapter = self._handed_off_state(payload, PRODUCTION_PLATFORM_INSTANCE)
+
+                adapter.assert_not_called()
+
+    def test_missing_shopify_sync_adapter_is_a_no_op(self) -> None:
+        with patch.object(type(self.Settings), "_shopify_store_state_adapter", return_value=None):
+            with _set_env({**self._payload_env(self._shopify_apply_payload()), PLATFORM_INSTANCE_ENV_KEY: "testing"}):
+                self.Settings.apply_from_env()
+
+        self.assertEqual(self.ConfigParameter.get_param("shopify.test_store"), "True")

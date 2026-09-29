@@ -3,7 +3,7 @@ import binascii
 import json
 import logging
 import os
-from collections.abc import Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping
 
 from odoo import models
 from odoo.exceptions import ValidationError
@@ -16,6 +16,10 @@ PRODUCTION_PLATFORM_INSTANCE = "prod"
 SHOPIFY_ACTION_SETTING = "action"
 SHOPIFY_ACTION_APPLY = "apply"
 SHOPIFY_ACTION_CLEAR = "clear"
+SHOPIFY_SYNC_MODEL = "shopify.sync"
+# shopify_sync owns its dispatcher cron and its Reset; this addon only says whether the lane's
+# development store was applied and verified.
+SHOPIFY_STORE_STATE_ADAPTER = "apply_launchplane_store_state"
 AUTHENTIK_CONFIG_MODEL = "authentik.sso.config"
 AUTHENTIK_GROUP_MAPPING_MODEL = "authentik.sso.group.mapping"
 
@@ -206,12 +210,14 @@ class LaunchplaneSettings(models.AbstractModel):
             platform_instance,
             reason,
         )
+        self._hand_off_shopify_store_state(dev_store_verified=False)
 
     def _apply_shopify_payload_action(self, overrides: Mapping[str, str]) -> None:
         payload_action = overrides.get(SHOPIFY_ACTION_SETTING, "").strip().lower()
         if payload_action == SHOPIFY_ACTION_CLEAR:
             self._clear_shopify_config()
             _logger.info("Applied Launchplane Shopify clear action.")
+            self._hand_off_shopify_store_state(dev_store_verified=False)
             return
         if payload_action != SHOPIFY_ACTION_APPLY:
             raise ValidationError(f"Unsupported Shopify override action '{payload_action}'.")
@@ -235,6 +241,45 @@ class LaunchplaneSettings(models.AbstractModel):
         parameter_model.set_param("shopify.test_store", "True" if test_store else "False")
         self._remove_shopify_legacy_keys()
         self._update_shopify_external_urls(shop_url_key)
+        self._hand_off_shopify_store_state(dev_store_verified=self._shopify_dev_store_verified(shop_url_key))
+
+    def _shopify_dev_store_verified(self, shop_url_key: str) -> bool:
+        """Read back that the store just applied is what Odoo now holds, marked as a development store.
+
+        Launchplane refuses a protected or production-like store key before it sends ``apply``.
+        """
+        if _is_production_instance():
+            return False
+        parameter_model = self.env["ir.config_parameter"].sudo()
+        stored_key = (parameter_model.get_param("shopify.shop_url_key") or "").strip()
+        stored_test_store = _parse_boolean(parameter_model.get_param("shopify.test_store"), default=False)
+        return bool(shop_url_key) and stored_key == shop_url_key and stored_test_store
+
+    def _shopify_store_state_adapter(self) -> Callable[..., None] | None:
+        shopify_sync_model = self.env.get(SHOPIFY_SYNC_MODEL)
+        if shopify_sync_model is None:
+            return None
+        adapter = getattr(shopify_sync_model.sudo(), SHOPIFY_STORE_STATE_ADAPTER, None)
+        if not callable(adapter):
+            _logger.warning(
+                "%s has no %s adapter; its dispatcher stays as it is.",
+                SHOPIFY_SYNC_MODEL,
+                SHOPIFY_STORE_STATE_ADAPTER,
+            )
+            return None
+        return adapter
+
+    def _hand_off_shopify_store_state(self, *, dev_store_verified: bool) -> None:
+        """Let shopify_sync run its dispatcher only against a verified development store.
+
+        Production's dispatcher is production's own, so nothing is handed off there.
+        """
+        if _is_production_instance():
+            return
+        adapter = self._shopify_store_state_adapter()
+        if adapter is None:
+            return
+        adapter(dev_store_verified=dev_store_verified)
 
     def _clear_shopify_config(self) -> None:
         parameter_model = self.env["ir.config_parameter"].sudo()

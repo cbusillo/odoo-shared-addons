@@ -87,8 +87,15 @@ class TestAuthentikSignin(UnitTestCase):
     def test_existing_local_user_is_not_linked_by_email(self) -> None:
         local_user = self.Users.create({"name": "Local Staff", "login": "local.staff@example.test"})
 
-        with self.assertRaises(AccessDenied):
+        # Not assertRaises: Odoo's version rolls back a savepoint, which would
+        # hide an aborted transaction or a link written before the refusal.
+        try:
             self._signin({"sub": "sub-local", "email": "local.staff@example.test"})
+        except AccessDenied:
+            pass
+        else:
+            self.fail("Sign-in with a taken login was not refused.")
 
+        self.env.invalidate_all()
         self.assertFalse(local_user.oauth_uid)
         self.assertEqual(self.Users.search_count([("login", "=", "local.staff@example.test")]), 1)

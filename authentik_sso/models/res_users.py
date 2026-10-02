@@ -65,7 +65,15 @@ class ResUsers(models.Model):
                     else:
                         values["signature"] = False
                 values["active"] = True
-                return template_user.with_context(no_reset_password=True).copy(values)
+                # Like Odoo's own signup: a taken login fails the copy, which must
+                # surface as a signup refusal, not a database error.
+                try:
+                    with self.env.cr.savepoint():
+                        return template_user.with_context(no_reset_password=True).copy(
+                            values
+                        )
+                except Exception as error:
+                    raise SignupError(str(error)) from error
             _logger.warning(
                 "Authentik template user not found; falling back to default template user."
             )

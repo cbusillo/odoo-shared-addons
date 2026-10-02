@@ -223,6 +223,14 @@ class TestAuthentikSso(UnitTestCase):
         )
         admin_mapping.write({"odoo_groups": [(6, 0, [admin_custom_group.id])]})
         fallback_mapping.write({"odoo_groups": [(6, 0, [fallback_custom_group.id])]})
+        # Databases installed before the data became noupdate store the
+        # records as updatable; only the data file can protect them.
+        self.env["ir.model.data"].sudo().search(
+            [
+                ("module", "=", "authentik_sso"),
+                ("model", "=", "authentik.sso.group.mapping"),
+            ]
+        ).write({"noupdate": False})
 
         self._load_mapping_data("update")
 

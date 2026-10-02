@@ -208,11 +208,13 @@ class TestAuthentikSso(UnitTestCase):
         mapping = self.AuthentikMapping.browse(mapping.id)
         self.assertIn(extra_group.id, mapping.odoo_groups.ids)
 
-        mapping.write({"odoo_groups": [(3, extra_group.id)]})
-        group_ids_before = set(mapping.odoo_groups.ids)
-        self.assertNotIn(extra_group.id, group_ids_before)
+        # A customized mapping must survive, whatever groups other addons
+        # gave the admin user.
+        custom_group = self.env["res.groups"].create({"name": "Custom Admin"})
+        mapping.write({"odoo_groups": [(6, 0, [system_group.id, custom_group.id])]})
 
         self.AuthentikMapping.ensure_default_mappings()
         mapping = self.AuthentikMapping.browse(mapping.id)
-        group_ids_after = set(mapping.odoo_groups.ids)
-        self.assertEqual(group_ids_after, group_ids_before)
+        self.assertEqual(
+            set(mapping.odoo_groups.ids), {system_group.id, custom_group.id}
+        )

@@ -1,7 +1,6 @@
 import json
 
 from odoo.exceptions import AccessDenied
-from psycopg2 import IntegrityError
 
 from ..common_imports import common
 from ..fixtures.base import UnitTestCase
@@ -88,14 +87,8 @@ class TestAuthentikSignin(UnitTestCase):
     def test_existing_local_user_is_not_linked_by_email(self) -> None:
         local_user = self.Users.create({"name": "Local Staff", "login": "local.staff@example.test"})
 
-        # Today this surfaces as a database error rather than AccessDenied;
-        # either way the sign-in must fail and must not link the local user.
-        signin_error = None
-        try:
-            with self.env.cr.savepoint():
-                self._signin({"sub": "sub-local", "email": "local.staff@example.test"})
-        except (AccessDenied, IntegrityError) as error:
-            signin_error = error
+        with self.assertRaises(AccessDenied):
+            self._signin({"sub": "sub-local", "email": "local.staff@example.test"})
 
-        self.assertIsNotNone(signin_error)
         self.assertFalse(local_user.oauth_uid)
+        self.assertEqual(self.Users.search_count([("login", "=", "local.staff@example.test")]), 1)

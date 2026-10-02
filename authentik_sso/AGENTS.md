@@ -23,5 +23,8 @@ Implementation Notes
 
 - Runtime values come from workspace or Launchplane-managed configuration; keep
   defaults safe and non-secret in this addon.
+- The default group mappings are `noupdate` data: a module upgrade keeps admin
+  edits. The install hook seeds the shipped admin mapping from the admin
+  user's groups once; later settings applies only create missing mappings.
 - Treat OAuth claims as untrusted input and keep parsing tolerant of missing or
   differently named Authentik fields.

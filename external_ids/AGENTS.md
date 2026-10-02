@@ -16,7 +16,9 @@ Key Points
 - An `ExternalIdBinding` on the model names its default system, so callers can
   use the `*_bound_external_id` helpers without passing a system code.
 - Internal users can read; only `base.group_system` can create, edit, or delete,
-  and the menu is limited to that group.
+  and the menu is limited to that group. `external.system.ensure_system()`
+  creates and updates systems with `sudo()`, so call it only from install or
+  admin code, never from a path a non-admin user can trigger.
 - Active external IDs cannot be deleted (archive them first), and a system that
   still has IDs cannot be deleted.
 

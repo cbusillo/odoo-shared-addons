@@ -1,3 +1,12 @@
+from unittest.mock import patch
+
+from odoo.tools import convert_file
+
+from odoo.addons.authentik_sso import post_init_hook
+from odoo.addons.authentik_sso.models.authentik_config import (
+    AUTHENTIK_ADMIN_GROUP_PARAM,
+)
+
 from ..common_imports import common
 from ..fixtures.base import UnitTestCase
 
@@ -193,28 +202,66 @@ class TestAuthentikSso(UnitTestCase):
         warning_messages = " ".join(log_capture.output)
         self.assertIn("no mappings configured", warning_messages)
 
-    def test_ensure_default_mappings_does_not_override_custom_admin_mapping(
-        self,
-    ) -> None:
+    def _load_mapping_data(self, mode: str) -> None:
+        # Load the shipped mapping data the way Odoo's module loader does.
+        convert_file(
+            self.env(su=True),
+            "authentik_sso",
+            "data/authentik_group_mapping_data.xml",
+            {},
+            mode,
+        )
+
+    def test_module_upgrade_keeps_edited_default_mappings(self) -> None:
+        admin_mapping = self.env.ref("authentik_sso.authentik_group_mapping_admins")
+        fallback_mapping = self.env.ref(
+            "authentik_sso.authentik_group_mapping_fallback"
+        )
+        admin_custom_group = self.env["res.groups"].create({"name": "Custom Admin"})
+        fallback_custom_group = self.env["res.groups"].create(
+            {"name": "Custom Fallback"}
+        )
+        admin_mapping.write({"odoo_groups": [(6, 0, [admin_custom_group.id])]})
+        fallback_mapping.write({"odoo_groups": [(6, 0, [fallback_custom_group.id])]})
+
+        self._load_mapping_data("update")
+
+        self.assertEqual(admin_mapping.odoo_groups, admin_custom_group)
+        self.assertEqual(fallback_mapping.odoo_groups, fallback_custom_group)
+
+    def test_settings_apply_keeps_existing_admin_mapping(self) -> None:
         admin_user = self.env.ref("base.user_admin")
         system_group = self.env.ref("base.group_system")
         mapping = self.env.ref("authentik_sso.authentik_group_mapping_admins")
-
         extra_group = self.env["res.groups"].create({"name": "Extra Admin"})
         admin_user.write({"group_ids": [(4, extra_group.id)]})
+        self.ConfigParameter.set_param(AUTHENTIK_ADMIN_GROUP_PARAM, False)
 
+        # A mapping holding only the system group is a choice, not a
+        # placeholder to refill from the admin user's groups.
         mapping.write({"odoo_groups": [(6, 0, [system_group.id])]})
         self.AuthentikMapping.ensure_default_mappings()
-        mapping = self.AuthentikMapping.browse(mapping.id)
-        self.assertIn(extra_group.id, mapping.odoo_groups.ids)
+        self.assertEqual(mapping.odoo_groups, system_group)
 
-        # A customized mapping must survive, whatever groups other addons
-        # gave the admin user.
         custom_group = self.env["res.groups"].create({"name": "Custom Admin"})
         mapping.write({"odoo_groups": [(6, 0, [system_group.id, custom_group.id])]})
-
         self.AuthentikMapping.ensure_default_mappings()
-        mapping = self.AuthentikMapping.browse(mapping.id)
+        self.assertEqual(mapping.odoo_groups, system_group | custom_group)
+
+    def test_new_install_seeds_admin_mapping_from_admin_user(self) -> None:
+        admin_user = self.env.ref("base.user_admin")
+        extra_group = self.env["res.groups"].create({"name": "Extra Admin"})
+        admin_user.write({"group_ids": [(4, extra_group.id)]})
+        # Use the default Authentik admin group name, as a new install does.
+        self.ConfigParameter.set_param(AUTHENTIK_ADMIN_GROUP_PARAM, False)
+        self.AuthentikMapping.search([]).unlink()
+
+        self._load_mapping_data("init")
+        with patch.object(self.env.cr, "commit"):
+            post_init_hook(self.env(su=True))
+
+        mapping = self.env.ref("authentik_sso.authentik_group_mapping_admins")
         self.assertEqual(
-            set(mapping.odoo_groups.ids), {system_group.id, custom_group.id}
+            set(mapping.odoo_groups.ids), set(admin_user.group_ids.ids)
         )
+        self.assertIn(extra_group, mapping.odoo_groups)

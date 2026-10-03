@@ -30,7 +30,11 @@ Testing
 
 Implementation Notes
 
-- `external.id.fixture` is a test-only model the unit tests attach IDs to.
+- Installations start with no seeded systems. Tenant addons create their own
+  systems with `ensure_system()` and own their URL templates.
+- Upgrade migration preserves historical system/link XML IDs with `noupdate`
+  so existing external IDs and configured URLs survive removal of shared seeds.
+- `external.id.fixture` is registered inside unit-test transactions only.
 - Keep system-specific sync logic in the addon that talks to that system; this
   addon only stores identity and links.
 - Debugging guidance should stay addon-specific here; workspace runtime tooling

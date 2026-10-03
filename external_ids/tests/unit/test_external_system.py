@@ -8,17 +8,17 @@ class TestExternalSystem(UnitTestCase):
     def test_create_external_system(self) -> None:
         system = ExternalSystemFactory.create(
             self.env,
-            name="Discord",
-            code="discord",
-            description="Discord messaging system",
-            url="https://discord.com",
+            name="Sample",
+            code="sample",
+            description="Sample messaging system",
+            url="https://sample.com",
             id_format=r"^\d{18}$",
             id_prefix="",
             reuse_existing=True,
         )
 
-        self.assertEqual(system.name, "Discord")
-        self.assertEqual(system.code, "discord")
+        self.assertEqual(system.name, "Sample")
+        self.assertEqual(system.code, "sample")
         self.assertTrue(system.active)
         self.assertEqual(system.id_format, r"^\d{18}$")
 
@@ -32,10 +32,14 @@ class TestExternalSystem(UnitTestCase):
         ExternalSystemFactory.create(self.env, name="Unique System")
 
         with self.assertRaises(common.ValidationError):
-            ExternalSystemFactory.create(self.env, name="Unique System", code="different_code")
+            ExternalSystemFactory.create(
+                self.env, name="Unique System", code="different_code"
+            )
 
     def test_external_id_count(self) -> None:
-        system = ExternalSystemFactory.create(self.env, name="Shopify", code="shopify", reuse_existing=True)
+        system = ExternalSystemFactory.create(
+            self.env, name="Catalog", code="catalog", reuse_existing=True
+        )
         self.assertEqual(system.external_id_count, 0)
 
         partner = self.Partner.create({"name": "Test Customer"})
@@ -61,7 +65,9 @@ class TestExternalSystem(UnitTestCase):
         self.assertNotIn(system, active_systems)
 
     def test_system_with_external_ids_restriction(self) -> None:
-        system = ExternalSystemFactory.create(self.env, name="RepairShopr", code="repairshopr", reuse_existing=True)
+        system = ExternalSystemFactory.create(
+            self.env, name="Service", code="service", reuse_existing=True
+        )
         partner = self.Partner.create({"name": "Test Partner"})
 
         ExternalIdFactory.create(
@@ -77,29 +83,34 @@ class TestExternalSystem(UnitTestCase):
 
     def test_ensure_system_creates_and_merges_models(self) -> None:
         system = self.ExternalSystem.ensure_system(
-            code="fishbowl",
-            name="Fishbowl",
+            code="inventory",
+            name="Inventory",
             id_format=r"^\d+$",
             sequence=60,
             active=True,
             applicable_model_xml_ids=("base.model_res_partner",),
         )
 
-        self.assertEqual(system.code, "fishbowl")
-        self.assertEqual(system.name, "Fishbowl")
+        self.assertEqual(system.code, "inventory")
+        self.assertEqual(system.name, "Inventory")
         self.assertTrue(system.active)
-        self.assertIn(self.env.ref("base.model_res_partner"), system.applicable_model_ids)
+        self.assertIn(
+            self.env.ref("base.model_res_partner"), system.applicable_model_ids
+        )
 
         system.active = False
         system.invalidate_model()
 
         updated = self.ExternalSystem.ensure_system(
-            code="fishbowl",
-            name="Fishbowl",
+            code="inventory",
+            name="Inventory",
             active=True,
             applicable_model_xml_ids=("external_ids.model_external_id_fixture",),
         )
 
         self.assertEqual(updated.id, system.id)
         self.assertTrue(updated.active)
-        self.assertIn(self.env.ref("external_ids.model_external_id_fixture"), updated.applicable_model_ids)
+        self.assertIn(
+            self.env.ref("external_ids.model_external_id_fixture"),
+            updated.applicable_model_ids,
+        )

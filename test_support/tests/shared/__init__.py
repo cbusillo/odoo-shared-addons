@@ -1,1 +1,1 @@
-"""Shared test support utilities for Shopify-style addon test suites."""
+"""Tenant-neutral shared test utilities."""

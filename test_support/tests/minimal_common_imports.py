@@ -11,7 +11,7 @@ from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
 from .base_types import STANDARD_TAGS, OdooValue
-from .test_helpers import generate_shopify_id, generate_unique_sku
+from .test_helpers import generate_unique_sku
 
 _BASE_TEST_CONTEXT = {
     "tracking_disable": True,
@@ -46,11 +46,12 @@ class CommonImports:
     logging: Any
     time: Any
     OdooValue: Any
-    generate_shopify_id: Any
     generate_unique_sku: Any
 
 
-def build_default_test_context(*, include_skip_shopify_sync: bool = False) -> dict[str, bool]:
+def build_default_test_context(
+    *, include_skip_shopify_sync: bool = False
+) -> dict[str, bool]:
     default_context = dict(_BASE_TEST_CONTEXT)
     if include_skip_shopify_sync:
         default_context["skip_shopify_sync"] = True
@@ -76,12 +77,16 @@ def _build_phase_tags(module_name: str, phase_tag: str) -> list[str]:
     return STANDARD_TAGS + [phase_tag, module_name]
 
 
-def build_common_imports(package_name: str, *, include_skip_shopify_sync: bool = False) -> CommonImports:
+def build_common_imports(
+    package_name: str, *, include_skip_shopify_sync: bool = False
+) -> CommonImports:
     module_name = infer_addon_name(package_name)
     return CommonImports(
         module_name=module_name,
         MODULE_TAG=module_name,
-        DEFAULT_TEST_CONTEXT=build_default_test_context(include_skip_shopify_sync=include_skip_shopify_sync),
+        DEFAULT_TEST_CONTEXT=build_default_test_context(
+            include_skip_shopify_sync=include_skip_shopify_sync
+        ),
         STANDARD_TAGS=list(STANDARD_TAGS),
         UNIT_TAGS=_build_phase_tags(module_name, "unit_test"),
         INTEGRATION_TAGS=_build_phase_tags(module_name, "integration_test"),
@@ -101,13 +106,16 @@ def build_common_imports(package_name: str, *, include_skip_shopify_sync: bool =
         logging=logging,
         time=time,
         OdooValue=OdooValue,
-        generate_shopify_id=generate_shopify_id,
         generate_unique_sku=generate_unique_sku,
     )
 
 
-def build_addon_test_api(package_name: str, *, include_skip_shopify_sync: bool = False) -> SimpleNamespace:
-    common = build_common_imports(package_name, include_skip_shopify_sync=include_skip_shopify_sync)
+def build_addon_test_api(
+    package_name: str, *, include_skip_shopify_sync: bool = False
+) -> SimpleNamespace:
+    common = build_common_imports(
+        package_name, include_skip_shopify_sync=include_skip_shopify_sync
+    )
     return SimpleNamespace(
         module_name=common.module_name,
         module_tag=common.MODULE_TAG,
@@ -131,7 +139,6 @@ def build_addon_test_api(package_name: str, *, include_skip_shopify_sync: bool =
         logging=common.logging,
         time=common.time,
         odoo_value=common.OdooValue,
-        generate_shopify_id=common.generate_shopify_id,
         generate_unique_sku=common.generate_unique_sku,
     )
 
@@ -159,7 +166,6 @@ __all__ = [
     "STANDARD_TAGS",
     "build_default_test_context",
     "build_unit_tags",
-    "generate_shopify_id",
     "generate_unique_sku",
     "infer_addon_name",
 ]

@@ -5,5 +5,4 @@ access_external_system_url_user,external.system.url.user,model_external_system_u
 access_external_system_url_manager,external.system.url.manager,model_external_system_url,base.group_system,1,1,1,1
 access_external_id_user,external.id.user,model_external_id,base.group_user,1,0,0,0
 access_external_id_manager,external.id.manager,model_external_id,base.group_system,1,1,1,1
-access_external_id_fixture_manager,external.id.fixture.manager,model_external_id_fixture,base.group_system,1,1,1,1
 access_external_system_url_rename_wizard,access_external_system_url_rename_wizard,model_external_system_url_rename_wizard,base.group_user,1,1,1,1

@@ -7,18 +7,18 @@ from ..fixtures.factories import ExternalIdFactory, ExternalSystemFactory
 class TestExternalId(UnitTestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.discord_system = ExternalSystemFactory.create(
+        self.sample_system = ExternalSystemFactory.create(
             self.env,
-            name="Discord",
-            code="discord",
+            name="Sample",
+            code="sample",
             id_format=r"^\d{18}$",
             reuse_existing=True,
         )
-        self.shopify_system = ExternalSystemFactory.create(
+        self.catalog_system = ExternalSystemFactory.create(
             self.env,
-            name="Shopify",
-            code="shopify",
-            id_prefix="gid://shopify/Customer/",
+            name="Catalog",
+            code="catalog",
+            id_prefix="gid://catalog/Customer/",
             reuse_existing=True,
         )
 
@@ -28,7 +28,7 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=fixture_record.id,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             external_id="123456789012345678",
         )
 
@@ -43,7 +43,7 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=fixture_record.id,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             external_id="987654321098765432",
         )
 
@@ -54,7 +54,7 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.missing",
             res_id=999999,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             external_id="123123123123123123",
         )
 
@@ -66,7 +66,7 @@ class TestExternalId(UnitTestCase):
         fixture_record = self.FixtureRecord.create({"name": "Reference Test"})
         external_id = self.ExternalId.create(
             {
-                "system_id": self.discord_system.id,
+                "system_id": self.sample_system.id,
                 "external_id": "111111111111111111",
                 "reference": fixture_record,
             }
@@ -81,11 +81,11 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=fixture_record.id,
-            system_id=self.shopify_system.id,
+            system_id=self.catalog_system.id,
             external_id="7654321",
         )
 
-        expected_name = f"Shopify: gid://shopify/Customer/7654321 (Display Test)"
+        expected_name = f"Catalog: gid://catalog/Customer/7654321 (Display Test)"
         self.assertEqual(external_id.display_name, expected_name)
 
     def test_compute_record_name(self) -> None:
@@ -94,7 +94,7 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=fixture_record.id,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             external_id="222222222222222222",
         )
 
@@ -112,7 +112,7 @@ class TestExternalId(UnitTestCase):
                 self.env,
                 res_model="external.id.fixture",
                 res_id=fixture_record.id,
-                system_id=self.discord_system.id,
+                system_id=self.sample_system.id,
                 external_id="invalid-format",
             )
 
@@ -124,7 +124,7 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=first_record.id,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             external_id="333333333333333333",
         )
 
@@ -133,7 +133,7 @@ class TestExternalId(UnitTestCase):
                 self.env,
                 res_model="external.id.fixture",
                 res_id=second_record.id,
-                system_id=self.discord_system.id,
+                system_id=self.sample_system.id,
                 external_id="333333333333333333",
             )
 
@@ -144,7 +144,7 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=fixture_record.id,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             external_id="444444444444444444",
         )
 
@@ -153,7 +153,7 @@ class TestExternalId(UnitTestCase):
                 self.env,
                 res_model="external.id.fixture",
                 res_id=fixture_record.id,
-                system_id=self.discord_system.id,
+                system_id=self.sample_system.id,
                 external_id="555555555555555555",
             )
 
@@ -163,18 +163,24 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=fixture_record.id,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             resource="default",
             external_id="666666666666666666",
         )
 
-        found_record = self.ExternalId.get_record_by_external_id("discord", "666666666666666666")
+        found_record = self.ExternalId.get_record_by_external_id(
+            "sample", "666666666666666666"
+        )
         self.assertEqual(found_record, fixture_record)
 
-        not_found = self.ExternalId.get_record_by_external_id("discord", "999999999999999999")
+        not_found = self.ExternalId.get_record_by_external_id(
+            "sample", "999999999999999999"
+        )
         self.assertIsNone(not_found)
 
-        not_found_system = self.ExternalId.get_record_by_external_id("invalid_system", "123")
+        not_found_system = self.ExternalId.get_record_by_external_id(
+            "invalid_system", "123"
+        )
         self.assertIsNone(not_found_system)
 
     def test_action_open_reference(self) -> None:
@@ -183,7 +189,7 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=fixture_record.id,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             external_id="777777777777777777",
         )
 
@@ -199,7 +205,7 @@ class TestExternalId(UnitTestCase):
             self.env,
             res_model="external.id.fixture",
             res_id=fixture_record.id,
-            system_id=self.discord_system.id,
+            system_id=self.sample_system.id,
             external_id="888888888888888888",
         )
 

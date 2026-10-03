@@ -1,7 +1,6 @@
 import contextlib
 import random
 import secrets
-import string
 import time
 from datetime import datetime
 from typing import Any, Generator, Optional, Protocol
@@ -16,12 +15,6 @@ def generate_unique_sku() -> str:
 
 def generate_unique_name(base_name: str) -> str:
     return f"{base_name} {datetime.now().timestamp()}"
-
-
-def generate_motor_serial() -> str:
-    letters = "".join(random.choices(string.ascii_uppercase, k=3))
-    numbers = "".join(random.choices(string.digits, k=7))
-    return f"{letters}{numbers}"
 
 
 def generate_secure_token(length: int = 32) -> str:
@@ -55,9 +48,7 @@ def assert_fields_equal(
     for field, expected_value in expected.items():
         actual_value = getattr(record, field, None)
         if actual_value != expected_value:
-            error = (
-                f"Field '{field}': expected {expected_value!r}, got {actual_value!r}"
-            )
+            error = f"Field '{field}': expected {expected_value!r}, got {actual_value!r}"
             if message_prefix:
                 error = f"{message_prefix} - {error}"
             errors.append(error)
@@ -122,7 +113,6 @@ def measure_performance(
 __all__ = [
     "generate_unique_sku",
     "generate_unique_name",
-    "generate_motor_serial",
     "generate_secure_token",
     "EnvironmentWithContext",
     "with_test_context",

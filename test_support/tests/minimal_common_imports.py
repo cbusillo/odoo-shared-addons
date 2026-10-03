@@ -49,13 +49,8 @@ class CommonImports:
     generate_unique_sku: Any
 
 
-def build_default_test_context(
-    *, include_skip_shopify_sync: bool = False
-) -> dict[str, bool]:
-    default_context = dict(_BASE_TEST_CONTEXT)
-    if include_skip_shopify_sync:
-        default_context["skip_shopify_sync"] = True
-    return default_context
+def build_default_test_context() -> dict[str, bool]:
+    return dict(_BASE_TEST_CONTEXT)
 
 
 def build_unit_tags(module_name: str) -> list[str]:
@@ -77,16 +72,12 @@ def _build_phase_tags(module_name: str, phase_tag: str) -> list[str]:
     return STANDARD_TAGS + [phase_tag, module_name]
 
 
-def build_common_imports(
-    package_name: str, *, include_skip_shopify_sync: bool = False
-) -> CommonImports:
+def build_common_imports(package_name: str) -> CommonImports:
     module_name = infer_addon_name(package_name)
     return CommonImports(
         module_name=module_name,
         MODULE_TAG=module_name,
-        DEFAULT_TEST_CONTEXT=build_default_test_context(
-            include_skip_shopify_sync=include_skip_shopify_sync
-        ),
+        DEFAULT_TEST_CONTEXT=build_default_test_context(),
         STANDARD_TAGS=list(STANDARD_TAGS),
         UNIT_TAGS=_build_phase_tags(module_name, "unit_test"),
         INTEGRATION_TAGS=_build_phase_tags(module_name, "integration_test"),
@@ -110,12 +101,8 @@ def build_common_imports(
     )
 
 
-def build_addon_test_api(
-    package_name: str, *, include_skip_shopify_sync: bool = False
-) -> SimpleNamespace:
-    common = build_common_imports(
-        package_name, include_skip_shopify_sync=include_skip_shopify_sync
-    )
+def build_addon_test_api(package_name: str) -> SimpleNamespace:
+    common = build_common_imports(package_name)
     return SimpleNamespace(
         module_name=common.module_name,
         module_tag=common.MODULE_TAG,

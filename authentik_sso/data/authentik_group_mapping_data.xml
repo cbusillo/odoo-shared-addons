@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
+    <!-- noupdate: an upgrade must not reset admin edits to these mappings. -->
+    <data noupdate="1">
         <record id="authentik_group_mapping_fallback" model="authentik.sso.group.mapping">
             <field name="is_fallback" eval="True"/>
             <field name="sequence" eval="10"/>

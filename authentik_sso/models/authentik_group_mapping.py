@@ -95,7 +95,13 @@ class AuthentikSsoGroupMapping(models.Model):
         return group_ids
 
     @api.model
-    def ensure_default_mappings(self) -> None:
+    def ensure_default_mappings(self, *, seed_admin_mapping: bool = False) -> None:
+        """Create missing default mappings; never rewrite existing ones.
+
+        A newly created admin mapping takes the admin user's groups. The
+        install hook passes ``seed_admin_mapping`` so the shipped admin
+        mapping is seeded the same way, once.
+        """
         mapping_model = self.sudo()
         fallback_mapping = mapping_model.search([("is_fallback", "=", True)], limit=1)
         if not fallback_mapping:
@@ -114,7 +120,6 @@ class AuthentikSsoGroupMapping(models.Model):
             )
 
         admin_group_name = self._resolve_admin_group_name()
-        admin_mapping_was_created = False
         admin_mapping = mapping_model.search(
             [
                 ("authentik_group", "=", admin_group_name),
@@ -123,30 +128,14 @@ class AuthentikSsoGroupMapping(models.Model):
             limit=1,
         )
         if not admin_mapping:
-            admin_mapping_was_created = True
+            seed_admin_mapping = True
             admin_mapping = mapping_model.create(
                 {
                     "authentik_group": admin_group_name,
                     "sequence": 20,
                 }
             )
-
-        default_record = self.env.ref(
-            "authentik_sso.authentik_group_mapping_admins", raise_if_not_found=False
-        )
-        default_record = (
-            default_record.exists()
-            if default_record
-            else self.env["authentik.sso.group.mapping"]
-        )
-        system_group = self.env.ref("base.group_system", raise_if_not_found=False)
-        system_group = system_group.exists() if system_group else self.env["res.groups"]
-        current_group_ids = set(admin_mapping.odoo_groups.ids)
-        allow_seed = admin_mapping_was_created
-        if default_record and admin_mapping.id == default_record.id:
-            if system_group and current_group_ids == {system_group.id}:
-                allow_seed = True
-        if not allow_seed:
+        if not seed_admin_mapping:
             return
 
         admin_group_ids = self._default_admin_groups()

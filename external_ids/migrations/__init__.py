@@ -1,1 +1,1 @@
-"""External IDs migrations package."""
+"""External ID upgrade helpers."""

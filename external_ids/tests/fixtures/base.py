@@ -1,17 +1,43 @@
-from test_support.tests.fixtures.unit_case import AdminContextUnitTestCase
+from odoo.orm import model_classes
+from odoo.tests import TransactionCase
+
+from .record import ExternalIdFixture
 
 from ..common_imports import common
 
 
 @common.tagged(*common.UNIT_TAGS)
-class UnitTestCase(AdminContextUnitTestCase):
+class UnitTestCase(TransactionCase):
     default_test_context = common.DEFAULT_TEST_CONTEXT
-    model_aliases = {
-        "ExternalSystem": "external.system",
-        "ExternalId": "external.id",
-        "FixtureRecord": "external.id.fixture",
-        "Partner": "res.partner",
-    }
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.env = cls.env(context=dict(cls.env.context, **cls.default_test_context))
+        cls.addClassCleanup(cls._remove_fixture_model)
+        model_classes.add_to_registry(cls.registry, ExternalIdFixture)
+        cls.registry._setup_models__(cls.cr, ["external.id.fixture"])
+        cls.registry.init_models(cls.cr, ["external.id.fixture"], {"module": "external_ids"})
+
+        cls.env["ir.model.access"].create(
+            {
+                "name": "External identity test fixture admin",
+                "model_id": cls.env["ir.model"]._get("external.id.fixture").id,
+                "group_id": cls.env.ref("base.group_system").id,
+                "perm_read": True,
+                "perm_write": True,
+                "perm_create": True,
+                "perm_unlink": True,
+            }
+        )
+        cls.env = cls.env(user=cls.env.ref("base.user_admin"))
+
+    @classmethod
+    def _remove_fixture_model(cls) -> None:
+        for parent in ("external.id.mixin", "base"):
+            cls.registry[parent]._inherit_children.discard("external.id.fixture")
+        cls.registry.models.pop("external.id.fixture", None)
+        cls.registry._setup_models__(cls.cr)
 
     @property
     def ExternalSystem(self) -> "odoo.model.external_system":

@@ -1,15 +1,12 @@
 import contextlib
 import random
 import secrets
-import string
 import time
 from datetime import datetime
 from typing import Any, Generator, Optional, Protocol
 from unittest.mock import MagicMock, patch
 
 from odoo.models import BaseModel
-
-from .base_types import TEST_SHOPIFY_ID_MAX, TEST_SHOPIFY_ID_MIN
 
 
 def generate_unique_sku() -> str:
@@ -20,65 +17,18 @@ def generate_unique_name(base_name: str) -> str:
     return f"{base_name} {datetime.now().timestamp()}"
 
 
-def generate_shopify_id() -> str:
-    return str(random.randint(TEST_SHOPIFY_ID_MIN, TEST_SHOPIFY_ID_MAX))
-
-
-def generate_motor_serial() -> str:
-    letters = "".join(random.choices(string.ascii_uppercase, k=3))
-    numbers = "".join(random.choices(string.digits, k=7))
-    return f"{letters}{numbers}"
-
-
 def generate_secure_token(length: int = 32) -> str:
     return secrets.token_urlsafe(length)
 
 
-def assert_shopify_fields(record: object, expected: dict[str, object]) -> None:
-    for field, value in expected.items():
-        actual = getattr(record, field)
-        assert actual == value, f"Field {field}: expected {value!r}, got {actual!r}"
-
-
 class EnvironmentWithContext(Protocol):
-    def with_context(self, **kwargs: object) -> "EnvironmentWithContext":
-        ...
+    def with_context(self, **kwargs: object) -> "EnvironmentWithContext": ...
 
 
 def with_test_context(env: EnvironmentWithContext) -> EnvironmentWithContext:
     from .base_types import DEFAULT_TEST_CONTEXT
 
     return env.with_context(**DEFAULT_TEST_CONTEXT)
-
-
-@contextlib.contextmanager
-def mock_shopify_service(
-    return_value: Any = None,
-    side_effect: Any = None,
-) -> Generator[MagicMock, None, None]:
-    with patch("shopify_sync.services.shopify.ShopifyService") as mock_service:
-        if return_value is not None:
-            mock_service.return_value = return_value
-        if side_effect is not None:
-            mock_service.side_effect = side_effect
-        yield mock_service
-
-
-@contextlib.contextmanager
-def mock_graphql_client(
-    execute_return: Optional[dict] = None,
-    execute_side_effect: Any = None,
-) -> Generator[MagicMock, None, None]:
-    with patch("shopify_sync.services.shopify.gql.Client") as mock_client:
-        mock_instance = MagicMock()
-        mock_client.return_value = mock_instance
-
-        if execute_return is not None:
-            mock_instance.execute.return_value = execute_return
-        if execute_side_effect is not None:
-            mock_instance.execute.side_effect = execute_side_effect
-
-        yield mock_instance
 
 
 @contextlib.contextmanager
@@ -160,56 +110,15 @@ def measure_performance(
             )
 
 
-class TestDataBuilder:
-    @staticmethod
-    def shopify_response(
-        data: Optional[dict] = None,
-        errors: Optional[list] = None,
-        extensions: Optional[dict] = None,
-    ) -> dict[str, Any]:
-        response = {}
-        if data is not None:
-            response["data"] = data
-        if errors is not None:
-            response["errors"] = errors
-        if extensions is not None:
-            response["extensions"] = extensions
-        return response
-
-    @staticmethod
-    def shopify_product(
-        product_id: Optional[str] = None,
-        title: Optional[str] = None,
-        **kwargs: Any,
-    ) -> dict[str, Any]:
-        product = {
-            "id": product_id or generate_shopify_id(),
-            "title": title or generate_unique_name("Test Product"),
-            "handle": kwargs.get("handle", "test-product"),
-            "vendor": kwargs.get("vendor", "Test Vendor"),
-            "productType": kwargs.get("productType", "Test Type"),
-            "tags": kwargs.get("tags", []),
-            "status": kwargs.get("status", "ACTIVE"),
-        }
-        product.update(kwargs)
-        return product
-
-
 __all__ = [
     "generate_unique_sku",
     "generate_unique_name",
-    "generate_shopify_id",
-    "generate_motor_serial",
     "generate_secure_token",
-    "assert_shopify_fields",
     "EnvironmentWithContext",
     "with_test_context",
-    "mock_shopify_service",
-    "mock_graphql_client",
     "mock_datetime_now",
     "assert_fields_equal",
     "assert_record_count",
     "assert_in_log",
     "measure_performance",
-    "TestDataBuilder",
 ]

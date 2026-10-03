@@ -8,7 +8,7 @@ from ..fixtures.factories import ExternalSystemFactory
 
 
 class TestSystemCode(ExternalSystemCode):
-    SHOPIFY = "shopify"
+    CATALOG = "catalog"
 
 
 class TestResourceName(ExternalResourceName):
@@ -19,98 +19,122 @@ class TestResourceName(ExternalResourceName):
 class TestExternalIdMixin(UnitTestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.discord_system = ExternalSystemFactory.create(
+        self.sample_system = ExternalSystemFactory.create(
             self.env,
-            name="Discord",
-            code="discord",
+            name="Sample",
+            code="sample",
             reuse_existing=True,
         )
-        self.shopify_system = ExternalSystemFactory.create(
+        self.catalog_system = ExternalSystemFactory.create(
             self.env,
-            name="Shopify",
-            code="shopify",
+            name="Catalog",
+            code="catalog",
             reuse_existing=True,
         )
 
     def _create_fixture(self, name: str) -> "odoo.model.external_id_fixture":
         return self.FixtureRecord.create({"name": name})
 
-    def _use_test_shopify_urls(self) -> None:
-        # Own the URL inputs so seed-data placeholders can change freely.
-        self.env.ref("external_ids.external_system_shopify").url = "https://store.example.test"
-        self.env.ref("external_ids.shopify_url_product_admin").write(
-            {"base_url": "https://admin.example.test", "template": "{base}/products/{id}"}
-        )
-        self.env.ref("external_ids.shopify_url_product_store").write(
-            {"base_url": False, "template": "{base}/products/{id}"}
+    def _use_test_catalog_urls(self) -> None:
+        self.catalog_system.url = "https://store.example.test"
+        self.env["external.system.url"].create(
+            [
+                {
+                    "name": "Admin",
+                    "code": "product_admin",
+                    "system_id": self.catalog_system.id,
+                    "resource": "product",
+                    "base_url": "https://admin.example.test",
+                    "template": "{base}/products/{id}",
+                },
+                {
+                    "name": "Store",
+                    "code": "product_store",
+                    "system_id": self.catalog_system.id,
+                    "resource": "product",
+                    "template": "{base}/products/{id}",
+                },
+            ]
         )
 
     def test_fluent_id_assignment_and_read(self) -> None:
         record = self._create_fixture("Fluent Record")
 
-        record.external.discord.default.id = "123456789012345678"
+        record.external.sample.default.id = "123456789012345678"
 
-        self.assertEqual(record.external.discord.default.id, "123456789012345678")
-        self.assertEqual(record.external.discord.default.record.external_id, "123456789012345678")
+        self.assertEqual(record.external.sample.default.id, "123456789012345678")
+        self.assertEqual(
+            record.external.sample.default.record.external_id, "123456789012345678"
+        )
 
     def test_fluent_resource_exposes_external_id_fields(self) -> None:
         record = self._create_fixture("Field Proxy Record")
-        record.external.discord.default.id = "222222222222222222"
+        record.external.sample.default.id = "222222222222222222"
 
-        record.external.discord.default.notes = "Needs review"
+        record.external.sample.default.notes = "Needs review"
 
-        self.assertEqual(record.external.discord.default.notes, "Needs review")
-        self.assertTrue(record.external.discord.default.active)
-        self.assertEqual(record.external.discord.default.external_id, "222222222222222222")
+        self.assertEqual(record.external.sample.default.notes, "Needs review")
+        self.assertTrue(record.external.sample.default.active)
+        self.assertEqual(
+            record.external.sample.default.external_id, "222222222222222222"
+        )
 
     def test_fluent_resource_hides_archived_mapping_by_default(self) -> None:
         record = self._create_fixture("Archived Fluent Record")
-        record.external.discord.default.id = "222222222222222222"
-        record.external.discord.default.notes = "Needs review"
+        record.external.sample.default.id = "222222222222222222"
+        record.external.sample.default.notes = "Needs review"
 
-        record.external.discord.default.active = False
+        record.external.sample.default.active = False
 
-        self.assertFalse(record.external.discord.default)
-        self.assertIsNone(record.external.discord.default.id)
-        self.assertFalse(record.external.discord.default.external_id)
-        self.assertFalse(record.external.discord.default.notes)
-        self.assertFalse(record.external.discord.default.active)
-        self.assertEqual(record.external.discord.default.id_any, "222222222222222222")
-        self.assertEqual(record.external.discord.default.record_any.external_id, "222222222222222222")
-        self.assertEqual(record.external.discord.default.record_any.notes, "Needs review")
-        self.assertFalse(record.external.discord.default.record_any.active)
+        self.assertFalse(record.external.sample.default)
+        self.assertIsNone(record.external.sample.default.id)
+        self.assertFalse(record.external.sample.default.external_id)
+        self.assertFalse(record.external.sample.default.notes)
+        self.assertFalse(record.external.sample.default.active)
+        self.assertEqual(record.external.sample.default.id_any, "222222222222222222")
+        self.assertEqual(
+            record.external.sample.default.record_any.external_id, "222222222222222222"
+        )
+        self.assertEqual(
+            record.external.sample.default.record_any.notes, "Needs review"
+        )
+        self.assertFalse(record.external.sample.default.record_any.active)
 
     def test_fluent_resource_can_clear_id_with_none(self) -> None:
         record = self._create_fixture("Clear Fluent Record")
-        record.external.shopify.product.id = "123456"
+        record.external.catalog.product.id = "123456"
 
-        record.external.shopify.product.id = None
+        record.external.catalog.product.id = None
 
-        self.assertIsNone(record.external.shopify.product.id)
-        self.assertFalse(record.external.shopify.product.record_any.active)
+        self.assertIsNone(record.external.catalog.product.id)
+        self.assertFalse(record.external.catalog.product.record_any.active)
 
     def test_fluent_model_api_get_returns_record(self) -> None:
         record = self._create_fixture("Lookup Record")
-        record.external.discord.default.id = "333333333333333333"
+        record.external.sample.default.id = "333333333333333333"
 
-        found_record = self.FixtureRecord.external.discord.default.get("333333333333333333")
+        found_record = self.FixtureRecord.external.sample.default.get(
+            "333333333333333333"
+        )
 
         self.assertEqual(found_record, record)
 
     def test_fluent_model_api_bracket_lookup_returns_record(self) -> None:
         record = self._create_fixture("Bracket Lookup Record")
-        record.external.discord.default.id = "343434343434343434"
+        record.external.sample.default.id = "343434343434343434"
 
-        found_record = self.FixtureRecord.external_lookup.discord.default["343434343434343434"]
+        found_record = self.FixtureRecord.external_lookup.sample.default[
+            "343434343434343434"
+        ]
 
         self.assertEqual(found_record, record)
 
     def test_domain_by_external_id_builds_searchable_domain(self) -> None:
         record = self._create_fixture("Domain Lookup Record")
-        record.external.discord.default.id = "353535353535353535"
+        record.external.sample.default.id = "353535353535353535"
 
         found_record = self.FixtureRecord.search(
-            self.FixtureRecord.domain_by_external_id("discord", "353535353535353535"),
+            self.FixtureRecord.domain_by_external_id("sample", "353535353535353535"),
             limit=1,
         )
 
@@ -119,11 +143,11 @@ class TestExternalIdMixin(UnitTestCase):
     def test_map_by_external_id_returns_lookup_for_model(self) -> None:
         first_record = self._create_fixture("First Generic Map Record")
         second_record = self._create_fixture("Second Generic Map Record")
-        first_record.external.discord.default.id = "363636363636363636"
-        second_record.external.discord.default.id = "373737373737373737"
+        first_record.external.sample.default.id = "363636363636363636"
+        second_record.external.sample.default.id = "373737373737373737"
 
         mapping = self.FixtureRecord.map_by_external_id(
-            "discord",
+            "sample",
             ["363636363636363636", "373737373737373737", "383838383838383838"],
         )
 
@@ -133,9 +157,11 @@ class TestExternalIdMixin(UnitTestCase):
 
     def test_fluent_model_api_record_returns_external_id_record(self) -> None:
         record = self._create_fixture("Record Lookup")
-        record.external.discord.default.id = "444444444444444444"
+        record.external.sample.default.id = "444444444444444444"
 
-        external_id_record = self.FixtureRecord.external.discord.default.record("444444444444444444")
+        external_id_record = self.FixtureRecord.external.sample.default.record(
+            "444444444444444444"
+        )
 
         self.assertEqual(external_id_record.res_model, "external.id.fixture")
         self.assertEqual(external_id_record.res_id, record.id)
@@ -146,13 +172,13 @@ class TestExternalIdMixin(UnitTestCase):
             {
                 "res_model": "external.id.fixture",
                 "res_id": original_record.id + 999999,
-                "system_id": self.discord_system.id,
+                "system_id": self.sample_system.id,
                 "external_id": "archived-id",
                 "active": False,
             }
         )
 
-        found_record = self.FixtureRecord.external.discord.default.get_or_create(
+        found_record = self.FixtureRecord.external.sample.default.get_or_create(
             "archived-id",
             {"name": "Recovered Archived Orphan"},
         )
@@ -164,11 +190,13 @@ class TestExternalIdMixin(UnitTestCase):
 
     def test_get_or_create_by_external_id_skips_redundant_write(self) -> None:
         record = self._create_fixture("Stable Name")
-        record.external.discord.default.id = "101010101010101010"
+        record.external.sample.default.id = "101010101010101010"
 
-        with common.patch.object(type(record), "write", wraps=type(record).write) as mock_write:
+        with common.patch.object(
+            type(record), "write", wraps=type(record).write
+        ) as mock_write:
             found_record = self.FixtureRecord.get_or_create_by_external_id(
-                "discord",
+                "sample",
                 "101010101010101010",
                 {"name": "Stable Name"},
             )
@@ -178,11 +206,11 @@ class TestExternalIdMixin(UnitTestCase):
 
     def test_get_or_create_by_external_id_rejects_unknown_fields(self) -> None:
         record = self._create_fixture("Known Record")
-        record.external.discord.default.id = "121212121212121212"
+        record.external.sample.default.id = "121212121212121212"
 
         with self.assertRaises(ValueError):
             self.FixtureRecord.get_or_create_by_external_id(
-                "discord",
+                "sample",
                 "121212121212121212",
                 {"missing_field": "value"},
             )
@@ -202,10 +230,10 @@ class TestExternalIdMixin(UnitTestCase):
     def test_fluent_model_api_map_returns_lookup_by_external_id(self) -> None:
         first_record = self._create_fixture("First Map Record")
         second_record = self._create_fixture("Second Map Record")
-        first_record.external.discord.default.id = "555555555555555555"
-        second_record.external.discord.default.id = "666666666666666666"
+        first_record.external.sample.default.id = "555555555555555555"
+        second_record.external.sample.default.id = "666666666666666666"
 
-        mapping = self.FixtureRecord.external.discord.default.map(
+        mapping = self.FixtureRecord.external.sample.default.map(
             [
                 "555555555555555555",
                 "666666666666666666",
@@ -224,7 +252,7 @@ class TestExternalIdMixin(UnitTestCase):
 
         self.assertEqual(record.get_bound_external_id(), "777777777777777777")
         self.assertEqual(record.external_reference.id, "777777777777777777")
-        self.assertEqual(record.external.discord.default.id, "777777777777777777")
+        self.assertEqual(record.external.sample.default.id, "777777777777777777")
 
     def test_copy_does_not_duplicate_external_ids(self) -> None:
         original_record = self._create_fixture("Copy Source")
@@ -248,25 +276,25 @@ class TestExternalIdMixin(UnitTestCase):
         self.assertEqual(mapping["999999999999999999"], second_record)
 
     def test_fluent_resource_url_uses_runtime_template(self) -> None:
-        self._use_test_shopify_urls()
+        self._use_test_catalog_urls()
         record = self._create_fixture("URL Record")
-        record.external.shopify.product.id = "123456"
+        record.external.catalog.product.id = "123456"
 
         self.assertEqual(
-            record.external.shopify.product.url("product_admin"),
+            record.external.catalog.product.url("product_admin"),
             "https://admin.example.test/products/123456",
         )
         self.assertEqual(
-            record.external.shopify.product.url("product_store"),
+            record.external.catalog.product.url("product_store"),
             "https://store.example.test/products/123456",
         )
 
         self.assertEqual(
-            record.external.shopify.product.url("admin"),
+            record.external.catalog.product.url("admin"),
             "https://admin.example.test/products/123456",
         )
         self.assertEqual(
-            record.external.shopify.product.url("store"),
+            record.external.catalog.product.url("store"),
             "https://store.example.test/products/123456",
         )
 
@@ -298,29 +326,29 @@ class TestExternalIdMixin(UnitTestCase):
         )
 
     def test_fluent_resource_url_ignores_archived_external_id(self) -> None:
-        self._use_test_shopify_urls()
+        self._use_test_catalog_urls()
         record = self._create_fixture("Archived URL Record")
-        record.external.shopify.product.id = "654321"
+        record.external.catalog.product.id = "654321"
 
         self.assertEqual(
-            record.external.shopify.product.url("admin"),
+            record.external.catalog.product.url("admin"),
             "https://admin.example.test/products/654321",
         )
 
-        record.external.shopify.product.active = False
+        record.external.catalog.product.active = False
 
-        self.assertIsNone(record.external.shopify.product.id)
-        self.assertEqual(record.external.shopify.product.id_any, "654321")
-        self.assertIsNone(record.external.shopify.product.url("admin"))
-        self.assertIsNone(record.external.shopify.product.url("store"))
+        self.assertIsNone(record.external.catalog.product.id)
+        self.assertEqual(record.external.catalog.product.id_any, "654321")
+        self.assertIsNone(record.external.catalog.product.url("admin"))
+        self.assertIsNone(record.external.catalog.product.url("store"))
 
     def test_open_external_url_blocked_for_archived_mapping(self) -> None:
-        self._use_test_shopify_urls()
+        self._use_test_catalog_urls()
         record = self._create_fixture("Archived URL Action Record")
-        record.external.shopify.product.id = "999999"
+        record.external.catalog.product.id = "999999"
 
         active_action = record.with_context(
-            external_system_code="shopify",
+            external_system_code="catalog",
             external_url_kind="admin",
             external_resource="product",
         ).action_open_external_url()
@@ -331,10 +359,10 @@ class TestExternalIdMixin(UnitTestCase):
             "https://admin.example.test/products/999999",
         )
 
-        record.external.shopify.product.active = False
+        record.external.catalog.product.active = False
 
         blocked_action_result = record.with_context(
-            external_system_code="shopify",
+            external_system_code="catalog",
             external_url_kind="admin",
             external_resource="product",
         ).action_open_external_url()
@@ -350,13 +378,15 @@ class TestExternalIdMixin(UnitTestCase):
     def test_fluent_resource_accepts_enum_resource_keys(self) -> None:
         record = self._create_fixture("Enum Record")
 
-        record.external.system(TestSystemCode.SHOPIFY).resource(TestResourceName.PRODUCT).id = "999999"
+        record.external.system(TestSystemCode.CATALOG).resource(
+            TestResourceName.PRODUCT
+        ).id = "999999"
 
-        self.assertEqual(record.external.shopify.product.id, "999999")
+        self.assertEqual(record.external.catalog.product.id, "999999")
 
     def test_action_view_external_ids(self) -> None:
         record = self._create_fixture("View Test")
-        record.external.discord.default.id = "888888888888888888"
+        record.external.sample.default.id = "888888888888888888"
 
         action = record.action_view_external_ids()
 
@@ -388,13 +418,13 @@ class TestExternalIdMixin(UnitTestCase):
             {
                 "res_model": "external.id.fixture",
                 "res_id": record.id,
-                "system_id": self.discord_system.id,
+                "system_id": self.sample_system.id,
                 "external_id": "stale-id",
                 "active": False,
             }
         )
 
-        self.assertTrue(record.set_external_id("discord", "reactivated-id"))
+        self.assertTrue(record.set_external_id("sample", "reactivated-id"))
 
         mappings = self.ExternalId.with_context(active_test=False).search(
             [("res_model", "=", "external.id.fixture"), ("res_id", "=", record.id)]
@@ -405,13 +435,17 @@ class TestExternalIdMixin(UnitTestCase):
 
     def test_get_or_create_rejects_archived_mapping_of_live_record(self) -> None:
         record = self._create_fixture("Archived Live")
-        record.external.discord.default.id = "archived-live-id"
-        record.external.discord.default.active = False
+        record.external.sample.default.id = "archived-live-id"
+        record.external.sample.default.active = False
 
         with self.assertRaises(ValueError):
-            self.FixtureRecord.get_or_create_by_external_id("discord", "archived-live-id", {"name": "Duplicate"})
+            self.FixtureRecord.get_or_create_by_external_id(
+                "sample", "archived-live-id", {"name": "Duplicate"}
+            )
 
-        self.assertEqual(self.FixtureRecord.search_count([("name", "=", "Duplicate")]), 0)
+        self.assertEqual(
+            self.FixtureRecord.search_count([("name", "=", "Duplicate")]), 0
+        )
 
     def test_set_external_id_skips_id_owned_by_another_model(self) -> None:
         partner = self.Partner.create({"name": "Owner Partner"})
@@ -419,55 +453,73 @@ class TestExternalIdMixin(UnitTestCase):
             {
                 "res_model": "res.partner",
                 "res_id": partner.id,
-                "system_id": self.discord_system.id,
+                "system_id": self.sample_system.id,
                 "external_id": "shared-id",
             }
         )
         record = self._create_fixture("Other Model")
 
-        self.assertFalse(record.set_external_id("discord", "shared-id"))
+        self.assertFalse(record.set_external_id("sample", "shared-id"))
 
-        mapping = self.ExternalId.search([("external_id", "=", "shared-id"), ("system_id", "=", self.discord_system.id)])
-        self.assertEqual((mapping.res_model, mapping.res_id), ("res.partner", partner.id))
+        mapping = self.ExternalId.search(
+            [
+                ("external_id", "=", "shared-id"),
+                ("system_id", "=", self.sample_system.id),
+            ]
+        )
+        self.assertEqual(
+            (mapping.res_model, mapping.res_id), ("res.partner", partner.id)
+        )
 
     def test_set_external_id_moves_id_between_records_of_one_model(self) -> None:
         first_record = self._create_fixture("First Owner")
         second_record = self._create_fixture("Second Owner")
-        first_record.set_external_id("discord", "moved-id")
-        second_record.set_external_id("discord", "old-second-id")
+        first_record.set_external_id("sample", "moved-id")
+        second_record.set_external_id("sample", "old-second-id")
 
-        self.assertTrue(second_record.set_external_id("discord", "moved-id"))
+        self.assertTrue(second_record.set_external_id("sample", "moved-id"))
 
-        self.assertEqual(self.FixtureRecord.search_by_external_id("discord", "moved-id"), second_record)
-        self.assertFalse(first_record.get_external_id_record("discord"))
+        self.assertEqual(
+            self.FixtureRecord.search_by_external_id("sample", "moved-id"),
+            second_record,
+        )
+        self.assertFalse(first_record.get_external_id_record("sample"))
         self.assertFalse(
-            self.ExternalId.with_context(active_test=False).search([("external_id", "=", "old-second-id")])
+            self.ExternalId.with_context(active_test=False).search(
+                [("external_id", "=", "old-second-id")]
+            )
         )
 
-    def test_set_external_id_recovers_when_same_mapping_appears_concurrently(self) -> None:
+    def test_set_external_id_recovers_when_same_mapping_appears_concurrently(
+        self,
+    ) -> None:
         record = self._create_fixture("Concurrent Same")
-        record.set_external_id("discord", "race-id")
+        record.set_external_id("sample", "race-id")
 
         with self._racing_external_id_search():
-            self.assertTrue(record.set_external_id("discord", "race-id"))
+            self.assertTrue(record.set_external_id("sample", "race-id"))
 
         mappings = self.ExternalId.search([("external_id", "=", "race-id")])
         self.assertEqual(len(mappings), 1)
         self.assertEqual(mappings.res_id, record.id)
 
-    def test_set_external_id_recovers_when_other_record_takes_id_concurrently(self) -> None:
+    def test_set_external_id_recovers_when_other_record_takes_id_concurrently(
+        self,
+    ) -> None:
         winner = self._create_fixture("Concurrent Winner")
-        winner.set_external_id("discord", "contested-id")
+        winner.set_external_id("sample", "contested-id")
         record = self._create_fixture("Concurrent Loser")
 
         with self._racing_external_id_search():
-            self.assertTrue(record.set_external_id("discord", "contested-id"))
+            self.assertTrue(record.set_external_id("sample", "contested-id"))
 
-        self.assertEqual(self.FixtureRecord.search_by_external_id("discord", "contested-id"), record)
+        self.assertEqual(
+            self.FixtureRecord.search_by_external_id("sample", "contested-id"), record
+        )
 
     def test_set_external_id_still_raises_format_errors(self) -> None:
-        self.discord_system.id_format = r"^\d+$"
+        self.sample_system.id_format = r"^\d+$"
         record = self._create_fixture("Bad Format")
 
         with self.assertRaises(ValidationError):
-            record.set_external_id("discord", "not-a-number")
+            record.set_external_id("sample", "not-a-number")

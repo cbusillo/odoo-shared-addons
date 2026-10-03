@@ -10,7 +10,6 @@ MockType = Union[MagicMock, Mock]
 AssertionDict = dict[str, Any]
 
 DEFAULT_TEST_CONTEXT = {
-    "skip_shopify_sync": True,
     "tracking_disable": True,
     "no_reset_password": True,
     "mail_create_nosubscribe": True,
@@ -26,8 +25,6 @@ JS_TAGS = STANDARD_TAGS + ["js_test"]
 PERFORMANCE_TAGS = STANDARD_TAGS + ["performance_test"]
 
 TEST_SKU_PREFIX = "TEST"
-TEST_SHOPIFY_ID_MIN = 1000000000
-TEST_SHOPIFY_ID_MAX = 9999999999
 
 __all__ = [
     "OdooValue",
@@ -41,6 +38,4 @@ __all__ = [
     "JS_TAGS",
     "PERFORMANCE_TAGS",
     "TEST_SKU_PREFIX",
-    "TEST_SHOPIFY_ID_MIN",
-    "TEST_SHOPIFY_ID_MAX",
 ]

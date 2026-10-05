@@ -29,9 +29,10 @@ the current Settings format, including a custom pattern. Changing Settings alone
 
 ## Admin Tools
 
-- Server Action: "Recompute Employee Names" calls `hr.employee._action_recompute_names()` to recompute stored `name` in
-  batches after changing settings. Recompute preserves explicit per-employee formats; changed defaults
-  affect employees using System Default. Changing Settings alone does not rename existing employees.
+- Server Action: "Recompute Employee Names" calls `hr.employee._action_recompute_names()` to recompose stored `name`
+  in batches using each employee's format. Employees created while Settings was western or asian store that
+  format explicitly. To apply changed defaults to those employees, select System Default on their records
+  before recomputing. Changing Settings alone does not rename existing employees.
 - Menu: HR → Configuration → Recompute Employee Names (no developer mode needed).
 
 ## Usage

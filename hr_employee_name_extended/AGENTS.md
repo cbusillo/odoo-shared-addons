@@ -8,7 +8,7 @@ Purpose
 Key Models/Fields
 
 - `hr.employee` adds: `first_name`, `last_name`, `nick_name`, and
-  `name_format` (selection: `""` for System Default, `western`, or `asian`).
+  `name_format` (selection: System Default (empty), `western`, or `asian`).
 - `name`: Odoo 19 keeps it related to `resource_id.name`, which ignores
   compute/inverse overrides. `create()` and `write()` compose it from the parts,
   and a write of `name` alone parses back to parts.

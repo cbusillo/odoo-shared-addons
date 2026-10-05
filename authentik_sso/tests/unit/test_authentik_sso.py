@@ -192,15 +192,15 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
 
+        existing_groups = user.group_ids
         with self.assertLogs(
             "odoo.addons.authentik_sso.models.res_users", level="WARNING"
-        ) as log_capture:
+        ):
             self.Users._sync_authentik_groups(
                 user, {"groups": ["Engineering"]}, provider.id
             )
 
-        warning_messages = " ".join(log_capture.output)
-        self.assertIn("no mappings configured", warning_messages)
+        self.assertEqual(user.group_ids, existing_groups)
 
     def _load_mapping_data(self, mode: str) -> None:
         # Load the shipped mapping data the way Odoo's module loader does.

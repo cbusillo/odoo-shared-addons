@@ -1,3 +1,6 @@
+from lxml import etree
+from odoo.tools.safe_eval import safe_eval
+
 from ...models.external_id_mixin import ExternalIdMixin
 from ..common_imports import common
 from ..fixtures.base import UnitTestCase
@@ -34,12 +37,20 @@ class TestViewsLoad(UnitTestCase):
         }
 
         injected = FakeExternalIdsUiModel.inject_external_ids_form_ui(view_definition, "form")
-        architecture = injected["arch"]
-
-        self.assertIn('button name="action_view_external_ids"', architecture)
-        self.assertIn('field name="external_ids_count"', architecture)
-        self.assertIn('page string="External IDs"', architecture)
-        self.assertIn("default_res_model': 'external.id.fixture", architecture)
+        architecture = etree.fromstring(injected["arch"].encode())
+        buttons = architecture.xpath(".//div[@name='button_box']/button[@name='action_view_external_ids']")
+        self.assertEqual(len(buttons), 1)
+        self.assertEqual(buttons[0].get("type"), "object")
+        self.assertEqual(len(buttons[0].xpath("./field[@name='external_ids_count']")), 1)
+        fields = architecture.xpath(".//sheet/notebook/page[@name='external_ids']/field[@name='external_ids']")
+        self.assertEqual(len(fields), 1)
+        record_id = 731
+        context = safe_eval(fields[0].get("context"), {"id": record_id})
+        self.assertEqual(context["default_res_model"], FakeExternalIdsUiModel._name)
+        self.assertEqual(context["default_res_id"], record_id)
+        self.assertEqual(
+            safe_eval(fields[0].get("domain")), [("res_model", "=", FakeExternalIdsUiModel._name)]
+        )
 
     def test_inject_external_ids_page_creates_notebook_when_missing(self) -> None:
         view_definition = {
@@ -55,8 +66,8 @@ class TestViewsLoad(UnitTestCase):
 
         injected = FakeExternalIdsUiModel.inject_external_ids_form_ui(view_definition, "form")
 
-        self.assertIn("<notebook>", injected["arch"])
-        self.assertIn('page string="External IDs"', injected["arch"])
+        architecture = etree.fromstring(injected["arch"].encode())
+        self.assertEqual(len(architecture.xpath(".//sheet/notebook/page[@name='external_ids']")), 1)
 
     def test_inject_external_ids_ui_is_idempotent(self) -> None:
         view_definition = {
@@ -76,5 +87,6 @@ class TestViewsLoad(UnitTestCase):
 
         injected = FakeExternalIdsUiModel.inject_external_ids_form_ui(view_definition, "form")
 
-        self.assertEqual(injected["arch"].count('button name="action_view_external_ids"'), 1)
-        self.assertEqual(injected["arch"].count('name="external_ids"'), 1)
+        architecture = etree.fromstring(injected["arch"].encode())
+        self.assertEqual(len(architecture.xpath(".//button[@name='action_view_external_ids']")), 1)
+        self.assertEqual(len(architecture.xpath(".//page[@name='external_ids']")), 1)

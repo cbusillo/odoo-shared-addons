@@ -10,7 +10,8 @@ Structured first/last/nickname fields for `hr.employee` with locale-aware format
 - Creating an employee from `name` alone, as Odoo does for a user's Create Employee action, splits the name into
   first and last name using the effective name format
 - Locale-aware formatting: western (First Last) or asian (Last First)
-- Per-employee override (`name_format`) with optional default from Settings
+- Per-employee format (`name_format`): System Default, western, or asian;
+  Settings also supports a custom pattern
 - Search across `name`, `first_name`, `last_name`, `nick_name`
 - `display_name` shows `Nickname (First Last)` when nickname differs
 - No cross-model side effects by default; partner/users sync remains opt-in via context (`allow_employee_sync`).
@@ -21,7 +22,9 @@ Structured first/last/nickname fields for `hr.employee` with locale-aware format
 - Default Name Format: western | asian | custom
 - Custom Pattern (when format = custom): `{first_name}`, `{last_name}`, `{nickname}`
 
-Defaults apply only when creating a new employee; name updates always respect the per-employee override.
+The creation form defaults the per-employee format from Settings when it is western or asian.
+An explicit per-employee format takes precedence on later name updates; System Default consults
+the current Settings format, including a custom pattern. Changing Settings alone does not rename records.
 
 ## Admin Tools
 

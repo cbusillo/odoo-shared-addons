@@ -13,7 +13,7 @@ Structured first/last/nickname fields for `hr.employee` with locale-aware format
 - Per-employee format (`name_format`): System Default, western, or asian;
   Settings also supports a custom pattern
 - Search across `name`, `first_name`, `last_name`, `nick_name`
-- `display_name` shows `Nickname (First Last)` when nickname differs
+- `display_name` shows the nickname followed by the formatted name in parentheses when the nickname differs from the first name
 - No cross-model side effects by default; partner/users sync remains opt-in via context (`allow_employee_sync`).
   Renaming a user without it leaves the employee's name unchanged
 

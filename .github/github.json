@@ -3,9 +3,8 @@
   "projectType": "odoo-shared-addon-collection",
   "docs": {
     "index": "README.md",
-    "routingNotes": [
-      "This repo does not own a local @docs tree; addon AGENTS guidance must stay local or explicitly name the owning external workspace."
-    ],
+    "repoGuide": "AGENTS.md",
+    "codeqlWorkflow": ".github/workflows/codeql.yml",
     "addonGuides": [
       "authentik_sso/AGENTS.md",
       "discuss_record_links/AGENTS.md",
@@ -21,11 +20,13 @@
     ]
   },
   "qualityGate": {
+    "json": {
+      "metadata": "jq empty .github/github.json"
+    },
     "test": {
       "addonOdoo": "odoo-bin --test-enable --stop-after-init -i <addon>"
     },
     "inspection": {
-      "tool": "jetbrains",
       "ide": "PyCharm",
       "scopePreference": [
         "changed_files",
@@ -46,16 +47,24 @@
     ]
   },
   "importantWorkflows": ["CodeQL"],
-  "requiredStatusChecks": [],
-  "codeScanningMergeProtection": {
-    "ruleset": "Require code scanning results",
-    "tool": "CodeQL",
-    "alertsThreshold": "errors",
-    "securityAlertsThreshold": "high_or_higher",
-    "dependabotDefaultSetupException": true
+  "prWorkflow": {
+    "mergeHandoff": "After CI passes and review findings are accounted for, comment Ready for the merge train. The direction session owns train entry and driving; executing agents do not label for entry, drive the train or merge by hand. See AGENTS.md.",
+    "requiredStatusChecks": ["Analyze (python)"],
+    "branchProtectionNotes": [
+      "Re-read live branch protection and rulesets before landing; this metadata describes routing, not authority to change those settings.",
+      "Branch protection requires Analyze (python) with an up-to-date branch. CodeQL also analyzes JavaScript/TypeScript; the Require code scanning results ruleset blocks analysis errors and high-or-higher security alerts."
+    ],
+    "validationNotes": "CI here runs CodeQL. Addon behavior tests require an assembled odoo-devkit workspace or the relevant tenant environment; addonOdoo is an Odoo invocation template, not a standalone checkout gate. See AGENTS.md."
   },
-  "qaLabels": [],
-  "deployLabels": [],
+  "launchplane": {
+    "enabled": true,
+    "mergeTrain": {
+      "enabled": true,
+      "controller": true,
+      "readyLabel": "ready-to-merge",
+      "baseBranch": "main"
+    }
+  },
   "relatedRepos": [
     "odoo-devkit",
     "odoo-tenant-cm",
@@ -90,6 +99,8 @@
       "validation gates change",
       "primary commands change",
       "important workflows change",
+      "merge path changes",
+      "branch protection or rulesets change",
       "repo relationship changes",
       "cleanup policy changes",
       "ownership boundaries change",

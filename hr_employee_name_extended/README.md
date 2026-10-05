@@ -10,23 +10,30 @@ Structured first/last/nickname fields for `hr.employee` with locale-aware format
 - Creating an employee from `name` alone, as Odoo does for a user's Create Employee action, splits the name into
   first and last name using the effective name format
 - Locale-aware formatting: western (First Last) or asian (Last First)
-- Per-employee override (`name_format`) with optional default from Settings
+- Per-employee format (`name_format`): System Default, western, or asian;
+  Settings also supports a custom pattern
 - Search across `name`, `first_name`, `last_name`, `nick_name`
-- `display_name` shows `Nickname (First Last)` when nickname differs
+- `display_name` shows the nickname followed by the formatted name in parentheses when the nickname differs from the first name
 - No cross-model side effects by default; partner/users sync remains opt-in via context (`allow_employee_sync`).
   Renaming a user without it leaves the employee's name unchanged
 
 ## Settings (HR)
 
-- Default Name Format: western | asian | custom
+- Employee Name Format: western | asian | custom
 - Custom Pattern (when format = custom): `{first_name}`, `{last_name}`, `{nickname}`
 
-Defaults apply only when creating a new employee; name updates always respect the per-employee override.
+When `name_format` is omitted, new employees default it from the saved setting when it is western or asian,
+including API and import creates.
+An explicit per-employee format takes precedence on later name updates; System Default consults
+the current Settings format, including a custom pattern. Changing Settings alone does not rename records.
 
 ## Admin Tools
 
-- Server Action: "Recompute Employee Names" calls `hr.employee._action_recompute_names()` to recompute stored `name` in
-  batches after changing settings. Changing the format does not rename existing employees until this runs.
+- Server Action: "Recompute Employee Names" calls `hr.employee._action_recompute_names()` to recompose stored `name`
+  in batches using the current search context and access rules, regardless of the selected records.
+  Employees created after Settings was saved as western or asian store that format explicitly; an unset
+  setting leaves new employees on System Default. Selecting
+  System Default on a record recomposes its name when saved. Changing Settings alone does not rename employees.
 - Menu: HR → Configuration → Recompute Employee Names (no developer mode needed).
 
 ## Usage

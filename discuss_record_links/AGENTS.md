@@ -11,7 +11,10 @@ Scope
 Testing
 
 - Unit: link generation; access rules respected.
-- Tour: open a record from Discuss and verify view loads.
+- Tours: the insert tour checks for a record-link anchor; the label and
+  record-ID label tours accept either the addon's labeled marker or Odoo's
+  record attributes without asserting the expected label text. The smoke tour
+  checks that the web client shell, apps menu, and user menu load.
 
 Implementation Notes
 

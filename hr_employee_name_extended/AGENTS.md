@@ -8,7 +8,7 @@ Purpose
 Key Models/Fields
 
 - `hr.employee` adds: `first_name`, `last_name`, `nick_name`, and
-  `name_format` (selection: western|asian|custom).
+  `name_format` (selection: System Default (empty), `western`, or `asian`).
 - `name`: Odoo 19 keeps it related to `resource_id.name`, which ignores
   compute/inverse overrides. `create()` and `write()` compose it from the parts,
   and a write of `name` alone parses back to parts.
@@ -16,7 +16,7 @@ Key Models/Fields
 Settings
 
 - `res.config.settings`: `user_name_format` (default format) and
-  `user_custom_name_pattern` (when custom).
+  `user_name_custom_pattern` (when custom).
 
 Admin Tools
 
@@ -26,8 +26,9 @@ Admin Tools
 
 Usage Notes
 
-- Changing defaults does not retro-update records; use the server action to
-  recompute in batches.
+- Changing defaults does not retro-update records. The server action recomputes
+  in batches, preserving explicit per-employee formats; changed defaults affect
+  employees using System Default.
 - Writing `employee.name` with a single token keeps the last name unchanged.
 
 Tests

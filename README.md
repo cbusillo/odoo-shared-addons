@@ -1,17 +1,30 @@
 # Shared Addons
 
-Purpose
+## Purpose
 
 - Hold reusable cross-client addons consumed by tenant workspaces.
 
-Rules
+## Direction and Contributing
+
+The Director's [overall DIRECTION.md](https://github.com/cbusillo/direction/blob/HEAD/DIRECTION.md)
+sets priorities and stop boundaries; this repository has no separate direction
+file. [AGENTS.md](AGENTS.md) routes repository work, review, and the Launchplane
+merge-train handoff. Each addon's `AGENTS.md` holds its implementation guidance.
+
+Workspace assembly and local runtime tooling belong to
+[odoo-devkit](https://github.com/cbusillo/odoo-devkit). Tenant repositories own
+assembled-environment validation and tenant-specific addons;
+[Launchplane](https://github.com/cbusillo/launchplane) owns canonical runtime
+configuration and release orchestration. Workflow facts and addon guide links
+are in [`.github/github.json`](.github/github.json).
+
+## Rules
 
 - Shared addons must not depend on tenant-specific addons.
-- If a client addon becomes reusable, promote it here.
 - Keep tenant-specific addons in tenant repos. Promote code here only when it
   is genuinely reusable across clients.
 
-Addon Inventory
+## Addon Inventory
 
 - `authentik_sso`: Authentik OAuth2/OpenID Connect provider setup and group
   mapping helpers.

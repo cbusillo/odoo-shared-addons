@@ -10,16 +10,19 @@ class TestPerEmployeeFormat(common.TransactionCase):
         cls.Employee = cls.env["hr.employee"]
         cls.ICP = cls.env["ir.config_parameter"].sudo()
 
+    def setUp(self) -> None:
+        super().setUp()
+        self.ICP.set_param("user_name_extended.format", "western")
+        self.ICP.set_param("user_name_extended.custom_pattern", False)
+
     def test_default_from_settings_and_override(self) -> None:
         self.ICP.set_param("user_name_extended.format", "western")
 
         emp_default = self.Employee.create({"first_name": "Li", "last_name": "Wei"})
-        emp_default.invalidate_recordset(["name"])  # ensure compute
         self.assertEqual(emp_default.name, "Li Wei")
-        self.assertIn(emp_default.name_format, ("", "western"))
+        self.assertEqual(emp_default.name_format, "western")
 
         emp_asian = self.Employee.create({"first_name": "Wei", "last_name": "Zhang", "name_format": "asian"})
-        emp_asian.invalidate_recordset(["name"])  # ensure compute
         self.assertEqual(emp_asian.name, "Zhang Wei")
 
     def test_inverse_respects_employee_format(self) -> None:

@@ -12,6 +12,11 @@ class TestEmployeeName(common.TransactionCase):
         cls.Employee = cls.env["hr.employee"]
         cls.ICP = cls.env["ir.config_parameter"].sudo()
 
+    def setUp(self) -> None:
+        super().setUp()
+        self.ICP.set_param("user_name_extended.format", "western")
+        self.ICP.set_param("user_name_extended.custom_pattern", False)
+
     def test_create_and_defaults(self) -> None:
         emp = self.Employee.create({"first_name": "John", "last_name": "Doe"})
         self.assertEqual(emp.nick_name, "John")
@@ -59,7 +64,7 @@ class TestEmployeeName(common.TransactionCase):
 
     def test_opt_in_sync_via_context(self) -> None:
         partner = self.env["res.partner"].create({"name": "Partner B"})
-        emp = self.Employee.create({"first_name": "Carl", "last_name": "Sagan", "work_contact_id": partner.id})
+        emp = self.Employee.create({"first_name": "Carl", "last_name": "Sagan", "work_contact_id": partner.id, "name_format": ""})
         partner.with_context(allow_employee_sync=True).write({"name": "Sagan Carl"})
         emp.invalidate_recordset(["first_name", "last_name", "name"])
         self.ICP.set_param("user_name_extended.format", "asian")

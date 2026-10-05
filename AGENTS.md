@@ -11,7 +11,7 @@ owns priorities and stop boundaries.
 Use the maintained [executing loop](https://github.com/cbusillo/codex-skills/blob/main/skills/references/executing-loop.md)
 for issue claims, isolated worktrees, implementation, and closeout, and
 [reviews by another model](https://github.com/cbusillo/codex-skills/blob/main/skills/references/model-review.md)
-for execution-guidance changes.
+to decide when a review is needed and how to weigh its findings.
 
 This repository's local convention is a comment handoff to Launchplane's merge
 train: after CI passes and review findings are accounted for, executing agents
@@ -46,6 +46,9 @@ file and add only addon-specific guidance.
 
 ## Tests
 
+- Use [`.github/github.json`](.github/github.json) for validation gates. CI here
+  runs CodeQL; addon behavior tests run in an assembled `odoo-devkit` workspace
+  or the relevant tenant environment when code changes.
 - A test must fail when the product is broken and pass when someone makes an
   intended change.
 - Do not assert a literal defined elsewhere: versions, build numbers,

@@ -11,21 +11,23 @@ class TestCronBudgetMixin(UnitTestCase):
         self.cron_budget_model = self.env["transaction.cron_budget.mixin"]
 
     def test_with_cron_runtime_budget_sets_deadline_context(self) -> None:
-        with common.patch.object(cron_budget_mixin.config, "get", return_value=120):
-            with common.patch.object(cron_budget_mixin, "monotonic", return_value=100.0):
-                model_with_budget = self.cron_budget_model._with_cron_runtime_budget(job_name="Sample Import")
+        with common.patch.object(cron_budget_mixin.config, "get", return_value=83):
+            with common.patch.object(cron_budget_mixin, "monotonic", return_value=200.0):
+                model_with_budget = self.cron_budget_model._with_cron_runtime_budget(
+                    job_name="Sample Import", safety_margin_seconds=7, minimum_budget_seconds=12
+                )
 
         self.assertEqual(
             model_with_budget.env.context.get(cron_budget_mixin.CRON_RUNTIME_BUDGET_SECONDS_CONTEXT_KEY),
-            105,
+            76,
         )
         self.assertEqual(
             model_with_budget.env.context.get(cron_budget_mixin.CRON_RUNTIME_LIMIT_SECONDS_CONTEXT_KEY),
-            120,
+            83,
         )
         self.assertEqual(
             model_with_budget.env.context.get(cron_budget_mixin.CRON_RUNTIME_DEADLINE_CONTEXT_KEY),
-            205.0,
+            276.0,
         )
 
     def test_with_cron_runtime_budget_skips_deadline_for_unlimited_runtime(self) -> None:
@@ -43,6 +45,8 @@ class TestCronBudgetMixin(UnitTestCase):
             self.assertTrue(model_with_deadline._is_cron_runtime_budget_exhausted())
         with common.patch.object(cron_budget_mixin, "monotonic", return_value=99.0):
             self.assertFalse(model_with_deadline._is_cron_runtime_budget_exhausted())
+        with common.patch.object(cron_budget_mixin, "monotonic", return_value=100.0):
+            self.assertTrue(model_with_deadline._is_cron_runtime_budget_exhausted())
 
     def test_raise_if_cron_runtime_budget_exhausted(self) -> None:
         model_with_deadline = self.cron_budget_model.with_context(

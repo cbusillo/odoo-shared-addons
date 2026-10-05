@@ -22,14 +22,16 @@ Structured first/last/nickname fields for `hr.employee` with locale-aware format
 - Default Name Format: western | asian | custom
 - Custom Pattern (when format = custom): `{first_name}`, `{last_name}`, `{nickname}`
 
-The creation form defaults the per-employee format from Settings when it is western or asian.
+When `name_format` is omitted, new employees default it from Settings when the setting is western or asian,
+including API and import creates.
 An explicit per-employee format takes precedence on later name updates; System Default consults
 the current Settings format, including a custom pattern. Changing Settings alone does not rename records.
 
 ## Admin Tools
 
 - Server Action: "Recompute Employee Names" calls `hr.employee._action_recompute_names()` to recompute stored `name` in
-  batches after changing settings. Changing the format does not rename existing employees until this runs.
+  batches after changing settings. Recompute preserves explicit per-employee formats; changed defaults
+  affect employees using System Default. Changing Settings alone does not rename existing employees.
 - Menu: HR → Configuration → Recompute Employee Names (no developer mode needed).
 
 ## Usage

@@ -11,10 +11,14 @@ owns priorities and stop boundaries.
 Use the maintained [executing loop](https://github.com/cbusillo/codex-skills/blob/main/skills/references/executing-loop.md)
 for issue claims, isolated worktrees, implementation, and closeout, and
 [reviews by another model](https://github.com/cbusillo/codex-skills/blob/main/skills/references/model-review.md)
-for execution-guidance changes. This repository lands through Launchplane's
-[merge train](https://github.com/cbusillo/codex-skills/blob/main/skills/launchplane/SKILL.md#merge-train-controller):
-after CI passes and review findings are accounted for, comment `Ready for the merge train`
-on the PR for the direction session to route.
+for execution-guidance changes.
+
+This repository's local convention is a comment handoff to Launchplane's merge
+train: after CI passes and review findings are accounted for, executing agents
+comment `Ready for the merge train` on the PR. The direction session owns train
+entry and driving; executing agents do not label the PR for entry, drive the
+train, or merge by hand. The [controller reference](https://github.com/cbusillo/codex-skills/blob/main/skills/launchplane/SKILL.md#merge-train-controller)
+is for the session authorized to operate the train.
 
 `AGENTS.md` is the only agent-instruction filename. Addon guides inherit this
 file and add only addon-specific guidance.

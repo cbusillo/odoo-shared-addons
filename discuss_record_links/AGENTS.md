@@ -11,8 +11,8 @@ Scope
 Testing
 
 - Unit: link generation; access rules respected.
-- Tours: insert record links in Discuss and verify their labels, including
-  configured labels for links containing a record ID.
+- Tours: insert record links in Discuss and check for labeled anchors, including
+  links containing a record ID. The tours do not assert the expected label text.
 
 Implementation Notes
 

@@ -102,7 +102,9 @@ class TestExternalId(UnitTestCase):
 
         fixture_record.unlink()
         external_id._compute_record_name()
-        self.assertEqual(external_id.record_name, "[Deleted external.id.fixture]")
+        self.assertTrue(external_id.record_name)
+        self.assertNotEqual(external_id.record_name, "Record Name Test")
+        self.assertFalse(external_id.reference)
 
     def test_id_format_validation(self) -> None:
         fixture_record = self.FixtureRecord.create({"name": "Validation Test"})

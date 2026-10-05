@@ -69,6 +69,19 @@ class TestTransactionMixin(UnitTestCase):
 
         self.assertTrue(self._try_lock_from_other_session(12345), "Lock should be released after the block")
 
+    def test_advisory_lock_released_when_body_raises(self) -> None:
+        lock_id = 12348
+        try:
+            with self.assertRaises(ValueError):
+                with self.test_model._advisory_lock(lock_id) as acquired:
+                    self.assertTrue(acquired)
+                    self.assertFalse(self._try_lock_from_other_session(lock_id))
+                    raise ValueError("Test body failed")
+            self.assertTrue(self._try_lock_from_other_session(lock_id))
+        finally:
+            # A planted missing-unlock fault must not leak the lock into other tests.
+            self.env.cr.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
+
     def test_advisory_lock_not_acquired_when_held_elsewhere(self) -> None:
         with closing(sql_db.db_connect(self.env.cr.dbname).cursor()) as other_cr:
             other_cr.execute("SELECT pg_advisory_lock(%s)", [12347])

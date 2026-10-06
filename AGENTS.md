@@ -41,8 +41,6 @@ file and add only addon-specific guidance.
   `@docs/...` paths unless the owning workspace explicitly provides that alias.
 - Keep reusable addon guidance in the addon guide itself, or name the owning
   repo/workspace when the authoritative docs live outside this repo.
-- Validation that depends on assembled tenants, browser tours, or runtime
-  tooling should route through the relevant workspace or tenant repo.
 
 ## Tests
 

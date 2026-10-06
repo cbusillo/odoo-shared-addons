@@ -43,7 +43,6 @@ are in [`.github/github.json`](.github/github.json).
 
 ## Addon CI
 
-The Addon tests PR lane runs this repository's Odoo addon suites on a fresh
-database and reports elapsed time. It runs for addon and test-input changes.
-The [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
-owns the runner contract and local command.
+The Addon tests PR lane validates addon and test-input changes. See the
+[shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
+for the runner contract and local command.

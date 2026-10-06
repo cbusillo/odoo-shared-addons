@@ -7,6 +7,7 @@ on:
       - '!.github/**'
       - '!docs/**'
       - '!.idea/**'
+      - '!**/*.md'
       - '.github/workflows/addon-tests.yml'
   push:
     branches: [main, 'launchplane/train/**']
@@ -15,6 +16,7 @@ on:
       - '!.github/**'
       - '!docs/**'
       - '!.idea/**'
+      - '!**/*.md'
       - '.github/workflows/addon-tests.yml'
 permissions:
   contents: read

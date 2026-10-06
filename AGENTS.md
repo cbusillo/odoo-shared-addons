@@ -46,9 +46,9 @@ file and add only addon-specific guidance.
 
 ## Tests
 
-- Use [`.github/github.json`](.github/github.json) for validation gates. CI here
-  runs CodeQL; addon behavior tests run in an assembled `odoo-devkit` workspace
-  or the relevant tenant environment when code changes.
+- Use [`.github/github.json`](.github/github.json) for validation gates and the
+  [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
+  for the CI runner and local command.
 - A test must fail when the product is broken and pass when someone makes an
   intended change.
 - Do not assert a literal defined elsewhere: versions, build numbers,

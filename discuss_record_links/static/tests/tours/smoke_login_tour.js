@@ -12,8 +12,13 @@ registry.category("web_tour.tours").add("smoke_login_tour", {
         },
         {
             content: "Open the apps menu",
-            trigger: ".o_navbar_apps_menu button",
-            run: "click",
+            trigger: ".o_navbar_apps_menu button, .o_home_menu",
+            run(actions) {
+                const communityMenu = document.querySelector(".o_navbar_apps_menu button");
+                if (communityMenu) {
+                    actions.click(communityMenu);
+                }
+            },
         },
         {
             content: "Ensure the apps menu is visible",

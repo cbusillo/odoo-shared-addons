@@ -41,14 +41,12 @@ file and add only addon-specific guidance.
   `@docs/...` paths unless the owning workspace explicitly provides that alias.
 - Keep reusable addon guidance in the addon guide itself, or name the owning
   repo/workspace when the authoritative docs live outside this repo.
-- Validation that depends on assembled tenants, browser tours, or runtime
-  tooling should route through the relevant workspace or tenant repo.
 
 ## Tests
 
-- Use [`.github/github.json`](.github/github.json) for validation gates. CI here
-  runs CodeQL; addon behavior tests run in an assembled `odoo-devkit` workspace
-  or the relevant tenant environment when code changes.
+- Use [`.github/github.json`](.github/github.json) for validation gates and the
+  [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
+  for the CI runner and local command.
 - A test must fail when the product is broken and pass when someone makes an
   intended change.
 - Do not assert a literal defined elsewhere: versions, build numbers,

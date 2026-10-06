@@ -40,3 +40,9 @@ are in [`.github/github.json`](.github/github.json).
   the Odoo web client.
 - `test_support`: shared fixtures, test helpers, and base test cases.
 - `transaction_utilities`: transaction and cron runtime-budget helpers.
+
+## Addon CI
+
+The Addon tests PR lane validates addon and test-input changes. See the
+[shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
+for the runner contract and local command.

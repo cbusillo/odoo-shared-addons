@@ -46,15 +46,19 @@
       "tenant validation routing changes"
     ]
   },
-  "importantWorkflows": ["CodeQL"],
+  "importantWorkflows": [
+    "CodeQL",
+    "Addon tests"
+  ],
   "prWorkflow": {
     "mergeHandoff": "After CI passes and review findings are accounted for, comment Ready for the merge train. The direction session owns train entry and driving; executing agents do not label for entry, drive the train or merge by hand. See AGENTS.md.",
-    "requiredStatusChecks": ["Analyze (python)"],
+    "requiredStatusChecks": [
+      "Analyze (python)"
+    ],
     "branchProtectionNotes": [
       "Re-read live branch protection and rulesets before landing; this metadata describes routing, not authority to change those settings.",
       "Branch protection requires Analyze (python) with an up-to-date branch. CodeQL also analyzes JavaScript/TypeScript; the Require code scanning results ruleset blocks error-severity alerts and high-or-higher security alerts."
-    ],
-    "validationNotes": "CI here runs CodeQL. Addon behavior tests require an assembled odoo-devkit workspace or the relevant tenant environment; addonOdoo is an Odoo invocation template, not a standalone checkout gate. See AGENTS.md."
+    ]
   },
   "launchplane": {
     "enabled": true,

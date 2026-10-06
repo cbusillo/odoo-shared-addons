@@ -1,0 +1,47 @@
+name: Addon tests
+
+on:
+  pull_request:
+    paths:
+      - '*/**'
+      - '!.github/**'
+      - '!docs/**'
+      - '!.idea/**'
+      - '.github/workflows/addon-tests.yml'
+  push:
+    branches: [main, 'launchplane/train/**']
+    paths:
+      - '*/**'
+      - '!.github/**'
+      - '!docs/**'
+      - '!.idea/**'
+      - '.github/workflows/addon-tests.yml'
+permissions:
+  contents: read
+
+concurrency:
+  group: addon-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  addon-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          path: source
+          persist-credentials: false
+      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@bb9714bfa11228a15c8304e60bf8e382c2a39e3f
+        with:
+          addons-root: source
+          image: ghcr.io/cbusillo/odoo-docker:19.0-devtools
+          output: ${{ runner.temp }}/addon-tests
+      - name: Upload addon test evidence
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: addon-test-evidence
+          path: ${{ runner.temp }}/addon-tests
+          if-no-files-found: warn
+

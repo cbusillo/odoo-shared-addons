@@ -34,7 +34,7 @@ jobs:
         with:
           path: source
           persist-credentials: false
-      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@bb9714bfa11228a15c8304e60bf8e382c2a39e3f
+      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@753e804bf82bcbb3f32500265fa266093bf2afe7
         with:
           addons-root: source
           image: ghcr.io/cbusillo/odoo-docker:19.0-devtools

@@ -69,8 +69,8 @@ def run_browser_js_suite(
     error_checker: Any,
     timeout: int = 900,
     retry_timeout: int | None = None,
-    recoverable_exceptions: tuple[type[BaseException], ...] = (Exception,),
 ) -> None:
+    """Preserve browser failures and Odoo's native missing-browser skip."""
     wait_for_browser_endpoint(test_case, url)
 
     # noinspection DuplicatedCode
@@ -90,16 +90,7 @@ def run_browser_js_suite(
     except TimeoutError:
         if retry_timeout is None:
             raise
-        try:
-            run_suite(retry_timeout)
-        except recoverable_exceptions as browser_error:
-            test_case.skipTest(
-                f"JS harness not stable in this environment: {browser_error}"
-            )
-    except recoverable_exceptions as browser_error:
-        test_case.skipTest(
-            f"JS harness not stable in this environment: {browser_error}"
-        )
+        run_suite(retry_timeout)
 
 
 class SharedUnitTestCase(AdminContextUnitTestCase):
@@ -130,7 +121,6 @@ class SharedTourTestCase(SharedTourTestCaseBase):
         error_checker: Any,
         timeout: int = 900,
         retry_timeout: int | None = None,
-        recoverable_exceptions: tuple[type[BaseException], ...] = (Exception,),
     ) -> None:
         run_browser_js_suite(
             self,
@@ -139,7 +129,6 @@ class SharedTourTestCase(SharedTourTestCaseBase):
             error_checker=error_checker,
             timeout=timeout,
             retry_timeout=retry_timeout,
-            recoverable_exceptions=recoverable_exceptions,
         )
 
 

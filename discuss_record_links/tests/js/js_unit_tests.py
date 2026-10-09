@@ -2,10 +2,6 @@ from ..common_imports import common
 from ..fixtures.base import TourTestCase
 
 
-def _unit_test_error_checker(message: str) -> bool:
-    return "[HOOT]" not in message
-
-
 @common.tagged(*common.JS_TAGS, "discuss_record_links")
 class DiscussRecordLinksJSTests(TourTestCase):
     def _get_test_login(self) -> str:
@@ -18,6 +14,6 @@ class DiscussRecordLinksJSTests(TourTestCase):
         self.run_browser_js_suite(
             url,
             success_signal="[HOOT] Test suite succeeded",
-            error_checker=_unit_test_error_checker,
-            recoverable_exceptions=(AssertionError,),
+            error_checker=None,
+            timeout=120,
         )

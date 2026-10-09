@@ -187,7 +187,6 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
         error_checker: Any,
         timeout: int = 900,
         retry_timeout: int | None = None,
-        recoverable_exceptions: tuple[type[BaseException], ...] = (Exception,),
     ) -> None:
         from test_support.tests.fixtures.base_cases import run_browser_js_suite
 
@@ -198,7 +197,6 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
             error_checker=error_checker,
             timeout=timeout,
             retry_timeout=retry_timeout,
-            recoverable_exceptions=recoverable_exceptions,
         )
 
     def setUp(self) -> None:

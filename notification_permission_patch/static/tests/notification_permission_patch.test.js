@@ -1,4 +1,4 @@
-import { describe, expect, test, vi } from "@odoo/hoot";
+import { describe, expect, test } from "@odoo/hoot";
 
 import {
   observeNotificationPermissionChanges,
@@ -7,43 +7,40 @@ import {
 
 describe("@notification_permission_patch notification permission patch", () => {
   test("uses native event listeners when available", () => {
-    const addEventListener = vi.fn();
-    const removeEventListener = vi.fn();
+    const onPermissionChange = () => expect.step("permission changed");
     const permissionStatus = {
-      addEventListener,
-      removeEventListener,
+      addEventListener(event, callback) {
+        expect(event).toBe("change");
+        expect(callback).toBe(onPermissionChange);
+        expect.step("attached");
+      },
+      removeEventListener(event, callback) {
+        expect(event).toBe("change");
+        expect(callback).toBe(onPermissionChange);
+        expect.step("removed");
+      },
     };
-    const onPermissionChange = vi.fn();
 
     const cleanup = observeNotificationPermissionChanges(
       permissionStatus,
       onPermissionChange,
     );
-
-    expect(addEventListener).toHaveBeenCalledWith("change", onPermissionChange);
+    expect.verifySteps(["attached"]);
     cleanup();
-    expect(removeEventListener).toHaveBeenCalledWith(
-      "change",
-      onPermissionChange,
-    );
+    expect.verifySteps(["removed"]);
   });
 
   test("falls back to onchange when event listeners are unavailable", () => {
-    const previousOnchange = vi.fn();
-    const permissionStatus = {
-      addEventListener: undefined,
-      onchange: previousOnchange,
-    };
-    const onPermissionChange = vi.fn();
+    const previousOnchange = () => expect.step("previous handler");
+    const permissionStatus = { onchange: previousOnchange };
+    const onPermissionChange = () => expect.step("permission changed");
 
     const cleanup = observeNotificationPermissionChanges(
       permissionStatus,
       onPermissionChange,
     );
     permissionStatus.onchange({ type: "change" });
-
-    expect(previousOnchange).toHaveBeenCalledTimes(1);
-    expect(onPermissionChange).toHaveBeenCalledTimes(1);
+    expect.verifySteps(["previous handler", "permission changed"]);
 
     cleanup();
     expect(permissionStatus.onchange).toBe(previousOnchange);
@@ -51,15 +48,8 @@ describe("@notification_permission_patch notification permission patch", () => {
 
   test("degrades gracefully when onchange is readonly", () => {
     const permissionStatus = {};
-    Object.defineProperty(permissionStatus, "addEventListener", {
-      configurable: false,
-      enumerable: true,
-      value: undefined,
-      writable: false,
-    });
     Object.defineProperty(permissionStatus, "onchange", {
       configurable: true,
-      enumerable: true,
       get() {
         return null;
       },
@@ -70,26 +60,24 @@ describe("@notification_permission_patch notification permission patch", () => {
 
     const cleanup = observeNotificationPermissionChanges(
       permissionStatus,
-      vi.fn(),
+      () => expect.step("permission changed"),
     );
-
     expect(() => cleanup()).not.toThrow();
+    expect.verifySteps([]);
   });
 
   test("does not attach an observer after teardown", async () => {
-    const addEventListener = vi.fn();
     const permissionStatus = {
-      addEventListener,
-      removeEventListener: vi.fn(),
+      addEventListener: () => expect.step("attached"),
+      removeEventListener: () => expect.step("removed"),
     };
 
     const cleanup = await registerNotificationPermissionObserver(
       Promise.resolve(permissionStatus),
-      vi.fn(),
+      () => expect.step("permission changed"),
       () => true,
     );
-
-    expect(addEventListener).not.toHaveBeenCalled();
     expect(() => cleanup()).not.toThrow();
+    expect.verifySteps([]);
   });
 });

@@ -12,8 +12,8 @@ Testing
 
 - Unit: link generation; access rules respected.
 - Tours: the insert tour checks for a record-link anchor; the label and
-  record-ID label tours accept either the addon's labeled marker or Odoo's
-  record attributes without asserting the expected label text. The smoke tour
+  record-ID (`fid`) label tours check the sent fixture record's text against
+  their configured template and product values. The smoke tour
   checks that the web client shell, apps menu, and user menu load.
 
 Implementation Notes

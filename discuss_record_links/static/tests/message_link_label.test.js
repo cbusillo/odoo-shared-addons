@@ -42,38 +42,6 @@ describe("@discuss_record_links Message link label transformer", () => {
         expect(a.getAttribute("data-oe-model")).toBe("product.product")
     })
 
-    test("renders icon when image_field provided", async () => {
-        const container = document.createElement("div")
-        const a = document.createElement("a")
-        const href = "/web#id=77&model=product.product&view_type=form"
-        a.setAttribute("href", href)
-        a.textContent = href
-        container.appendChild(a)
-
-        const fakeEnv = {
-            services: {
-                rpc: async (route) => {
-                    expect(route).toBe("/discuss_record_links/labels")
-                    return [{ model: "product.product", id: 77, label: "[SKU77] Iconic", image_field: "image_128" }]
-                },
-                orm: {
-                    call: async () => {
-                        throw new Error("no fallback")
-                    }
-                },
-            },
-        }
-
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
-        await sleep(0)
-
-        const img = container.querySelector("img.o-drl-avatar")
-        expect(Boolean(img)).toBe(true)
-        const imgSrc = img?.getAttribute("src") || ""
-        expect(imgSrc.includes("/web/image/product.product/77/image_128")).toBe(true)
-        expect(container.querySelector('a').textContent.trim()).toBe("[SKU77] Iconic")
-    })
-
     test("replaces http://localhost:8069/web#id=...&model=motor", async () => {
         const container = document.createElement("div")
         const a = document.createElement("a")

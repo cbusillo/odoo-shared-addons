@@ -15,5 +15,4 @@ class DiscussRecordLinksJSTests(TourTestCase):
             url,
             success_signal="[HOOT] Test suite succeeded",
             error_checker=None,
-            timeout=120,
         )

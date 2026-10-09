@@ -12,6 +12,10 @@ class TestRecordLinkLabelTour(TourTestCase):
             prefix="tprolabel",
             display_template="OSA {{ name }} / {{ default_code }}",
         )
+        # Keep the fixture's template authoritative regardless of config order.
+        cls.env["discuss.record.link.config"].search(
+            [("model_id", "=", config.model_id.id), ("id", "!=", config.id)]
+        ).write({"active": False})
         expected_label = config.display_template.replace(
             "{{ default_code }}",
             product_record.default_code,

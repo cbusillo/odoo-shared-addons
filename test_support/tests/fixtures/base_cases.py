@@ -70,7 +70,11 @@ def run_browser_js_suite(
     timeout: int = 900,
     retry_timeout: int | None = None,
 ) -> None:
-    """Preserve browser failures and Odoo's native missing-browser skip."""
+    """Preserve browser failures and Odoo's native missing-browser skip.
+
+    Only explicit TimeoutError supports the optional retry; Odoo's own
+    assertion-based timeouts fail immediately, just like other JS failures.
+    """
     wait_for_browser_endpoint(test_case, url)
 
     # noinspection DuplicatedCode

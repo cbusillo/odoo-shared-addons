@@ -187,35 +187,30 @@ class ExternalIdMixin(models.AbstractModel):
         return self.env["external.system"].search([("code", "=", normalized_system_code)], limit=1)
 
     @api.model
-    def get_view(
+    def _get_view(
         self,
         view_id: int | None = None,
         view_type: str = "form",
         **options: object,
-    ) -> dict[str, Any]:
-        view_definition = dict(super().get_view(view_id=view_id, view_type=view_type, **options))
-        return self._inject_external_ids_form_ui(view_definition, view_type)
+    ) -> tuple[etree._Element, models.Model]:
+        architecture, view = super()._get_view(view_id=view_id, view_type=view_type, **options)
+        self._inject_external_ids_form_ui(architecture, view_type)
+        return architecture, view
 
     @classmethod
     def _inject_external_ids_form_ui(
         cls,
-        view_definition: dict[str, Any],
+        architecture: etree._Element,
         view_type: str,
-    ) -> dict[str, Any]:
+    ) -> None:
+        # Odoo must see the injected fields before postprocessing collects metadata
+        # and applies access rights to the form and its relational subviews.
         if view_type != "form" or not cls._external_ids_auto_ui:
-            return view_definition
+            return
         if "external_ids" not in getattr(cls, "_fields", {}):
-            return view_definition
-
-        architecture_source = view_definition.get("arch") or view_definition.get("arch_base")
-        if not architecture_source:
-            return view_definition
-
-        architecture = etree.fromstring(architecture_source.encode())
+            return
         cls._inject_external_ids_button(architecture)
         cls._inject_external_ids_page(architecture)
-        view_definition["arch"] = etree.tostring(architecture, encoding="unicode")
-        return view_definition
 
     @classmethod
     def _inject_external_ids_button(cls, architecture: etree._Element) -> None:

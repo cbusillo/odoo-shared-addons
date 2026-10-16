@@ -47,7 +47,7 @@
       "tenant validation routing changes"
     ],
     "lint": {
-      "tls": "uv tool run --from ruff==0.17.1 ruff check . && uv run https://raw.githubusercontent.com/cbusillo/codex-skills/9755c971d886ce9a6eb6ee52e169e5afe869a439/scripts/check_insecure_tls.py"
+      "tls": "uv tool run --from ruff==0.17.1 ruff check --select S501,S502,S503,S504,S323 . && uv run https://raw.githubusercontent.com/cbusillo/codex-skills/9755c971d886ce9a6eb6ee52e169e5afe869a439/scripts/check_insecure_tls.py"
     }
   },
   "importantWorkflows": [

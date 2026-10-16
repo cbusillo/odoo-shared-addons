@@ -45,11 +45,15 @@
       "addon dependency changes",
       "security/access-rule changes",
       "tenant validation routing changes"
-    ]
+    ],
+    "lint": {
+      "tls": "uv tool run --from ruff==0.17.1 ruff check . && uv run https://raw.githubusercontent.com/cbusillo/codex-skills/476baad80d127de8e42821536c2da679954e6a04/scripts/check_insecure_tls.py"
+    }
   },
   "importantWorkflows": [
     "CodeQL",
-    "Addon tests"
+    "Addon tests",
+    "TLS lint"
   ],
   "prWorkflow": {
     "mergeHandoff": "After CI passes and review findings are accounted for, comment Ready for the merge train. The direction session owns train entry and driving; executing agents do not label for entry, drive the train or merge by hand. See AGENTS.md.",

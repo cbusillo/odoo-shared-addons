@@ -46,3 +46,17 @@ are in [`.github/github.json`](.github/github.json).
 The Addon tests PR lane validates addon and test-input changes. See the
 [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
 for the runner contract and local command.
+
+## TLS lint
+
+Run the `qualityGate.lint.tls` command in `.github/github.json` before a PR.
+The TLS lint workflow runs the five Ruff TLS rules plus the catalog's pinned
+checker for hand-built verification disabling on PRs, main and train branches.
+Update the checker pin through a source PR after reviewing its catalog change.
+
+The shared SSL helper keeps verification enabled unless a site explicitly
+disables it. Its single annotated exception records the approved private-path
+Fishbowl compatibility decision; call sites need no duplicate comments. New
+exceptions need a plain reason at their choke point and a permanent decision
+link when applicable. A bare ignore is insufficient. These lint commands parse
+source and do not connect to a tenant, alter settings or release an addon.

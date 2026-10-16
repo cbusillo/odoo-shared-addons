@@ -17,7 +17,8 @@
       "notification_permission_patch/AGENTS.md",
       "test_support/AGENTS.md",
       "transaction_utilities/AGENTS.md"
-    ]
+    ],
+    "launchplaneMergeTrain": "https://github.com/cbusillo/codex-skills/blob/main/skills/launchplane/references/merge-train.md"
   },
   "qualityGate": {
     "json": {
@@ -65,17 +66,6 @@
     "service": {
       "contextUrlEnv": "LAUNCHPLANE_CONTEXT_URL",
       "operatorUrlEnv": "LAUNCHPLANE_OPERATOR_URL"
-    },
-    "mergeTrain": {
-      "enabled": true,
-      "controller": true,
-      "readyLabel": "ready-to-merge",
-      "baseBranch": "main",
-      "githubActionsRunner": {
-        "repo": "cbusillo/launchplane",
-        "workflow": "merge-train-runner.yml",
-        "ref": "main"
-      }
     }
   },
   "relatedRepos": [

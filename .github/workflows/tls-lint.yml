@@ -1,0 +1,21 @@
+name: TLS lint
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'launchplane/train/**']
+permissions:
+  contents: read
+jobs:
+  tls-lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+      - name: Check library TLS rules
+        run: uv tool run --from ruff==0.17.1 ruff check .
+      - name: Check hand-built TLS verification
+        run: uv run https://raw.githubusercontent.com/cbusillo/codex-skills/476baad80d127de8e42821536c2da679954e6a04/scripts/check_insecure_tls.py

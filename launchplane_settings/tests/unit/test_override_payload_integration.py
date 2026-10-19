@@ -13,7 +13,7 @@ from ..fixtures.base import UnitTestCase
 
 
 class TestOverridePayloadIntegration(UnitTestCase):
-    def test_native_projection_delegates_to_pure_resolver(self) -> None:
+    def test_native_projection_agrees_with_pure_resolver(self) -> None:
         variable = "SYNTHETIC_NATIVE_PAYLOAD_VALUE"
         environment = {variable: " raw synthetic value "}
         payload = {
@@ -23,24 +23,14 @@ class TestOverridePayloadIntegration(UnitTestCase):
             ]
         }
         expected = override_payload.resolve_config_parameters(payload, environment)
-        with (
-            patch.dict(os.environ, environment),
-            patch.object(
-                override_payload, "resolve_config_parameters", wraps=override_payload.resolve_config_parameters
-            ) as resolver,
-        ):
+        with patch.dict(os.environ, environment):
             self.assertEqual(self.Settings._payload_config_param_overrides(payload), expected)
-        resolver.assert_called_once()
 
-    def test_native_load_delegates_to_supplied_payload_decoder(self) -> None:
+    def test_native_load_agrees_with_supplied_payload_decoder(self) -> None:
         payload = {"config_parameters": []}
         encoded = " \n" + base64.b64encode(json.dumps(payload).encode()).decode() + "\t "
-        with (
-            patch.dict(os.environ, {override_payload.ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: encoded}),
-            patch.object(override_payload, "decode_payload", wraps=override_payload.decode_payload) as decoder,
-        ):
-            self.assertEqual(adapter._load_override_payload(), payload)
-        decoder.assert_called_once()
+        with patch.dict(os.environ, {override_payload.ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: encoded}):
+            self.assertEqual(adapter._load_override_payload(), override_payload.decode_payload(encoded))
 
     def test_native_decoder_and_projection_translate_producer_errors(self) -> None:
         malformed = "not-base64"

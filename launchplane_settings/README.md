@@ -14,7 +14,8 @@ runtime state. The native adapter delegates to the same implementation.
 - `decode_payload(encoded)` accepts a base64-encoded UTF-8 JSON object. Empty or
   whitespace input returns `None`; malformed encoding, JSON or a non-object
   root raises `OverridePayloadError`.
-- `resolve_config_parameters(payload, environment, *, keys=None)` returns only
+- `resolve_config_parameters(payload, environment, *, keys=None)` accepts the
+  output of `decode_payload` and returns only
   the supplied `config_parameters` entries, using the explicit environment
   mapping. `None`, absent entries or an empty list project no parameters.
 - Keys are stripped and lowercased, including names in the optional `keys`
@@ -26,10 +27,9 @@ runtime state. The native adapter delegates to the same implementation.
   With no selection, every entry resolves in order. Duplicate normalized keys
   retain their last value and their first insertion position; an invalid earlier
   entry still fails even when a later entry would replace it.
-- Literal booleans become `True`/`False` strings. Other literals are stringified
-  and stripped; empty, `0`, `false`, `no` and `off` become `False`, while `1`,
-  `true`, `yes` and `on` become `True`, ignoring case. Other strings retain their
-  stripped value. Secret-bound values come from the named environment variable
+- Literal normalization retains the native applier's semantics; see the module
+  for the exact boolean vocabulary and scalar conversion. Secret-bound values
+  come from the named environment variable
   exactly as stored, including whitespace and empty strings. Missing variables
   or unsupported value sources raise `OverridePayloadError`.
 

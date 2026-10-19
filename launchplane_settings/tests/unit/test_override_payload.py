@@ -132,12 +132,11 @@ class TestOverridePayload(PayloadTestCase):
         with self.assertRaises(self.producer.OverridePayloadError):
             self.producer.resolve_config_parameters(payload, {})
 
-    def test_selection_skips_unrelated_environment_reads_and_value_validation(self) -> None:
+    def test_selection_skips_only_unrelated_environment_reads(self) -> None:
         key, variable = "sample.selected", "SYNTHETIC_SELECTED"
         payload = {
             "config_parameters": [
                 self.reference("unrelated.password", "FORBIDDEN_SYNTHETIC"),
-                {"key": "unrelated.value", "value": {"source": "unsupported"}},
                 self.reference(key, variable),
             ]
         }
@@ -161,6 +160,61 @@ class TestOverridePayload(PayloadTestCase):
         self.assertEqual(self.producer.resolve_config_parameters(payload, environment, keys=()), {})
         with self.assertRaises(self.producer.OverridePayloadError):
             self.producer.resolve_config_parameters(payload, {})
+
+    def test_selection_validates_all_value_structures_without_environment_reads(self) -> None:
+        class NoEnvironmentReads(Mapping):
+            def __getitem__(self, key):
+                raise AssertionError("Structural validation read the environment")
+
+            def __iter__(self):
+                raise AssertionError("Structural validation enumerated the environment")
+
+            def __len__(self):
+                raise AssertionError("Structural validation inspected the environment")
+
+        for value in (
+            None,
+            [],
+            {},
+            {"source": "unsupported"},
+            {"source": "literal"},
+            {"source": "secret_binding"},
+            {"source": "secret_binding", "environment_variable": " \t "},
+        ):
+            payload = {
+                "config_parameters": [
+                    {"key": "unrelated.value", "value": value},
+                    self.literal("sample.selected", "kept"),
+                ]
+            }
+            with self.subTest(value=value):
+                with self.assertRaises(self.producer.OverridePayloadError) as expected:
+                    self.producer.resolve_config_parameters(payload, {})
+                for keys in ((), ("sample.selected",)):
+                    with self.subTest(keys=keys), self.assertRaises(self.producer.OverridePayloadError) as actual:
+                        self.producer.resolve_config_parameters(payload, NoEnvironmentReads(), keys=keys)
+                    self.assertEqual(str(actual.exception), str(expected.exception))
+
+    def test_selection_normalizes_names_and_rejects_invalid_collections(self) -> None:
+        key = "sample.selected"
+        payload = {"config_parameters": [self.literal(key, "kept")]}
+        for keys in ((" SAMPLE.Selected ",), [key.upper()], {"\t" + key + "\n"}):
+            with self.subTest(keys=keys):
+                self.assertEqual(self.producer.resolve_config_parameters(payload, {}, keys=keys), {key: "kept"})
+        for keys in (
+            key,
+            key.encode(),
+            bytearray(key.encode()),
+            memoryview(key.encode()),
+            0,
+            (None,),
+            (1,),
+            ("",),
+            (" \t ",),
+            (key, None),
+        ):
+            with self.subTest(keys=keys), self.assertRaises(self.producer.OverridePayloadError):
+                self.producer.resolve_config_parameters(payload, {}, keys=keys)
 
     def test_omissions_remain_omitted_and_inputs_are_not_mutated(self) -> None:
         for payload in (None, {}, {"config_parameters": None}, {"config_parameters": []}):

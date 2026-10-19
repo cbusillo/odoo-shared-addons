@@ -17,10 +17,12 @@ runtime state. The native adapter delegates to the same implementation.
 - `resolve_config_parameters(payload, environment, *, keys=None)` returns only
   the supplied `config_parameters` entries, using the explicit environment
   mapping. `None`, absent entries or an empty list project no parameters.
-- Keys are stripped and lowercased. Supply `keys` as a collection of normalized
-  names. With that selection, only matching
-  keys have their values resolved. Unrelated environment references and value
-  payloads are skipped; list/item shape and nonempty-key validation still run.
+- Keys are stripped and lowercased, including names in the optional `keys`
+  collection. A bare string/bytes value, non-string element or blank name is
+  rejected. With a selection, only matching keys have their environment
+  references resolved. Every entry still receives environment-free value
+  validation: value object, supported source, literal value presence and
+  nonempty referenced variable name, alongside list/item and key validation.
   With no selection, every entry resolves in order. Duplicate normalized keys
   retain their last value and their first insertion position; an invalid earlier
   entry still fails even when a later entry would replace it.
@@ -30,6 +32,12 @@ runtime state. The native adapter delegates to the same implementation.
   stripped value. Secret-bound values come from the named environment variable
   exactly as stored, including whitespace and empty strings. Missing variables
   or unsupported value sources raise `OverridePayloadError`.
+
+Successful selected projection does not prove the native applier accepts the
+whole payload: it does not check whether unselected referenced variables exist.
+A reader must keep that acceptance unknown rather than infer it from selected
+success. The native applier uses no selection and continues to resolve every
+entry.
 
 The ORM compatibility entrypoints retain Odoo `ValidationError` and the existing
 messages. Shopify and Authentik continue through their existing adapters. No

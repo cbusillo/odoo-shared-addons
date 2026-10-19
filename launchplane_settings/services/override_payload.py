@@ -119,8 +119,9 @@ def resolve_config_parameters(
     Omitted parameters stay omitted; this does not overlay or clear stored values.
     With no selection, every entry is resolved in order and duplicate keys fold
     exactly as in the native applier. Selected projection still validates every
-    value's structure. It does not check unselected referenced variables, so
-    success does not prove the native applier would accept the whole payload.
+    value's structure. Neither mode proves whole-payload acceptance or
+    application: addon settings are outside this projection, and selected mode
+    leaves unselected environment references unresolved.
     """
     selected: set[str] | None = None
     if keys is not None:

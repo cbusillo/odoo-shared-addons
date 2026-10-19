@@ -33,11 +33,12 @@ runtime state. The native adapter delegates to the same implementation.
   exactly as stored, including whitespace and empty strings. Missing variables
   or unsupported value sources raise `OverridePayloadError`.
 
-Successful selected projection does not prove the native applier accepts the
-whole payload: it does not check whether unselected referenced variables exist.
-A reader must keep that acceptance unknown rather than infer it from selected
-success. The native applier uses no selection and continues to resolve every
-entry.
+Config-parameter projection, with or without `keys`, does not prove that the
+complete payload was accepted or applied. Neither mode validates `addon_settings`
+or later Shopify and Authentik application. Selected projection also leaves
+unselected environment references unresolved. Readers must keep acceptance and
+application unknown unless separately established. The native applier uses no
+selection and continues to resolve every config-parameter entry.
 
 The ORM compatibility entrypoints retain Odoo `ValidationError` and the existing
 messages. Shopify and Authentik continue through their existing adapters. No

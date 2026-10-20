@@ -34,6 +34,8 @@ file and add only addon-specific guidance.
 - Keep dependencies tenant-agnostic.
 - Promote tenant logic here only when it is genuinely reusable across tenants.
 - Keep addon-level docs and tests close to the addon they describe.
+- Write Python and Odoo JavaScript in the shared
+  [Python and Odoo style](https://github.com/cbusillo/codex-skills/blob/HEAD/skills/references/python-odoo-style.md).
 
 ## Docs Routing
 

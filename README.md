@@ -45,7 +45,12 @@ are in [`.github/github.json`](.github/github.json).
 
 The Addon tests PR lane validates addon and test-input changes. See the
 [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
-for the runner contract and local command.
+for the runner contract. Run the `qualityGate.test.addonOdoo` command in
+[`.github/github.json`](.github/github.json) for local addon tests.
+
+Set `ADDON_TEST_IMAGE` to the community devtools image in
+[the Addon tests workflow](.github/workflows/addon-tests.yml). The shared guide
+explains the evidence-directory and focused-addon overrides.
 
 ## TLS lint
 

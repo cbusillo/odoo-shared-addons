@@ -46,7 +46,8 @@ file and add only addon-specific guidance.
 
 - Use [`.github/github.json`](.github/github.json) for validation gates and the
   [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
-  for the CI runner and local command.
+  for the CI runner contract. Run the metadata's `qualityGate.test.addonOdoo`
+  command for local addon tests.
 - A test must fail when the product is broken and pass when someone makes an
   intended change.
 - Do not assert a literal defined elsewhere: versions, build numbers,

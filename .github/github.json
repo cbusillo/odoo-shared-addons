@@ -25,7 +25,7 @@
       "metadata": "jq empty .github/github.json"
     },
     "test": {
-      "addonOdoo": "odoo-bin --test-enable --stop-after-init -i <addon>"
+      "addonOdoo": "uv --directory \"${ODOO_DEVKIT_REPO:-../odoo-devkit}\" run --locked python -m odoo_devkit.addon_ci --image \"${ADDON_TEST_IMAGE:?Set ADDON_TEST_IMAGE to the community devtools image used by CI}\" --addons-root \"${ADDON_TEST_ROOT:-$PWD}\" --support-root \"${ODOO_SHARED_ADDONS_REPO:-$PWD}\" --output \"${ADDON_TEST_OUTPUT:?Set ADDON_TEST_OUTPUT to a task-evidence directory}\""
     },
     "inspection": {
       "ide": "PyCharm",

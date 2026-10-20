@@ -9,6 +9,7 @@ on:
       - '!.idea/**'
       - '!**/*.md'
       - '.github/workflows/addon-tests.yml'
+      - '.github/github.json'
   push:
     branches: [main, 'launchplane/train/**']
     paths:
@@ -18,6 +19,7 @@ on:
       - '!.idea/**'
       - '!**/*.md'
       - '.github/workflows/addon-tests.yml'
+      - '.github/github.json'
 permissions:
   contents: read
 
@@ -34,8 +36,9 @@ jobs:
         with:
           path: source
           persist-credentials: false
-      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@734840be25435360d763a99fae581842213381ae
+      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@a0382a45626414ba91bc492317b6434f5ebe3b7c
         with:
+          command-metadata: source/.github/github.json
           addons-root: source
           image: ghcr.io/cbusillo/odoo-docker:19.0-devtools
           output: ${{ runner.temp }}/addon-tests

@@ -3,8 +3,8 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from ..base_types import DEFAULT_TEST_CONTEXT
-from .unit_case import AdminContextUnitTestCase
 from ..shared.browser_test_cases import SharedTourTestCaseBase
+from .unit_case import AdminContextUnitTestCase
 
 
 def browser_http_url(test_case: Any, path_or_url: str) -> str:
@@ -15,9 +15,7 @@ def browser_http_url(test_case: Any, path_or_url: str) -> str:
     return f"http://127.0.0.1:{port}{path_or_url}"
 
 
-def wait_for_browser_endpoint(
-    test_case: Any, path_or_url: str, timeout_seconds: int = 60
-) -> None:
+def wait_for_browser_endpoint(test_case: Any, path_or_url: str, timeout_seconds: int = 60) -> None:
     try:
         import requests
     except ImportError:
@@ -37,9 +35,7 @@ def wait_for_browser_endpoint(
 
 # noinspection DuplicatedCode
 # Shared browser preflight helper intentionally mirrors local addon-specific browser harness helpers.
-def preflight_get(
-    path_or_url: str, timeout_seconds: int = 10
-) -> tuple[int, float, int, str]:
+def preflight_get(path_or_url: str, timeout_seconds: int = 10) -> tuple[int, float, int, str]:
     try:
         import requests
     except ImportError as import_error:
@@ -47,9 +43,7 @@ def preflight_get(
 
     start_time = time.perf_counter()
     try:
-        response = requests.get(
-            path_or_url, timeout=timeout_seconds, allow_redirects=True
-        )
+        response = requests.get(path_or_url, timeout=timeout_seconds, allow_redirects=True)
     except Exception as request_error:  # pragma: no cover - diagnostics only
         return 0, -1.0, 0, f"error: {request_error}"
 
@@ -107,33 +101,6 @@ class SharedIntegrationTestCase(AdminContextUnitTestCase):
 
 class SharedTourTestCase(SharedTourTestCaseBase):
     optional_group_xmlids = ("stock.group_stock_manager",)
-
-    def _browser_http_url(self, path_or_url: str) -> str:
-        return browser_http_url(self, path_or_url)
-
-    @staticmethod
-    def preflight_get(
-        path_or_url: str, timeout_seconds: int = 10
-    ) -> tuple[int, float, int, str]:
-        return preflight_get(path_or_url, timeout_seconds)
-
-    def run_browser_js_suite(
-        self,
-        url: str,
-        *,
-        success_signal: str,
-        error_checker: Any,
-        timeout: int = 900,
-        retry_timeout: int | None = None,
-    ) -> None:
-        run_browser_js_suite(
-            self,
-            url,
-            success_signal=success_signal,
-            error_checker=error_checker,
-            timeout=timeout,
-            retry_timeout=retry_timeout,
-        )
 
 
 __all__ = [

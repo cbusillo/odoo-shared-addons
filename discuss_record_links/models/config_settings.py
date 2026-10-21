@@ -1,4 +1,5 @@
 from odoo import api, fields, models
+
 from .config_util import load_config
 
 
@@ -10,10 +11,6 @@ class ResConfigSettings(models.TransientModel):
         help="Quick summary of configured prefixes.",
         compute="_compute_drl_summary",
     )
-
-    @api.model
-    def get_values(self) -> "odoo.values.res_config_settings":
-        return super().get_values()
 
     @api.depends()
     def _compute_drl_summary(self) -> None:

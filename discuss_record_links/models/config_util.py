@@ -1,7 +1,7 @@
 import re
 from dataclasses import dataclass
 
-import json  # noqa: F401
+from odoo.api import Environment
 
 
 @dataclass
@@ -16,14 +16,7 @@ class ModelCfg:
     enabled: bool = True
 
 
-CFG_PARAM = "discuss_record_links.models"  # legacy key (no longer used)
-
-
-def default_config() -> dict[str, ModelCfg]:
-    return {}
-
-
-def load_config(env) -> dict[str, ModelCfg]:
+def load_config(env: Environment) -> dict[str, ModelCfg]:
     cfg: dict[str, ModelCfg] = {}
     # Read structured rows only
     try:

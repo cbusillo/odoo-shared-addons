@@ -160,14 +160,14 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
         )
 
     def _browser_http_url(self, path_or_url: str) -> str:
-        from test_support.tests.fixtures.base_cases import browser_http_url
+        from ..fixtures.base_cases import browser_http_url
 
         return browser_http_url(self, path_or_url)
 
     def wait_for_browser_endpoint(
         self, path_or_url: str, timeout_seconds: int = 60
     ) -> None:
-        from test_support.tests.fixtures.base_cases import wait_for_browser_endpoint
+        from ..fixtures.base_cases import wait_for_browser_endpoint
 
         wait_for_browser_endpoint(self, path_or_url, timeout_seconds)
 
@@ -175,7 +175,7 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
     def preflight_get(
         path_or_url: str, timeout_seconds: int = 10
     ) -> tuple[int, float, int, str]:
-        from test_support.tests.fixtures.base_cases import preflight_get
+        from ..fixtures.base_cases import preflight_get
 
         return preflight_get(path_or_url, timeout_seconds)
 
@@ -188,7 +188,7 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
         timeout: int = 900,
         retry_timeout: int | None = None,
     ) -> None:
-        from test_support.tests.fixtures.base_cases import run_browser_js_suite
+        from ..fixtures.base_cases import run_browser_js_suite
 
         run_browser_js_suite(
             self,

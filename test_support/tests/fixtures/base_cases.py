@@ -100,7 +100,7 @@ class SharedIntegrationTestCase(AdminContextUnitTestCase):
 
 
 class SharedTourTestCase(SharedTourTestCaseBase):
-    optional_group_xmlids = ("stock.group_stock_manager",)
+    pass
 
 
 __all__ = [

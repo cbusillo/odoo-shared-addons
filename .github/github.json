@@ -56,7 +56,6 @@
     "TLS lint"
   ],
   "prWorkflow": {
-    "mergeHandoff": "After CI passes and review findings are accounted for, comment Ready for the merge train. The direction session owns train entry and driving; executing agents do not label for entry, drive the train or merge by hand. See AGENTS.md.",
     "requiredStatusChecks": [
       "Analyze (python)"
     ],

@@ -10,16 +10,8 @@ from unittest.mock import MagicMock, Mock, patch
 from odoo.exceptions import UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 
-from .base_types import STANDARD_TAGS, OdooValue
+from .base_types import DEFAULT_TEST_CONTEXT, STANDARD_TAGS, OdooValue
 from .test_helpers import generate_unique_sku
-
-_BASE_TEST_CONTEXT = {
-    "tracking_disable": True,
-    "no_reset_password": True,
-    "mail_create_nosubscribe": True,
-    "mail_create_nolog": True,
-    "mail_notrack": True,
-}
 
 
 @dataclass(frozen=True)
@@ -50,7 +42,7 @@ class CommonImports:
 
 
 def build_default_test_context() -> dict[str, bool]:
-    return dict(_BASE_TEST_CONTEXT)
+    return dict(DEFAULT_TEST_CONTEXT)
 
 
 def build_unit_tags(module_name: str) -> list[str]:

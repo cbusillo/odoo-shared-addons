@@ -6,19 +6,12 @@ Treat this repo as the canonical home for reusable cross-client addon code.
 
 Read the Director's [overall DIRECTION.md](https://github.com/cbusillo/direction/blob/HEAD/DIRECTION.md)
 first. This repository has no separate `DIRECTION.md`; the overall direction
-owns priorities and stop boundaries.
+owns priorities, stop boundaries, and how pull requests land.
 
 Use the maintained [executing loop](https://github.com/cbusillo/codex-skills/blob/main/skills/references/executing-loop.md)
 for issue claims, isolated worktrees, implementation, and closeout, and
 [reviews by another model](https://github.com/cbusillo/codex-skills/blob/main/skills/references/model-review.md)
 to decide when a review is needed and how to weigh its findings.
-
-This repository's local convention is a comment handoff to Launchplane's merge
-train: after CI passes and review findings are accounted for, executing agents
-comment `Ready for the merge train` on the PR. The direction session owns train
-entry and driving; executing agents do not label the PR for entry, drive the
-train, or merge by hand. The [controller reference](https://github.com/cbusillo/codex-skills/blob/main/skills/launchplane/SKILL.md#merge-train-controller)
-is for the session authorized to operate the train.
 
 `AGENTS.md` is the only agent-instruction filename. Addon guides inherit this
 file and add only addon-specific guidance.
@@ -50,15 +43,7 @@ file and add only addon-specific guidance.
   [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
   for the CI runner contract. Run the metadata's `qualityGate.test.addonOdoo`
   command for local addon tests.
-- A test must fail when the product is broken and pass when someone makes an
-  intended change.
-- Do not assert a literal defined elsewhere: versions, build numbers,
-  toolchain pins, hashes, seed-data placeholders, or user-facing message
-  wording. Give the test its own inputs, or compare against the one source of
-  truth.
-- Do not assert workflow or config text. Enforce that rule where it runs.
-- Verification code must not depend on the state of the working tree.
-- Keep byte-exact and hash checks for real artifacts and immutable evidence.
+- Follow the shared [Tests rules](https://github.com/cbusillo/codex-skills/blob/main/instructions/global.md#tests).
 - Odoo runs only the `test_*` modules that `tests/__init__.py` exposes. Wire a
   new test module through `expose_subdirectory_tests` or an explicit import, and
   confirm that the run log counts it.

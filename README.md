@@ -7,9 +7,9 @@
 ## Direction and Contributing
 
 The Director's [overall DIRECTION.md](https://github.com/cbusillo/direction/blob/HEAD/DIRECTION.md)
-sets priorities and stop boundaries; this repository has no separate direction
-file. [AGENTS.md](AGENTS.md) routes repository work, review, and the Launchplane
-merge-train handoff. Each addon's `AGENTS.md` holds its implementation guidance.
+sets priorities, stop boundaries, and how pull requests land; this repository
+has no separate direction file. [AGENTS.md](AGENTS.md) routes repository work
+and review. Each addon's `AGENTS.md` holds its implementation guidance.
 
 Workspace assembly and local runtime tooling belong to
 [odoo-devkit](https://github.com/cbusillo/odoo-devkit). Tenant repositories own

@@ -45,14 +45,15 @@ file and add only addon-specific guidance.
   addon tests plus required lint and inspection; `ADDON_TEST_ROOT` must contain
   selected owned addon directories. The complete `qualityGate.test.ci` suite
   runs only in CI and must pass on the current head before `ready` or merge.
-  Keep `addonOdoo` as the canonical runner invocation used by the pinned action.
+  Keep `addonOdoo` for validation by the pinned action; the action runs the
+  runner with its workflow inputs. Checked `gh-pr.py ready` requires all
+  current-head CI checks to pass before the enrolled train handoff.
 - For safety, authorization, approval rules, destructive helpers and shared
   infrastructure, also run complete affected addon test modules locally.
-  Trace auth/ACL/settings changes through authentik_sso, external_ids and
-  launchplane_settings; trace shared transaction and test-support changes
-  through all affected callers. Include their complete covering modules rather
-  than only one case. Record required unavailable evidence as missing; green
-  CI does not waive it.
+  Auth/ACL/settings changes select the changed addon's full modules and all
+  affected callers. Shared transaction/test-support changes select the full
+  covering modules in every affected consumer addon. Follow the shared rule
+  for required evidence that cannot run locally.
 - Follow the shared [Tests rules](https://github.com/cbusillo/codex-skills/blob/main/instructions/global.md#tests).
 - Odoo runs only the `test_*` modules that `tests/__init__.py` exposes. Wire a
   new test module through `expose_subdirectory_tests` or an explicit import, and

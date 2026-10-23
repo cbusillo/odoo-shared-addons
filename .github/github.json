@@ -25,7 +25,9 @@
       "metadata": "jq empty .github/github.json"
     },
     "test": {
-      "addonOdoo": "uv --directory \"${ODOO_DEVKIT_REPO:-../odoo-devkit}\" run --locked python -m odoo_devkit.addon_ci --image \"${ADDON_TEST_IMAGE:?Set ADDON_TEST_IMAGE to the community devtools image used by CI}\" --addons-root \"${ADDON_TEST_ROOT:-$PWD}\" --support-root \"${ODOO_SHARED_ADDONS_REPO:-$PWD}\" --output \"${ADDON_TEST_OUTPUT:?Set ADDON_TEST_OUTPUT to a task-evidence directory}\""
+      "local": "addon_test_command=$(jq -er '.qualityGate.test.addonOdoo | strings | select(test(\"\\\\S\"))' .github/github.json) && ADDON_TEST_ROOT=\"${ADDON_TEST_ROOT:?Set ADDON_TEST_ROOT to an absolute prepared directory containing selected owned addon directories}\" bash -euo pipefail -c \"$addon_test_command\"",
+      "ci": "addon_test_command=$(jq -er '.qualityGate.test.addonOdoo | strings | select(test(\"\\\\S\"))' .github/github.json) && ADDON_TEST_ROOT=\"$PWD\" bash -euo pipefail -c \"$addon_test_command\"",
+      "addonOdoo": "uv --directory \"${ODOO_DEVKIT_REPO:-../odoo-devkit}\" run --locked python -m odoo_devkit.addon_ci --image \"${ADDON_TEST_IMAGE:?Set ADDON_TEST_IMAGE to the community devtools image used by CI}\" --addons-root \"${ADDON_TEST_ROOT:-$PWD}\" --support-root \"${ODOO_SHARED_ADDONS_REPO:-$PWD}\" --output \"${ADDON_TEST_OUTPUT:?Set ADDON_TEST_OUTPUT to an absolute task-evidence directory}\""
     },
     "inspection": {
       "ide": "PyCharm",

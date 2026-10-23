@@ -43,14 +43,34 @@ are in [`.github/github.json`](.github/github.json).
 
 ## Addon CI
 
-The Addon tests PR lane validates addon and test-input changes. See the
+The Addon tests lane runs the complete owned-addon suite on every PR head,
+main push and train branch. See the
 [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
-for the runner contract. Run the `qualityGate.test.addonOdoo` command in
-[`.github/github.json`](.github/github.json) for local addon tests.
+for the runner contract. The focused local and complete CI commands in
+[`.github/github.json`](.github/github.json) reuse the `addonOdoo` declaration
+through `jq`. The pinned action validates that declaration, then invokes the
+runner with its workflow inputs; the CI command describes the full runner
+step, rather than executing the action or its separate new-comment style check. For exact CI reproduction, use a
+separate devkit checkout at the action revision in the workflow.
 
-Set `ADDON_TEST_IMAGE` to the community devtools image in
-[the Addon tests workflow](.github/workflows/addon-tests.yml). The shared guide
-explains the evidence-directory and focused-addon overrides.
+Export absolute `ODOO_DEVKIT_REPO`, `ADDON_TEST_OUTPUT` and `ADDON_TEST_ROOT`
+paths. Export `ADDON_TEST_IMAGE` using the community image from the workflow.
+Leave `ODOO_SHARED_ADDONS_REPO` unset, or export it as this task worktree's
+`$PWD`, so dependencies come from the source under test.
+
+Prepare a fresh selection immediately before each local run, for example:
+
+```sh
+mkdir -p "$(dirname "$ADDON_TEST_OUTPUT")"
+export ADDON_TEST_ROOT="$(mktemp -d "$(dirname "$ADDON_TEST_OUTPUT")/focused-addons.XXXXXX")"
+cp -R authentik_sso "$ADDON_TEST_ROOT/"
+```
+
+Copy each selected owned addon into that new directory; do not point the root
+at one addon's directory, use host symlinks, or reuse stale copies after editing.
+The support root supplies dependencies from the current worktree. CI selects
+the full repository root. [Test rules](AGENTS.md#tests) own safety-module
+selection and the checked readiness handoff; no branch setting changes here.
 
 ## TLS lint
 

@@ -41,8 +41,18 @@ file and add only addon-specific guidance.
 
 - Use [`.github/github.json`](.github/github.json) for validation gates and the
   [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
-  for the CI runner contract. Run the metadata's `qualityGate.test.addonOdoo`
-  command for local addon tests.
+  for the CI runner contract. Use `qualityGate.test.local` for focused local
+  addon tests plus required lint and inspection; `ADDON_TEST_ROOT` must contain
+  selected owned addon directories. The complete `qualityGate.test.ci` suite
+  runs only in CI and must pass on the current head before `ready` or merge.
+  Keep `addonOdoo` as the canonical runner invocation used by the pinned action.
+- For safety, authorization, approval rules, destructive helpers and shared
+  infrastructure, also run complete affected addon test modules locally.
+  Trace auth/ACL/settings changes through authentik_sso, external_ids and
+  launchplane_settings; trace shared transaction and test-support changes
+  through all affected callers. Include their complete covering modules rather
+  than only one case. Record required unavailable evidence as missing; green
+  CI does not waive it.
 - Follow the shared [Tests rules](https://github.com/cbusillo/codex-skills/blob/main/instructions/global.md#tests).
 - Odoo runs only the `test_*` modules that `tests/__init__.py` exposes. Wire a
   new test module through `expose_subdirectory_tests` or an explicit import, and

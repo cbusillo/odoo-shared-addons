@@ -43,10 +43,21 @@ are in [`.github/github.json`](.github/github.json).
 
 ## Addon CI
 
-The Addon tests PR lane validates addon and test-input changes. See the
+The Addon tests lane runs the complete owned-addon suite on every PR head,
+main push and train branch. See the
 [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)
-for the runner contract. Run the `qualityGate.test.addonOdoo` command in
-[`.github/github.json`](.github/github.json) for local addon tests.
+for the runner contract. Use `qualityGate.test.local` in
+[`.github/github.json`](.github/github.json) for focused local verification and
+`test.ci` for the complete CI gate. Both reuse the action's canonical
+`addonOdoo` invocation; `jq` reads it without a second copy.
+
+Set `ADDON_TEST_ROOT` to a prepared directory containing the selected owned
+addon directories, not to a single addon's directory. Keep dependencies in the
+support root. Set `ODOO_DEVKIT_REPO` and `ODOO_SHARED_ADDONS_REPO` explicitly
+for linked task worktrees, plus the task-owned `ADDON_TEST_OUTPUT` evidence
+path. CI always selects the full repository root. Safety changes also run the
+complete affected modules described in `AGENTS.md`; green current-head CI is
+required before `ready`.
 
 Set `ADDON_TEST_IMAGE` to the community devtools image in
 [the Addon tests workflow](.github/workflows/addon-tests.yml). The shared guide

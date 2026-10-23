@@ -2,24 +2,8 @@ name: Addon tests
 
 on:
   pull_request:
-    paths:
-      - '*/**'
-      - '!.github/**'
-      - '!docs/**'
-      - '!.idea/**'
-      - '!**/*.md'
-      - '.github/workflows/addon-tests.yml'
-      - '.github/github.json'
   push:
     branches: [main, 'launchplane/train/**']
-    paths:
-      - '*/**'
-      - '!.github/**'
-      - '!docs/**'
-      - '!.idea/**'
-      - '!**/*.md'
-      - '.github/workflows/addon-tests.yml'
-      - '.github/github.json'
 permissions:
   contents: read
 

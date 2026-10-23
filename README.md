@@ -49,8 +49,8 @@ main push and train branch. See the
 for the runner contract. The focused local and complete CI commands in
 [`.github/github.json`](.github/github.json) reuse the `addonOdoo` declaration
 through `jq`. The pinned action validates that declaration, then invokes the
-runner with its workflow inputs; the CI command describes the equivalent full
-suite, rather than executing the action. For exact CI reproduction, use a
+runner with its workflow inputs; the CI command describes the full runner
+step, rather than executing the action or its separate new-comment style check. For exact CI reproduction, use a
 separate devkit checkout at the action revision in the workflow.
 
 Export absolute `ODOO_DEVKIT_REPO`, `ADDON_TEST_OUTPUT` and `ADDON_TEST_ROOT`
@@ -68,9 +68,8 @@ cp -R authentik_sso "$ADDON_TEST_ROOT/"
 
 Copy each selected owned addon into that new directory; do not point the root
 at one addon's directory, use host symlinks, or reuse stale copies after editing.
-The support root supplies dependencies from the current worktree. Run the
-metadata's local command immediately after preparing the selection. CI always
-selects the full repository root. [Test rules](AGENTS.md#tests) own safety-module
+The support root supplies dependencies from the current worktree. CI selects
+the full repository root. [Test rules](AGENTS.md#tests) own safety-module
 selection and the checked readiness handoff; no branch setting changes here.
 
 ## TLS lint

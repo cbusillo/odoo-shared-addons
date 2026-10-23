@@ -44,10 +44,10 @@ file and add only addon-specific guidance.
   for the CI runner contract. Use `qualityGate.test.local` for focused local
   addon tests plus required lint and inspection; `ADDON_TEST_ROOT` must contain
   selected owned addon directories. The complete `qualityGate.test.ci` suite
-  runs only in CI and must pass on the current head before `ready` or merge.
+  runs only in CI; checked `gh-pr.py ready` requires all current-head checks
+  to pass before this enrolled train handoff.
   Keep `addonOdoo` for validation by the pinned action; the action runs the
-  runner with its workflow inputs. Checked `gh-pr.py ready` requires all
-  current-head CI checks to pass before the enrolled train handoff.
+  runner with its workflow inputs.
 - For safety, authorization, approval rules, destructive helpers and shared
   infrastructure, also run complete affected addon test modules locally.
   Auth/ACL/settings changes select the changed addon's full modules and all

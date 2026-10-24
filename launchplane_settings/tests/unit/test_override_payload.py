@@ -31,7 +31,7 @@ class TestOverridePayload(PayloadTestCase):
         original_import = builtins.__import__
 
         def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
-            if name.split(".")[0] in {"odoo", "launchplane_settings", "pymysql", "psycopg2"}:
+            if name.split(".")[0] not in sys.stdlib_module_names:
                 raise AssertionError("Pure producer imported a runtime dependency")
             return original_import(name, *args, **kwargs)
 

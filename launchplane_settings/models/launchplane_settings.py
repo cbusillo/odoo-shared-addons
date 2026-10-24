@@ -1,6 +1,3 @@
-import base64
-import binascii
-import json
 import logging
 import os
 from collections.abc import Callable, Iterable, Mapping
@@ -8,9 +5,28 @@ from collections.abc import Callable, Iterable, Mapping
 from odoo import models
 from odoo.exceptions import ValidationError
 
+from ..services import override_payload
+from ..services.override_payload import (
+    FALSE_VALUES as FALSE_VALUES,
+)
+from ..services.override_payload import (
+    ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY as ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY,
+)
+from ..services.override_payload import (
+    TRUE_VALUES as TRUE_VALUES,
+)
+from ..services.override_payload import (
+    _normalize_config_param_value as _normalize_config_param_value,
+)
+from ..services.override_payload import (
+    _normalize_scalar_override_value as _normalize_scalar_override_value,
+)
+from ..services.override_payload import (
+    _parse_boolean as _parse_boolean,
+)
+
 _logger = logging.getLogger(__name__)
 
-ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY = "ODOO_INSTANCE_OVERRIDES_PAYLOAD_B64"
 PLATFORM_INSTANCE_ENV_KEY = "PLATFORM_INSTANCE"
 PRODUCTION_PLATFORM_INSTANCE = "prod"
 SHOPIFY_ACTION_SETTING = "action"
@@ -23,36 +39,6 @@ SHOPIFY_STORE_STATE_ADAPTER = "apply_launchplane_store_state"
 AUTHENTIK_CONFIG_MODEL = "authentik.sso.config"
 AUTHENTIK_GROUP_MAPPING_MODEL = "authentik.sso.group.mapping"
 
-FALSE_VALUES = {"", "0", "false", "no", "off"}
-TRUE_VALUES = {"1", "true", "yes", "on"}
-
-
-def _normalize_config_param_value(raw_value: str) -> str:
-    value = raw_value.strip()
-    lowered = value.lower()
-    if lowered in FALSE_VALUES:
-        return "False"
-    if lowered in TRUE_VALUES:
-        return "True"
-    return value
-
-
-def _parse_boolean(raw_value: str | None, *, default: bool) -> bool:
-    if raw_value is None:
-        return default
-    value = raw_value.strip().lower()
-    if value in FALSE_VALUES:
-        return False
-    if value in TRUE_VALUES:
-        return True
-    return default
-
-
-def _normalize_scalar_override_value(raw_value: object) -> str:
-    if isinstance(raw_value, bool):
-        return "True" if raw_value else "False"
-    return _normalize_config_param_value(str(raw_value))
-
 
 def _is_production_instance() -> bool:
     # An empty or unknown instance name counts as non-production so the Shopify
@@ -61,55 +47,24 @@ def _is_production_instance() -> bool:
 
 
 def _load_override_payload() -> Mapping[str, object] | None:
-    encoded_payload = os.environ.get(ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY, "").strip()
-    if not encoded_payload:
-        return None
     try:
-        decoded_payload = base64.b64decode(encoded_payload, validate=True)
-        payload = json.loads(decoded_payload.decode("utf-8"))
-    except (ValueError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError) as error:
-        raise ValidationError("Invalid Odoo instance override payload.") from error
-    if not isinstance(payload, dict):
-        raise ValidationError("Odoo instance override payload must decode to an object.")
-    return payload
+        return override_payload.decode_payload(os.environ.get(ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY, ""))
+    except override_payload.OverridePayloadError as error:
+        raise ValidationError(str(error)) from error
 
 
 def _payload_items(payload: Mapping[str, object] | None, key: str) -> tuple[Mapping[str, object], ...]:
-    if payload is None:
-        return ()
-    raw_items = payload.get(key)
-    if raw_items is None:
-        return ()
-    if not isinstance(raw_items, list):
-        raise ValidationError(f"Odoo instance override payload field '{key}' must be a list.")
-    items: list[Mapping[str, object]] = []
-    for raw_item in raw_items:
-        if not isinstance(raw_item, dict):
-            raise ValidationError(f"Odoo instance override payload field '{key}' must contain objects.")
-        items.append(raw_item)
-    return tuple(items)
+    try:
+        return override_payload._payload_items(payload, key)
+    except override_payload.OverridePayloadError as error:
+        raise ValidationError(str(error)) from error
 
 
 def _payload_value_for_setting(*, raw_value: object, override_name: str) -> str:
-    if not isinstance(raw_value, dict):
-        raise ValidationError(f"Odoo override '{override_name}' has an invalid value payload.")
-    source = str(raw_value.get("source") or "").strip()
-    if source == "literal":
-        if "value" not in raw_value:
-            raise ValidationError(f"Odoo override '{override_name}' is missing a literal value.")
-        return _normalize_scalar_override_value(raw_value.get("value"))
-    if source == "secret_binding":
-        environment_variable = str(raw_value.get("environment_variable") or "").strip()
-        if not environment_variable:
-            raise ValidationError(
-                f"Secret-backed Odoo override '{override_name}' is missing its runtime environment variable."
-            )
-        if environment_variable not in os.environ:
-            raise ValidationError(
-                f"Secret-backed Odoo override '{override_name}' is missing environment variable {environment_variable}."
-            )
-        return os.environ.get(environment_variable, "")
-    raise ValidationError(f"Odoo override '{override_name}' has unsupported source '{source}'.")
+    try:
+        return override_payload._payload_value_for_setting(raw_value=raw_value, override_name=override_name, environment=os.environ)
+    except override_payload.OverridePayloadError as error:
+        raise ValidationError(str(error)) from error
 
 
 class LaunchplaneSettings(models.AbstractModel):
@@ -126,13 +81,10 @@ class LaunchplaneSettings(models.AbstractModel):
         self._apply_shopify_overrides(payload=payload)
 
     def _payload_config_param_overrides(self, payload: Mapping[str, object] | None) -> dict[str, str]:
-        overrides: dict[str, str] = {}
-        for item in _payload_items(payload, "config_parameters"):
-            key = str(item.get("key") or "").strip().lower()
-            if not key:
-                raise ValidationError("Odoo config parameter override payload entries require key.")
-            overrides[key] = _payload_value_for_setting(raw_value=item.get("value"), override_name=key)
-        return overrides
+        try:
+            return override_payload.resolve_config_parameters(payload, os.environ)
+        except override_payload.OverridePayloadError as error:
+            raise ValidationError(str(error)) from error
 
     def _apply_config_param_overrides(self, *, payload: Mapping[str, object] | None = None) -> None:
         payload_overrides = self._payload_config_param_overrides(payload)

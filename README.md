@@ -34,8 +34,9 @@ are in [`.github/github.json`](.github/github.json).
   environments.
 - `external_ids`: generic external-system identity and URL-link management.
 - `hr_employee_name_extended`: structured employee-name fields and formatting.
-- `launchplane_settings`: adapter for applying Launchplane-managed instance
-  settings inside Odoo.
+- [`launchplane_settings`](launchplane_settings/README.md): adapter for applying
+  Launchplane-managed instance settings inside Odoo, with a pure installed
+  payload projection for verified readers.
 - `notification_permission_patch`: browser notification permission observer for
   the Odoo web client.
 - `test_support`: shared fixtures, test helpers, and base test cases.

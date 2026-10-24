@@ -8,10 +8,20 @@ from odoo.exceptions import ValidationError
 from ..services import override_payload
 from ..services.override_payload import (
     FALSE_VALUES as FALSE_VALUES,
-    TRUE_VALUES as TRUE_VALUES,
+)
+from ..services.override_payload import (
     ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY as ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY,
+)
+from ..services.override_payload import (
+    TRUE_VALUES as TRUE_VALUES,
+)
+from ..services.override_payload import (
     _normalize_config_param_value as _normalize_config_param_value,
+)
+from ..services.override_payload import (
     _normalize_scalar_override_value as _normalize_scalar_override_value,
+)
+from ..services.override_payload import (
     _parse_boolean as _parse_boolean,
 )
 
@@ -52,9 +62,7 @@ def _payload_items(payload: Mapping[str, object] | None, key: str) -> tuple[Mapp
 
 def _payload_value_for_setting(*, raw_value: object, override_name: str) -> str:
     try:
-        return override_payload._payload_value_for_setting(
-            raw_value=raw_value, override_name=override_name, environment=os.environ
-        )
+        return override_payload._payload_value_for_setting(raw_value=raw_value, override_name=override_name, environment=os.environ)
     except override_payload.OverridePayloadError as error:
         raise ValidationError(str(error)) from error
 

@@ -1,21 +1,22 @@
-"""Pure installed payload projection shared by the applier and bounded readers.
-
-Returned parameter values may contain credentials. Keep them local; never log,
-serialize or return this mapping from an operational read.
-"""
-
 import base64
 import binascii
 import json
 from collections.abc import Collection, Mapping
+from typing import NamedTuple
 
 ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY = "ODOO_INSTANCE_OVERRIDES_PAYLOAD_B64"
 FALSE_VALUES = {"", "0", "false", "no", "off"}
 TRUE_VALUES = {"1", "true", "yes", "on"}
 
 
+class OverrideValue(NamedTuple):
+    source: str
+    literal_value: object
+    environment_variable: str
+
+
 class OverridePayloadError(ValueError):
-    """The override payload cannot be decoded or projected as requested."""
+    pass
 
 
 def _normalize_config_param_value(raw_value: str) -> str:
@@ -46,7 +47,6 @@ def _normalize_scalar_override_value(raw_value: object) -> str:
 
 
 def decode_payload(encoded: str) -> Mapping[str, object] | None:
-    """Decode the supplied base64/JSON object; an absent or blank input is None."""
     encoded_payload = encoded.strip()
     if not encoded_payload:
         return None
@@ -76,29 +76,24 @@ def _payload_items(payload: Mapping[str, object] | None, key: str) -> tuple[Mapp
     return tuple(items)
 
 
-def _validate_value_payload(*, raw_value: object, override_name: str) -> tuple[str, object, str]:
-    """Validate value structure without consulting any referenced environment."""
+def _validate_value_payload(*, raw_value: object, override_name: str) -> OverrideValue:
     if not isinstance(raw_value, dict):
         raise OverridePayloadError(f"Odoo override '{override_name}' has an invalid value payload.")
     source = str(raw_value.get("source") or "").strip()
     if source == "literal":
         if "value" not in raw_value:
             raise OverridePayloadError(f"Odoo override '{override_name}' is missing a literal value.")
-        return source, raw_value.get("value"), ""
+        return OverrideValue(source, raw_value.get("value"), "")
     if source == "secret_binding":
         environment_variable = str(raw_value.get("environment_variable") or "").strip()
         if not environment_variable:
-            raise OverridePayloadError(
-                f"Secret-backed Odoo override '{override_name}' is missing its runtime environment variable."
-            )
-        return source, None, environment_variable
+            raise OverridePayloadError(f"Secret-backed Odoo override '{override_name}' is missing its runtime environment variable.")
+        return OverrideValue(source, None, environment_variable)
     raise OverridePayloadError(f"Odoo override '{override_name}' has unsupported source '{source}'.")
 
 
 def _payload_value_for_setting(*, raw_value: object, override_name: str, environment: Mapping[str, str]) -> str:
-    source, literal_value, environment_variable = _validate_value_payload(
-        raw_value=raw_value, override_name=override_name
-    )
+    source, literal_value, environment_variable = _validate_value_payload(raw_value=raw_value, override_name=override_name)
     if source == "literal":
         return _normalize_scalar_override_value(literal_value)
     if environment_variable not in environment:
@@ -114,15 +109,6 @@ def resolve_config_parameters(
     *,
     keys: Collection[str] | None = None,
 ) -> dict[str, str]:
-    """Project supplied entries, optionally selecting keys before environment lookup.
-
-    Omitted parameters stay omitted; this does not overlay or clear stored values.
-    With no selection, every entry is resolved in order and duplicate keys fold
-    exactly as in the native applier. Selected projection still validates every
-    value's structure. Neither mode proves whole-payload acceptance or
-    application: addon settings are outside this projection, and selected mode
-    leaves unselected environment references unresolved.
-    """
     selected: set[str] | None = None
     if keys is not None:
         if isinstance(keys, (str, bytes, bytearray, memoryview)) or not isinstance(keys, Collection):
@@ -140,7 +126,5 @@ def resolve_config_parameters(
         if selected is not None and key not in selected:
             _validate_value_payload(raw_value=item.get("value"), override_name=key)
             continue
-        overrides[key] = _payload_value_for_setting(
-            raw_value=item.get("value"), override_name=key, environment=environment
-        )
+        overrides[key] = _payload_value_for_setting(raw_value=item.get("value"), override_name=key, environment=environment)
     return overrides

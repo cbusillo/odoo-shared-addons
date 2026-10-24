@@ -1,5 +1,3 @@
-"""Load the installed producer directly, independently of Odoo and addon imports."""
-
 import base64
 import builtins
 import importlib.util
@@ -7,9 +5,10 @@ import json
 import os
 import sys
 import unittest
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from copy import deepcopy
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 if __package__:
@@ -31,19 +30,19 @@ class TestOverridePayload(PayloadTestCase):
         self.addCleanup(sys.modules.pop, name, None)
         original_import = builtins.__import__
 
-        def guarded_import(name: str, *args, **kwargs):
+        def guarded_import(name: str, *args: Any, **kwargs: Any) -> Any:
             if name.split(".")[0] in {"odoo", "launchplane_settings", "pymysql", "psycopg2"}:
                 raise AssertionError("Pure producer imported a runtime dependency")
             return original_import(name, *args, **kwargs)
 
-        class ForbiddenEnvironment(Mapping):
-            def __getitem__(self, key):
+        class ForbiddenEnvironment(Mapping[str, str]):
+            def __getitem__(self, key: str) -> str:
                 raise AssertionError("Pure producer read the global environment")
 
-            def __iter__(self):
+            def __iter__(self) -> Iterator[str]:
                 raise AssertionError("Pure producer enumerated the global environment")
 
-            def __len__(self):
+            def __len__(self) -> int:
                 raise AssertionError("Pure producer inspected the global environment")
 
         with (
@@ -141,35 +140,33 @@ class TestOverridePayload(PayloadTestCase):
             ]
         }
 
-        class SelectedEnvironment(Mapping):
-            def __getitem__(self, requested):
+        class SelectedEnvironment(Mapping[str, str]):
+            def __getitem__(self, requested: str) -> str:
                 if requested != variable:
                     raise AssertionError("Projection read an unselected environment value")
                 return " synthetic-only "
 
-            def __iter__(self):
+            def __iter__(self) -> Iterator[str]:
                 raise AssertionError("Projection enumerated environment values")
 
-            def __len__(self):
+            def __len__(self) -> int:
                 raise AssertionError("Projection inspected the environment")
 
         environment = SelectedEnvironment()
-        self.assertEqual(
-            self.producer.resolve_config_parameters(payload, environment, keys=(key,)), {key: " synthetic-only "}
-        )
+        self.assertEqual(self.producer.resolve_config_parameters(payload, environment, keys=(key,)), {key: " synthetic-only "})
         self.assertEqual(self.producer.resolve_config_parameters(payload, environment, keys=()), {})
         with self.assertRaises(self.producer.OverridePayloadError):
             self.producer.resolve_config_parameters(payload, {})
 
     def test_selection_validates_all_value_structures_without_environment_reads(self) -> None:
-        class NoEnvironmentReads(Mapping):
-            def __getitem__(self, key):
+        class NoEnvironmentReads(Mapping[str, str]):
+            def __getitem__(self, key: str) -> str:
                 raise AssertionError("Structural validation read the environment")
 
-            def __iter__(self):
+            def __iter__(self) -> Iterator[str]:
                 raise AssertionError("Structural validation enumerated the environment")
 
-            def __len__(self):
+            def __len__(self) -> int:
                 raise AssertionError("Structural validation inspected the environment")
 
         for value in (

@@ -1,5 +1,3 @@
-"""Keep the native applier and its compatibility helpers on the pure producer."""
-
 import base64
 import json
 import os

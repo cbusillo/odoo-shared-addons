@@ -2,6 +2,12 @@
 
 Treat this repo as the canonical home for reusable cross-client addon code.
 
+## What Odoo Shared Addons does
+
+Odoo Shared Addons holds reusable Odoo features used across tenant workspaces, including sign-in, record links, and shared runtime support.
+Tenant-specific business behavior stays in tenant repositories; workspace assembly belongs to Odoo Devkit.
+Evidence: [README.md](README.md#addon-inventory).
+
 ## Direction and Execution
 
 Read the Director's [overall DIRECTION.md](https://github.com/cbusillo/direction/blob/HEAD/DIRECTION.md)

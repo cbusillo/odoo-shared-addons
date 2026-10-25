@@ -1,7 +1,5 @@
 # AGENTS.md — Shared Addons Repo Guide
 
-Treat this repo as the canonical home for reusable cross-client addon code.
-
 ## What Odoo Shared Addons does
 
 Odoo Shared Addons holds reusable Odoo features used across tenant workspaces, including sign-in, record links, and shared runtime support.

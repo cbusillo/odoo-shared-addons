@@ -36,8 +36,7 @@ export function observeNotificationPermissionChanges(permissionStatus, onPermiss
             if (permissionStatus.onchange === wrappedOnchange) {
                 permissionStatus.onchange = previousOnchange ?? null;
             }
-        } catch {
-        }
+        } catch {}
     };
 }
 
@@ -74,11 +73,10 @@ patch(WebClient.prototype, {
             super.setup();
             return;
         }
-        permissionsApi.query = () =>
-            Promise.resolve({
-                addEventListener() {},
-                removeEventListener() {},
-            });
+        permissionsApi.query = (descriptor) =>
+            descriptor?.name === "notifications"
+                ? Promise.resolve({ addEventListener() {}, removeEventListener() {} })
+                : queryPermission.call(permissionsApi, descriptor);
         try {
             super.setup();
         } finally {

@@ -42,8 +42,7 @@ registry.category("web_tour.tours").add("drl_record_link_insert", {
         },
         {
             content: "Wait for Discuss channels",
-            trigger:
-                ".o-mail-DiscussSidebarChannel, .o-mail-DiscussSidebar-item",
+            trigger: ".o-mail-DiscussSidebarChannel, .o-mail-DiscussSidebar-item",
             timeout: 20000,
         },
         {
@@ -85,28 +84,13 @@ registry.category("web_tour.tours").add("drl_record_link_insert", {
             trigger: composerSelector,
             run() {
                 const text = getComposerValue().trim()
-                if (text.includes("/web#id=") && text.includes("&model=")) {
-                    return
+                if (
+                    !text.includes("/web#id=") ||
+                    !text.includes("&model=") ||
+                    text.startsWith("[")
+                ) {
+                    throw new Error("Selecting a record must replace the search with its URL")
                 }
-                const request = new XMLHttpRequest()
-                request.open("POST", "/discuss_record_links/search", false)
-                request.setRequestHeader("Content-Type", "application/json")
-                request.send(
-                    JSON.stringify({
-                        jsonrpc: "2.0",
-                        method: "call",
-                        params: { term: "pro widget" },
-                        id: 1,
-                    }),
-                )
-                const response = JSON.parse(request.responseText || "{}")
-                const suggestion = response?.result?.suggestions?.[0]
-                if (!suggestion) {
-                    throw new Error("No suggestions returned")
-                }
-                setComposerValue(
-                    `http://localhost:8069/web#id=${suggestion.id}&model=${suggestion.model}&view_type=form`,
-                )
             },
         },
         {

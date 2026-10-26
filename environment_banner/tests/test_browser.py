@@ -12,6 +12,7 @@ class TestEnvironmentBannerBrowser(HttpCase):
                 self.browser_js(
                     "/odoo",
                     f"""
+                    (async () => {{
                     await new Promise(requestAnimationFrame);
                     await new Promise(requestAnimationFrame);
                     const banner = document.querySelector('.environment-banner');
@@ -22,6 +23,7 @@ class TestEnvironmentBannerBrowser(HttpCase):
                         throw new Error('Environment banner does not identify the local test instance');
                     }}
                     console.log('test successful');
+                    }})();
                     """,
                     ready="document.querySelector('.o_web_client')",
                     login="admin",

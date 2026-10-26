@@ -1,5 +1,3 @@
-/** @odoo-module */
-
 import { describe, test, expect } from "@odoo/hoot"
 import { Message } from "@mail/core/common/message"
 
@@ -7,7 +5,31 @@ function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+function prepareMessageBody(env, body, embeddedRoots = []) {
+    return Message.prototype.prepareMessageBody.call(
+        {
+            env,
+            store: { handleValidChannelMention() {} },
+            renderEmbeddedCodeBlocks: () => embeddedRoots,
+        },
+        body,
+    )
+}
+
 describe("@discuss_record_links Message link label transformer", () => {
+    test("preserves native embedded component roots with and without links", () => {
+        for (const contents of [
+            "plain message",
+            '<a href="/web#id=42&model=product.product">record</a>',
+        ]) {
+            const container = document.createElement("div")
+            container.innerHTML = contents
+            const roots = [{}]
+            const env = { services: { rpc: async () => [] } }
+            expect(prepareMessageBody(env, container, roots)).toBe(roots)
+        }
+    })
+
     test("replaces internal link text using /labels RPC", async () => {
         const container = document.createElement("div")
         const a = document.createElement("a")
@@ -21,9 +43,7 @@ describe("@discuss_record_links Message link label transformer", () => {
                     expect(route).toBe("/discuss_record_links/labels")
                     expect(Array.isArray(payload?.targets)).toBe(true)
                     // Return configured label
-                    return [
-                        { model: "product.product", id: 42, label: "[SKU42] Test Product" },
-                    ]
+                    return [{ model: "product.product", id: 42, label: "[SKU42] Test Product" }]
                 },
                 orm: {
                     call: async () => {
@@ -34,7 +54,7 @@ describe("@discuss_record_links Message link label transformer", () => {
         }
 
         // Invoke patched method (runs async RPC inside)
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        prepareMessageBody(fakeEnv, container)
         await sleep(0)
 
         expect(a.textContent).toBe("[SKU42] Test Product")
@@ -60,12 +80,12 @@ describe("@discuss_record_links Message link label transformer", () => {
                 orm: {
                     call: async () => {
                         throw new Error("no fallback")
-                    }
+                    },
                 },
             },
         }
 
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        prepareMessageBody(fakeEnv, container)
         await sleep(0)
 
         expect(a.textContent).toBe("Yamaha F150 (2019)")
@@ -92,15 +112,15 @@ describe("@discuss_record_links Message link label transformer", () => {
                 orm: {
                     call: async () => {
                         throw new Error("no fallback")
-                    }
+                    },
                 },
             },
         }
 
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        prepareMessageBody(fakeEnv, container)
         await sleep(0)
 
-        expect(container.querySelector('a').textContent.trim()).toBe("[SKU101] Gadget")
+        expect(container.querySelector("a").textContent.trim()).toBe("[SKU101] Gadget")
     })
 
     test("falls back to display_name via ORM when RPC fails", async () => {
@@ -125,7 +145,7 @@ describe("@discuss_record_links Message link label transformer", () => {
             },
         }
 
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        prepareMessageBody(fakeEnv, container)
         await sleep(0)
 
         expect(a.textContent).toBe("Fallback Name")
@@ -148,13 +168,13 @@ describe("@discuss_record_links Message link label transformer", () => {
                 orm: {
                     call: async () => {
                         throw new Error("should not be called")
-                    }
+                    },
                 },
             },
         }
 
         // Act
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        prepareMessageBody(fakeEnv, container)
         await sleep(0)
 
         // Assert: there is an anchor now and it is labeled

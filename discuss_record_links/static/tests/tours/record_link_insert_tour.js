@@ -62,7 +62,8 @@ registry.category("web_tour.tours").add("drl_record_link_insert", {
         },
         {
             content: "Ensure URL inserted",
-            trigger: composerSelector,
+            trigger:
+                ".o-mail-Discuss textarea.o-mail-Composer-input:value(/web#id=/), .o-mail-Discuss .o-mail-Composer [contenteditable='true']:contains(/web#id=/)",
             run() {
                 const text = getComposerValue().trim()
                 if (
@@ -70,7 +71,9 @@ registry.category("web_tour.tours").add("drl_record_link_insert", {
                     !text.includes("&model=") ||
                     text.startsWith("[")
                 ) {
-                    throw new Error("Selecting a record must replace the search with its URL")
+                    throw new Error(
+                        `Selecting a record must replace the search with its URL; got ${JSON.stringify(text)}`,
+                    )
                 }
             },
         },

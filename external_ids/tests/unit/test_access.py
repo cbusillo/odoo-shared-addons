@@ -7,6 +7,21 @@ from ..fixtures.base import UnitTestCase
 
 @common.tagged(*common.UNIT_TAGS)
 class TestExternalIdentityAccess(UnitTestCase):
+    def test_external_users_cannot_manage_rename_wizards(self) -> None:
+        portal = self.env["res.users"].create(
+            {
+                "name": "Wizard portal",
+                "login": "wizard_portal",
+                "group_ids": [Command.set([self.env.ref("base.group_portal").id])],
+            }
+        )
+        for user in (portal, self.env.ref("base.public_user")):
+            wizard = self.env["external.system.url.rename.wizard"].with_user(user)
+            self.assertFalse(wizard.env.su)
+            for operation in ("create", "read", "write", "unlink"):
+                with self.subTest(user=user.login, operation=operation):
+                    self.assertFalse(wizard.has_access(operation))
+
     def test_internal_read_admin_crud_and_portal_denial(self) -> None:
         for group in ("base.group_system", "base.group_user", "base.group_portal"):
             user = self.env["res.users"].create(

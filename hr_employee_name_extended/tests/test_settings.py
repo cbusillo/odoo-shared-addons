@@ -13,8 +13,8 @@ class TestNameSettings(common.TransactionCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.ICP.set_param("user_name_extended.format", "western")
-        self.ICP.set_param("user_name_extended.custom_pattern", False)
+        self.ICP.set_str("user_name_extended.format", "western")
+        self.ICP.set_str("user_name_extended.custom_pattern", False)
 
     def test_settings_format_updates_icp_and_affects_name(self) -> None:
         emp = self.Employee.create({"first_name": "Wei", "last_name": "Zhang", "name_format": ""})
@@ -23,7 +23,7 @@ class TestNameSettings(common.TransactionCase):
         settings = self.Settings.create({"user_name_format": "asian"})
         settings.execute()
 
-        fmt = (self.ICP.get_param("user_name_extended.format") or "").strip()
+        fmt = (self.ICP.get_str("user_name_extended.format") or "").strip()
         self.assertEqual(fmt, "asian")
 
         self.Employee._action_recompute_names()
@@ -40,8 +40,8 @@ class TestNameSettings(common.TransactionCase):
         )
         settings.execute()
 
-        fmt = (self.ICP.get_param("user_name_extended.format") or "").strip()
-        pat = (self.ICP.get_param("user_name_extended.custom_pattern") or "").strip()
+        fmt = (self.ICP.get_str("user_name_extended.format") or "").strip()
+        pat = (self.ICP.get_str("user_name_extended.custom_pattern") or "").strip()
         self.assertEqual(fmt, "custom")
         self.assertEqual(pat, settings.user_name_custom_pattern)
 
@@ -51,7 +51,7 @@ class TestNameSettings(common.TransactionCase):
     def test_recompute_preserves_saved_and_explicit_formats(self) -> None:
         for initial_format, changed_format in (("western", "asian"), ("asian", "western")):
             with self.subTest(initial_format=initial_format):
-                self.ICP.set_param("user_name_extended.format", initial_format)
+                self.ICP.set_str("user_name_extended.format", initial_format)
                 saved_default = self.Employee.create({"first_name": "Wei", "last_name": "Zhang"})
                 explicit = self.Employee.create(
                     {"first_name": "Wei", "last_name": "Zhang", "name_format": initial_format}

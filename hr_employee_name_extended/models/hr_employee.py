@@ -62,7 +62,7 @@ class HrEmployee(models.Model):
         values = super().default_get(fields_list)
         if "name_format" in fields_list:
             icp = self.env["ir.config_parameter"].sudo()
-            fmt = (icp.get_param("user_name_extended.format") or "").strip().lower()
+            fmt = (icp.get_str("user_name_extended.format") or "").strip().lower()
             values["name_format"] = fmt if fmt in {"western", "asian"} else ""
         return values
 
@@ -90,7 +90,7 @@ class HrEmployee(models.Model):
     @api.model
     def _effective_name_format(self, name_format: str | None) -> str:
         icp = self.env["ir.config_parameter"].sudo()
-        return (name_format or icp.get_param("user_name_extended.format") or "western").strip().lower()
+        return (name_format or icp.get_str("user_name_extended.format") or "western").strip().lower()
 
     def _sync_parts_from_name(self) -> None:
         for rec in self:

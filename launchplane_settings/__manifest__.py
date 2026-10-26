@@ -1,6 +1,6 @@
 {
     "name": "Launchplane Settings",
-    "version": "19.0.0.1",
+    "version": "20.0.0.1",
     "category": "Technical",
     "summary": "Apply Launchplane-managed instance settings",
     "description": "Typed Odoo settings apply adapter for Launchplane-managed instance state.",

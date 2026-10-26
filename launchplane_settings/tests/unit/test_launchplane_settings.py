@@ -44,19 +44,19 @@ class TestLaunchplaneSettings(UnitTestCase):
         return {ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: encoded}
 
     def _set_production_shopify_credentials(self) -> None:
-        self.ConfigParameter.set_param("shopify.shop_url_key", "live-store")
-        self.ConfigParameter.set_param("shopify.api_token", "live-token")
-        self.ConfigParameter.set_param("shopify.webhook_key", "live-hook")
+        self.ConfigParameter.set_str("shopify.shop_url_key", "live-store")
+        self.ConfigParameter.set_str("shopify.api_token", "live-token")
+        self.ConfigParameter.set_str("shopify.webhook_key", "live-hook")
 
     def _assert_shopify_credentials_cleared(self) -> None:
-        self.assertFalse(self.ConfigParameter.get_param("shopify.shop_url_key"))
-        self.assertFalse(self.ConfigParameter.get_param("shopify.api_token"))
-        self.assertFalse(self.ConfigParameter.get_param("shopify.webhook_key"))
+        self.assertFalse(self.ConfigParameter.get_str("shopify.shop_url_key"))
+        self.assertFalse(self.ConfigParameter.get_str("shopify.api_token"))
+        self.assertFalse(self.ConfigParameter.get_str("shopify.webhook_key"))
 
     def _assert_production_shopify_credentials_kept(self) -> None:
-        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "live-store")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.api_token"), "live-token")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.webhook_key"), "live-hook")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.shop_url_key"), "live-store")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.api_token"), "live-token")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.webhook_key"), "live-hook")
 
     def test_normalize_config_param_value(self) -> None:
         self.assertEqual(_normalize_config_param_value(" true "), "True")
@@ -96,7 +96,7 @@ class TestLaunchplaneSettings(UnitTestCase):
         with _set_env(self._payload_env(payload)):
             self.Settings.apply_from_env()
 
-        self.assertEqual(self.ConfigParameter.get_param("test.value"), "False")
+        self.assertEqual(self.ConfigParameter.get_str("test.value"), "False")
 
     def test_apply_shopify_overrides_from_payload_secret_binding_env(self) -> None:
         payload = {
@@ -148,14 +148,14 @@ class TestLaunchplaneSettings(UnitTestCase):
         ):
             self.Settings.apply_from_env()
 
-        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "typed-store")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.api_token"), "token-from-secret")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.webhook_key"), "hook")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.api_version"), "2025-01")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.test_store"), "True")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.shop_url_key"), "typed-store")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.api_token"), "token-from-secret")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.webhook_key"), "hook")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.api_version"), "2025-01")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.test_store"), "True")
 
     def test_payload_shopify_settings_without_action_are_rejected(self) -> None:
-        self.ConfigParameter.set_param("shopify.shop_url_key", "existing-store")
+        self.ConfigParameter.set_str("shopify.shop_url_key", "existing-store")
         payload = {
             "schema_version": 1,
             "config_parameters": [],
@@ -171,13 +171,13 @@ class TestLaunchplaneSettings(UnitTestCase):
         with _set_env(self._payload_env(payload)):
             with self.assertRaises(ValidationError):
                 self.Settings.apply_from_env()
-        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "existing-store")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.shop_url_key"), "existing-store")
 
     def test_apply_shopify_clear_action_from_payload(self) -> None:
-        self.ConfigParameter.set_param("shopify.shop_url_key", "store")
-        self.ConfigParameter.set_param("shopify.api_token", "token")
-        self.ConfigParameter.set_param("shopify.webhook_key", "hook")
-        self.ConfigParameter.set_param("shopify.api_version", "2025-01")
+        self.ConfigParameter.set_str("shopify.shop_url_key", "store")
+        self.ConfigParameter.set_str("shopify.api_token", "token")
+        self.ConfigParameter.set_str("shopify.webhook_key", "hook")
+        self.ConfigParameter.set_str("shopify.api_version", "2025-01")
 
         payload = {
             "schema_version": 1,
@@ -194,10 +194,10 @@ class TestLaunchplaneSettings(UnitTestCase):
         with _set_env(self._payload_env(payload)):
             self.Settings.apply_from_env()
 
-        self.assertFalse(self.ConfigParameter.get_param("shopify.shop_url_key"))
-        self.assertFalse(self.ConfigParameter.get_param("shopify.api_token"))
-        self.assertFalse(self.ConfigParameter.get_param("shopify.webhook_key"))
-        self.assertFalse(self.ConfigParameter.get_param("shopify.api_version"))
+        self.assertFalse(self.ConfigParameter.get_str("shopify.shop_url_key"))
+        self.assertFalse(self.ConfigParameter.get_str("shopify.api_token"))
+        self.assertFalse(self.ConfigParameter.get_str("shopify.webhook_key"))
+        self.assertFalse(self.ConfigParameter.get_str("shopify.api_version"))
 
     def test_apply_from_env_rejects_invalid_payload(self) -> None:
         with _set_env({ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: "not-base64"}):
@@ -232,7 +232,7 @@ class TestLaunchplaneSettings(UnitTestCase):
             self.Settings.apply_from_env()
 
         self._assert_shopify_credentials_cleared()
-        self.assertEqual(self.ConfigParameter.get_param("test.value"), "kept")
+        self.assertEqual(self.ConfigParameter.get_str("test.value"), "kept")
 
     def test_non_production_explicit_shopify_apply_is_kept(self) -> None:
         self._set_production_shopify_credentials()
@@ -255,9 +255,9 @@ class TestLaunchplaneSettings(UnitTestCase):
         with _set_env({**self._payload_env(payload), PLATFORM_INSTANCE_ENV_KEY: "testing"}):
             self.Settings.apply_from_env()
 
-        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "dev-store")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.api_token"), "dev-token")
-        self.assertEqual(self.ConfigParameter.get_param("shopify.webhook_key"), "dev-hook")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.shop_url_key"), "dev-store")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.api_token"), "dev-token")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.webhook_key"), "dev-hook")
 
     def test_production_without_shopify_action_keeps_shopify_credentials(self) -> None:
         payload_without_shopify = {"schema_version": 1, "config_parameters": [], "addon_settings": []}
@@ -319,7 +319,7 @@ class TestLaunchplaneSettings(UnitTestCase):
         adapter = self._handed_off_state(self._shopify_apply_payload(), "testing")
 
         adapter.assert_called_once_with(dev_store_verified=True)
-        self.assertEqual(self.ConfigParameter.get_param("shopify.shop_url_key"), "dev-store")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.shop_url_key"), "dev-store")
 
     def test_store_without_test_store_is_not_a_verified_development_store(self) -> None:
         for test_store in (False, None):
@@ -329,8 +329,8 @@ class TestLaunchplaneSettings(UnitTestCase):
                 adapter.assert_called_once_with(dev_store_verified=False)
 
     def test_read_back_that_does_not_match_the_applied_store_is_not_verified(self) -> None:
-        self.ConfigParameter.set_param("shopify.test_store", "True")
-        self.ConfigParameter.set_param("shopify.shop_url_key", "some-other-store")
+        self.ConfigParameter.set_str("shopify.test_store", "True")
+        self.ConfigParameter.set_str("shopify.shop_url_key", "some-other-store")
 
         with _set_env({PLATFORM_INSTANCE_ENV_KEY: "testing"}):
             self.assertFalse(self.Settings._shopify_dev_store_verified("dev-store"))
@@ -369,4 +369,4 @@ class TestLaunchplaneSettings(UnitTestCase):
             with _set_env({**self._payload_env(self._shopify_apply_payload()), PLATFORM_INSTANCE_ENV_KEY: "testing"}):
                 self.Settings.apply_from_env()
 
-        self.assertEqual(self.ConfigParameter.get_param("shopify.test_store"), "True")
+        self.assertEqual(self.ConfigParameter.get_str("shopify.test_store"), "True")

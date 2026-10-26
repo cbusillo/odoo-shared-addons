@@ -28,11 +28,7 @@ function parseInternalUrl(href) {
 function linkifyInternalUrls(root) {
     try {
         const urlPattern = INTERNAL_URL_REGEX
-        const walker = document.createTreeWalker(
-            root,
-            NodeFilter.SHOW_TEXT,
-            null,
-        )
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, null)
         const toProcess = []
         let node
         while ((node = walker.nextNode())) {
@@ -56,11 +52,7 @@ function linkifyInternalUrls(root) {
                 const start = match.index
                 const end = start + url.length
                 if (start > lastIndex) {
-                    frag.appendChild(
-                        document.createTextNode(
-                            textValue.slice(lastIndex, start),
-                        ),
-                    )
+                    frag.appendChild(document.createTextNode(textValue.slice(lastIndex, start)))
                 }
                 const a = document.createElement("a")
                 a.setAttribute("href", url)
@@ -69,9 +61,7 @@ function linkifyInternalUrls(root) {
                 lastIndex = end
             }
             if (lastIndex < textValue.length) {
-                frag.appendChild(
-                    document.createTextNode(textValue.slice(lastIndex)),
-                )
+                frag.appendChild(document.createTextNode(textValue.slice(lastIndex)))
             }
             textNode.parentNode.replaceChild(frag, textNode)
         }
@@ -80,32 +70,18 @@ function linkifyInternalUrls(root) {
     }
 }
 
-/** @type {any} */
-const originalPrepareMessageBody = Message.prototype.prepareMessageBody
-
-const prepareMessageBody = function (bodyEl) {
+export function labelMessageBody(bodyEl, env) {
     try {
-        if (originalPrepareMessageBody) {
-            try {
-                originalPrepareMessageBody.apply(this, arguments)
-            } catch {}
-        }
         // Fallback: if core didn't linkify, attempt to convert bare URLs to anchors
-        if (
-            !bodyEl.querySelector(
-                'a[href*="/web#"], a[href*="/odoo#"], a[href*="/odoo/"]',
-            )
-        ) {
+        if (!bodyEl.querySelector('a[href*="/web#"], a[href*="/odoo#"], a[href*="/odoo/"]')) {
             linkifyInternalUrls(bodyEl)
         }
         const anchors = Array.from(
-            bodyEl.querySelectorAll(
-                'a[href*="/web#"], a[href*="/odoo#"], a[href*="/odoo/"]',
-            ),
+            bodyEl.querySelectorAll('a[href*="/web#"], a[href*="/odoo#"], a[href*="/odoo/"]'),
         )
         if (!anchors.length) return
-        const rpc = this?.env?.services?.rpc || rpcCall
-        const orm = this?.env?.services?.orm
+        const rpc = env?.services?.rpc || rpcCall
+        const orm = env?.services?.orm
         const byModel = new Map()
         const targets = []
         for (const a of anchors) {
@@ -125,9 +101,7 @@ const prepareMessageBody = function (bodyEl) {
             anchorElement.setAttribute("data-drl-pending", "1")
         }
         const applyLabels = (rows) => {
-            const map = new Map(
-                (rows || []).map((r) => [`${r.model}:${r.id}`, r.label]),
-            )
+            const map = new Map((rows || []).map((r) => [`${r.model}:${r.id}`, r.label]))
             for (const [a, model, id] of targets) {
                 const label = map.get(`${model}:${id}`)
                 if (!label) continue
@@ -145,13 +119,9 @@ const prepareMessageBody = function (bodyEl) {
                 return
             }
             const silentOrm = orm.silent || orm
-            const labelled = new Set(
-                (rows || []).map((r) => `${r.model}:${r.id}`),
-            )
+            const labelled = new Set((rows || []).map((r) => `${r.model}:${r.id}`))
             for (const [model, idSet] of byModel.entries()) {
-                const ids = Array.from(idSet).filter(
-                    (id) => !labelled.has(`${model}:${id}`),
-                )
+                const ids = Array.from(idSet).filter((id) => !labelled.has(`${model}:${id}`))
                 if (!ids.length) continue
                 // search_read applies record rules, so one unreadable link
                 // does not stop the readable ones from being labelled.
@@ -184,7 +154,10 @@ const prepareMessageBody = function (bodyEl) {
     }
 }
 
-const messagePatch = {}
-messagePatch.prepareMessageBody = prepareMessageBody
-
-patch(Message.prototype, messagePatch)
+patch(Message.prototype, {
+    prepareMessageBody(bodyEl) {
+        const prepared = super.prepareMessageBody(...arguments)
+        labelMessageBody(bodyEl, this.env)
+        return prepared
+    },
+})

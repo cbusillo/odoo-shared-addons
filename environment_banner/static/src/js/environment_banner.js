@@ -1,4 +1,4 @@
-import { Component, onMounted, useState } from "@odoo/owl"
+import { Component } from "@odoo/owl"
 import { registry } from "@web/core/registry"
 import { session } from "@web/session"
 
@@ -73,7 +73,6 @@ const isProductionHost = ({ hostname, environmentName, productionHostnamePattern
 }
 
 export class EnvironmentBanner extends Component {
-    static props = {}
     static template = "environment_banner.EnvironmentBanner"
 
     get bannerClasses() {
@@ -101,27 +100,15 @@ export class EnvironmentBanner extends Component {
     }
 
     setup() {
-        this.state = useState({
-            showBanner: false,
-            hostname: "",
-            environmentName: "other",
+        const hostname = window.location.hostname || ""
+        const config = getEnvironmentBannerConfig()
+        const environmentName = resolveEnvironmentName(hostname.toLowerCase())
+        const isProduction = isProductionHost({
+            hostname: hostname.toLowerCase(),
+            environmentName,
+            productionHostnamePatterns: config.productionHostnamePatterns,
         })
-
-        onMounted(() => {
-            const hostname = window.location.hostname || ""
-            const normalizedHostname = hostname.toLowerCase()
-            const config = getEnvironmentBannerConfig()
-            const environmentName = resolveEnvironmentName(normalizedHostname)
-            const isProduction = isProductionHost({
-                hostname: normalizedHostname,
-                environmentName,
-                productionHostnamePatterns: config.productionHostnamePatterns,
-            })
-
-            this.state.hostname = hostname
-            this.state.environmentName = environmentName
-            this.state.showBanner = config.enabled && !isProduction
-        })
+        this.state = { hostname, environmentName, showBanner: config.enabled && !isProduction }
     }
 }
 

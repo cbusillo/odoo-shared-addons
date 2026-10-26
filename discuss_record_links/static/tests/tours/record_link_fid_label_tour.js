@@ -1,13 +1,10 @@
-/** @odoo-module */
-
 import { registry } from "@web/core/registry"
 import {
     composerSelector,
     composerStepTimeout,
     getConfigParameterValue,
     getComposerInput,
-    openDiscussApplication,
-    openDiscussThread,
+    assertFixtureThread,
     setComposerValue,
 } from "./discuss_tour_helpers"
 
@@ -20,31 +17,14 @@ registry.category("web_tour.tours").add("drl_record_link_fid_label", {
         if (!productId || !expectedLabel) {
             throw new Error("Missing record link tour fixture")
         }
-        const labeledLinkSelector = `:is(.o_Message, .o-mail-Message) a[data-oe-model="product.product"][data-oe-id="${productId}"][data-drl-labeled="1"]`
+        const labeledLinkSelector = `.o-mail-Message a[data-oe-model="product.product"][data-oe-id="${productId}"][data-drl-labeled="1"]`
         return [
             { content: "Wait client", trigger: ".o_web_client", timeout: 20000 },
-            {
-                content: "Open Discuss",
-                trigger: ".o_app, .o-mail-Discuss, .o-mail-Thread",
-                run: openDiscussApplication,
-            },
-            {
-                content: "Wait for Discuss channels",
-                trigger:
-                    ".o-mail-DiscussSidebarChannel, .o-mail-DiscussSidebar-item",
-                timeout: 20000,
-            },
-            {
-                content: "Open a thread",
-                trigger: ".o-mail-Discuss, .o-mail-Thread",
-                run() {
-                    openDiscussThread()
-                },
-            },
             {
                 content: "Focus composer",
                 trigger: composerSelector,
                 run() {
+                    assertFixtureThread()
                     const composerElement = getComposerInput()
                     if (!composerElement) {
                         throw new Error("Composer input not found")
@@ -72,13 +52,14 @@ registry.category("web_tour.tours").add("drl_record_link_fid_label", {
                 content: "Labelized",
                 trigger: labeledLinkSelector,
                 run() {
-                    const anchorElement =
-                        document.querySelector(labeledLinkSelector)
+                    const anchorElement = document.querySelector(labeledLinkSelector)
                     if (!anchorElement) {
                         throw new Error("Labelized link not found")
                     }
                     if (anchorElement.textContent.trim() !== expectedLabel) {
-                        throw new Error(`Expected label ${JSON.stringify(expectedLabel)}, got ${JSON.stringify(anchorElement.textContent)}`)
+                        throw new Error(
+                            `Expected label ${JSON.stringify(expectedLabel)}, got ${JSON.stringify(anchorElement.textContent)}`,
+                        )
                     }
                 },
                 timeout: 30000,

@@ -36,8 +36,8 @@ class IrHttp(models.AbstractModel):
 
     def _get_environment_banner_config(self) -> dict:
         parameter_model = self.env["ir.config_parameter"].sudo()
-        enabled_raw = parameter_model.get_param(ENVIRONMENT_BANNER_ENABLED_PARAM, "True")
-        production_hostnames_raw = parameter_model.get_param(
+        enabled_raw = parameter_model.get_str(ENVIRONMENT_BANNER_ENABLED_PARAM, "True")
+        production_hostnames_raw = parameter_model.get_str(
             ENVIRONMENT_BANNER_PRODUCTION_HOSTNAMES_PARAM,
             "",
         )

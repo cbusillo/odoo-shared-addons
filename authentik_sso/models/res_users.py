@@ -88,7 +88,7 @@ class ResUsers(models.Model):
         return super()._signup_create_user(values)
 
     def _authentik_setting(self, key: str, *, default: str) -> str:
-        value = self.env["ir.config_parameter"].sudo().get_param(key) or ""
+        value = self.env["ir.config_parameter"].sudo().get_str(key) or ""
         cleaned = value.strip()
         return cleaned or default
 

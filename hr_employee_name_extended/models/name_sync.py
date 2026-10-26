@@ -13,7 +13,7 @@ class HrNameSyncMixin(models.AbstractModel):
         if not employees:
             return
         icp = self.env["ir.config_parameter"].sudo()
-        fmt = (icp.get_param("user_name_extended.format") or "western").strip().lower()
+        fmt = (icp.get_str("user_name_extended.format") or "western").strip().lower()
         parsed = NameFormatter.split_full_name(new_name, fmt)
         first = (parsed.get("first_name") or "").strip()
         if not first:

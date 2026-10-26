@@ -1,7 +1,5 @@
-/** @odoo-module */
-
 import { describe, test, expect } from "@odoo/hoot"
-import { Message } from "@mail/core/common/message"
+import { labelMessageBody } from "@discuss_record_links/js/message_link_label_patch"
 
 function sleep(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms))
@@ -21,9 +19,7 @@ describe("@discuss_record_links Message link label transformer", () => {
                     expect(route).toBe("/discuss_record_links/labels")
                     expect(Array.isArray(payload?.targets)).toBe(true)
                     // Return configured label
-                    return [
-                        { model: "product.product", id: 42, label: "[SKU42] Test Product" },
-                    ]
+                    return [{ model: "product.product", id: 42, label: "[SKU42] Test Product" }]
                 },
                 orm: {
                     call: async () => {
@@ -34,7 +30,7 @@ describe("@discuss_record_links Message link label transformer", () => {
         }
 
         // Invoke patched method (runs async RPC inside)
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        labelMessageBody(container, fakeEnv)
         await sleep(0)
 
         expect(a.textContent).toBe("[SKU42] Test Product")
@@ -60,12 +56,12 @@ describe("@discuss_record_links Message link label transformer", () => {
                 orm: {
                     call: async () => {
                         throw new Error("no fallback")
-                    }
+                    },
                 },
             },
         }
 
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        labelMessageBody(container, fakeEnv)
         await sleep(0)
 
         expect(a.textContent).toBe("Yamaha F150 (2019)")
@@ -92,15 +88,15 @@ describe("@discuss_record_links Message link label transformer", () => {
                 orm: {
                     call: async () => {
                         throw new Error("no fallback")
-                    }
+                    },
                 },
             },
         }
 
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        labelMessageBody(container, fakeEnv)
         await sleep(0)
 
-        expect(container.querySelector('a').textContent.trim()).toBe("[SKU101] Gadget")
+        expect(container.querySelector("a").textContent.trim()).toBe("[SKU101] Gadget")
     })
 
     test("falls back to display_name via ORM when RPC fails", async () => {
@@ -125,7 +121,7 @@ describe("@discuss_record_links Message link label transformer", () => {
             },
         }
 
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        labelMessageBody(container, fakeEnv)
         await sleep(0)
 
         expect(a.textContent).toBe("Fallback Name")
@@ -148,13 +144,13 @@ describe("@discuss_record_links Message link label transformer", () => {
                 orm: {
                     call: async () => {
                         throw new Error("should not be called")
-                    }
+                    },
                 },
             },
         }
 
         // Act
-        Message.prototype.prepareMessageBody.call({ env: fakeEnv }, container)
+        labelMessageBody(container, fakeEnv)
         await sleep(0)
 
         // Assert: there is an anchor now and it is labeled

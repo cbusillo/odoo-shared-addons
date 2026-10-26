@@ -1,0 +1,9 @@
+id,name,model_id:id,group_id:id,operation,domain
+access_external_system_user,external.system.user,model_external_system,base.group_user,r,
+access_external_system_manager,external.system.manager,model_external_system,base.group_system,crud,
+access_external_system_url_user,external.system.url.user,model_external_system_url,base.group_user,r,
+access_external_system_url_manager,external.system.url.manager,model_external_system_url,base.group_system,crud,
+access_external_id_user,external.id.user,model_external_id,base.group_user,r,
+access_external_id_manager,external.id.manager,model_external_id,base.group_system,crud,
+access_external_system_url_rename_wizard,access_external_system_url_rename_wizard,model_external_system_url_rename_wizard,base.group_user,crud,
+external_system_url_rename_wizard_own,URL rename wizard own records,model_external_system_url_rename_wizard,,crud,"[('create_uid', '=', user.id)]"

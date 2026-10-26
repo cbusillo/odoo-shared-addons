@@ -1,6 +1,6 @@
 {
     "name": "External IDs Management",
-    "version": "19.0.1.0.3",
+    "version": "20.0.1.0.3",
     "category": "Technical",
     "summary": "Generic substrate for external-system record identity and links.",
     "description": """
@@ -12,7 +12,7 @@
     "license": "LGPL-3",
     "depends": ["base", "web"],
     "data": [
-        "security/ir.model.access.csv",
+        "security/ir.access.csv",
         "views/menu_views.xml",
         "views/external_system_views.xml",
         "views/external_id_views.xml",

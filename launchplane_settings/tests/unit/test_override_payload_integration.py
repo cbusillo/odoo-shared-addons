@@ -61,7 +61,7 @@ class TestOverridePayloadIntegration(UnitTestCase):
 
     def test_native_application_preserves_omitted_parameters(self) -> None:
         existing = "test.pure.existing"
-        self.ConfigParameter.set_param(existing, "retained")
+        self.ConfigParameter.set_str(existing, "retained")
         self.Settings._apply_config_param_overrides(
             payload={
                 "config_parameters": [
@@ -69,5 +69,5 @@ class TestOverridePayloadIntegration(UnitTestCase):
                 ]
             }
         )
-        self.assertEqual(self.ConfigParameter.get_param(existing), "retained")
-        self.assertEqual(self.ConfigParameter.get_param("test.pure.added"), "new")
+        self.assertEqual(self.ConfigParameter.get_str(existing), "retained")
+        self.assertEqual(self.ConfigParameter.get_str("test.pure.added"), "new")

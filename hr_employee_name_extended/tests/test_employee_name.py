@@ -14,8 +14,8 @@ class TestEmployeeName(common.TransactionCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.ICP.set_param("user_name_extended.format", "western")
-        self.ICP.set_param("user_name_extended.custom_pattern", False)
+        self.ICP.set_str("user_name_extended.format", "western")
+        self.ICP.set_str("user_name_extended.custom_pattern", False)
 
     def test_create_and_defaults(self) -> None:
         emp = self.Employee.create({"first_name": "John", "last_name": "Doe"})
@@ -44,7 +44,7 @@ class TestEmployeeName(common.TransactionCase):
         self.assertIn(emp.id, ids)
 
     def test_inverse_on_name_write(self) -> None:
-        self.ICP.set_param("user_name_extended.format", "asian")
+        self.ICP.set_str("user_name_extended.format", "asian")
         emp = self.Employee.create({"first_name": "Wei", "last_name": "Zhang"})
         emp.name = "Li Wei"
         emp.invalidate_recordset(["first_name", "last_name", "name"])
@@ -67,7 +67,7 @@ class TestEmployeeName(common.TransactionCase):
         emp = self.Employee.create({"first_name": "Carl", "last_name": "Sagan", "work_contact_id": partner.id, "name_format": ""})
         partner.with_context(allow_employee_sync=True).write({"name": "Sagan Carl"})
         emp.invalidate_recordset(["first_name", "last_name", "name"])
-        self.ICP.set_param("user_name_extended.format", "asian")
+        self.ICP.set_str("user_name_extended.format", "asian")
         partner.with_context(allow_employee_sync=True).write({"name": "Sagan Carl"})
         emp.invalidate_recordset(["first_name", "last_name", "name"])
         self.assertEqual(emp.first_name, "Carl")
@@ -79,7 +79,7 @@ class TestEmployeeName(common.TransactionCase):
         self.assertEqual(emp.name, "Mary Major")
 
     def test_create_from_name_only_respects_asian_format(self) -> None:
-        self.ICP.set_param("user_name_extended.format", "asian")
+        self.ICP.set_str("user_name_extended.format", "asian")
         emp = self.Employee.create({"name": "Zhang Wei"})
         self.assertEqual((emp.first_name, emp.last_name), ("Wei", "Zhang"))
 

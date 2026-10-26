@@ -12,11 +12,11 @@ class TestPerEmployeeFormat(common.TransactionCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.ICP.set_param("user_name_extended.format", "western")
-        self.ICP.set_param("user_name_extended.custom_pattern", False)
+        self.ICP.set_str("user_name_extended.format", "western")
+        self.ICP.set_str("user_name_extended.custom_pattern", False)
 
     def test_default_from_settings_and_override(self) -> None:
-        self.ICP.set_param("user_name_extended.format", "western")
+        self.ICP.set_str("user_name_extended.format", "western")
 
         emp_default = self.Employee.create({"first_name": "Li", "last_name": "Wei"})
         self.assertEqual(emp_default.name, "Li Wei")
@@ -26,7 +26,7 @@ class TestPerEmployeeFormat(common.TransactionCase):
         self.assertEqual(emp_asian.name, "Zhang Wei")
 
     def test_inverse_respects_employee_format(self) -> None:
-        self.ICP.set_param("user_name_extended.format", "western")
+        self.ICP.set_str("user_name_extended.format", "western")
 
         emp = self.Employee.create({"first_name": "Wei", "last_name": "Zhang", "name_format": "asian"})
         emp.name = "Li Wei"
@@ -35,14 +35,14 @@ class TestPerEmployeeFormat(common.TransactionCase):
         self.assertEqual(emp.last_name, "Li")
 
     def test_default_get_uses_icp(self) -> None:
-        self.ICP.set_param("user_name_extended.format", "asian")
+        self.ICP.set_str("user_name_extended.format", "asian")
         vals = self.Employee.default_get(["name_format"])  # type: ignore[call-arg]
         self.assertEqual(vals.get("name_format"), "asian")
 
-        self.ICP.set_param("user_name_extended.format", "custom")
+        self.ICP.set_str("user_name_extended.format", "custom")
         vals2 = self.Employee.default_get(["name_format"])  # type: ignore[call-arg]
         self.assertIn(vals2.get("name_format"), ("", None))
 
-        self.ICP.set_param("user_name_extended.format", "")
+        self.ICP.set_str("user_name_extended.format", "")
         vals3 = self.Employee.default_get(["name_format"])  # type: ignore[call-arg]
         self.assertIn(vals3.get("name_format"), ("", None))

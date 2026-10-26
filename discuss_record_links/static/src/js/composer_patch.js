@@ -1,21 +1,19 @@
 import { patch } from "@web/core/utils/patch"
 import { Composer } from "@mail/core/common/composer"
-// Minimal extension: teach Composer how to render our custom suggestion type
-// without altering any core behavior.
 const originalNavigableListProps = Object.getOwnPropertyDescriptor(
     Composer.prototype,
-    "navigableListProps"
+    "navigableListProps",
 )?.get
 
 const getNavigableListProps = function () {
     const props = originalNavigableListProps ? originalNavigableListProps.call(this) : {}
-    const items = this.suggestion?.state.items
+    const items = this.suggestion?.search.results
     if (!items || items.type !== "RecordLink") {
         return props
     }
     props.options = items.suggestions.map((suggestion) => ({
         label: suggestion.label,
-        record: { id: suggestion.id, model: suggestion.model },
+        source: `${window.location.origin}/web#id=${suggestion.id}&model=${suggestion.model}&view_type=form`,
         classList: "o-mail-Composer-suggestion",
     }))
     return props

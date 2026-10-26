@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,operation
+access_authentik_sso_group_mapping_admin,authentik.sso.group.mapping admin,model_authentik_sso_group_mapping,base.group_system,crud

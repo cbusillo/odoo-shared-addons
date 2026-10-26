@@ -1,5 +1,3 @@
-import "@mail/webclient/web/webclient";
-
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
 import { destroyApp, mountWebClient } from "@web/../tests/web_test_helpers";
@@ -76,7 +74,8 @@ describe("@notification_permission_patch WebClient integration", () => {
 
     test("mounts without the permissions API", async () => {
         patch(browser.navigator, { permissions: undefined });
-        await mountWebClient();
+        const webClient = await mountWebClient();
+        expect(webClient).toBeInstanceOf(WebClient);
         destroyApp();
     });
 });

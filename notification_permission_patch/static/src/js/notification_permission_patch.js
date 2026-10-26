@@ -1,3 +1,5 @@
+import "@mail/webclient/web/webclient";
+
 import { onWillDestroy } from "@odoo/owl";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
@@ -73,6 +75,7 @@ patch(WebClient.prototype, {
             super.setup();
             return;
         }
+        const queryDescriptor = Object.getOwnPropertyDescriptor(permissionsApi, "query");
         permissionsApi.query = (descriptor) =>
             descriptor?.name === "notifications"
                 ? Promise.resolve({ addEventListener() {}, removeEventListener() {} })
@@ -80,7 +83,11 @@ patch(WebClient.prototype, {
         try {
             super.setup();
         } finally {
-            permissionsApi.query = queryPermission;
+            if (queryDescriptor) {
+                Object.defineProperty(permissionsApi, "query", queryDescriptor);
+            } else {
+                delete permissionsApi.query;
+            }
         }
 
         let removePermissionObserver = () => {};

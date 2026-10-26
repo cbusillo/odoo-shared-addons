@@ -1,6 +1,6 @@
 import { defineMailModels } from "@mail/../tests/mail_test_helpers";
 import { describe, expect, test } from "@odoo/hoot";
-import { destroyApp, mountWebClient } from "@web/../tests/web_test_helpers";
+import { destroyApp, makeTestApp, mountWebClient } from "@web/../tests/web_test_helpers";
 import { browser } from "@web/core/browser/browser";
 import { patch } from "@web/core/utils/patch";
 import { WebClient } from "@web/webclient/webclient";
@@ -38,6 +38,7 @@ describe("@notification_permission_patch WebClient integration", () => {
                       enumerable: false,
                   });
             const descriptor = Object.getOwnPropertyDescriptor(api, "query");
+            await makeTestApp();
             patch(browser.navigator, { permissions: api });
             patch(WebClient.prototype, {
                 get _canSendNativeNotification() {

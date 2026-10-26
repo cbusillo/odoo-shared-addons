@@ -25,7 +25,7 @@ class TestEnvironmentBannerBrowser(HttpCase):
                     console.log('test successful');
                     }})();
                     """,
-                    ready="document.querySelector('.o_web_client')",
+                    ready="Boolean(document.querySelector('.o_main_navbar'))",
                     login="admin",
                     timeout=60,
                 )

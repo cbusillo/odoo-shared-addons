@@ -70,11 +70,7 @@ function linkifyInternalUrls(root) {
     }
 }
 
-/** @type {any} */
-const originalPrepareMessageBody = Message.prototype.prepareMessageBody
-
-const prepareMessageBody = function (bodyEl) {
-    const embeddedRoots = originalPrepareMessageBody.apply(this, arguments)
+export function labelMessageBody(bodyEl, env) {
     try {
         // Fallback: if core didn't linkify, attempt to convert bare URLs to anchors
         if (!bodyEl.querySelector('a[href*="/web#"], a[href*="/odoo#"], a[href*="/odoo/"]')) {
@@ -83,9 +79,9 @@ const prepareMessageBody = function (bodyEl) {
         const anchors = Array.from(
             bodyEl.querySelectorAll('a[href*="/web#"], a[href*="/odoo#"], a[href*="/odoo/"]'),
         )
-        if (!anchors.length) return embeddedRoots
-        const rpc = this?.env?.services?.rpc || rpcCall
-        const orm = this?.env?.services?.orm
+        if (!anchors.length) return
+        const rpc = env?.services?.rpc || rpcCall
+        const orm = env?.services?.orm
         const byModel = new Map()
         const targets = []
         for (const a of anchors) {
@@ -96,7 +92,7 @@ const prepareMessageBody = function (bodyEl) {
             if (!byModel.has(model)) byModel.set(model, new Set())
             byModel.get(model).add(id)
         }
-        if (!targets.length) return embeddedRoots
+        if (!targets.length) return
         const payload = []
         for (const [model, idSet] of byModel.entries()) {
             for (const id of idSet) payload.push({ model, id })
@@ -156,10 +152,12 @@ const prepareMessageBody = function (bodyEl) {
     } catch (e) {
         // swallow to avoid Owl lifecycle crashes
     }
-    return embeddedRoots
 }
 
-const messagePatch = {}
-messagePatch.prepareMessageBody = prepareMessageBody
-
-patch(Message.prototype, messagePatch)
+patch(Message.prototype, {
+    prepareMessageBody(bodyEl) {
+        const prepared = super.prepareMessageBody(...arguments)
+        labelMessageBody(bodyEl, this.env)
+        return prepared
+    },
+})

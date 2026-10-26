@@ -19,22 +19,30 @@ class TourTestCase(SharedTourTestCase):
         name: str,
     ) -> "odoo.model.product_product":
         product_model = cls.env["product.product"].with_context(skip_sku_check=True)
-        product_record = product_model.search([("default_code", "=", default_code)], limit=1)
+        product_record = product_model.search(
+            [("default_code", "=", default_code)], limit=1
+        )
         if not product_record:
-            product_record = product_model.create({"name": name, "default_code": default_code})
+            product_record = product_model.create(
+                {"name": name, "default_code": default_code}
+            )
         return product_record
 
     @classmethod
-    def ensure_discuss_channel(cls, channel_name: str = "DRL Tour") -> "odoo.model.discuss_channel":
-        channel_record = cls.env["discuss.channel"].search([("name", "=", channel_name)], limit=1)
+    def ensure_discuss_channel(
+        cls, channel_name: str = "DRL Tour"
+    ) -> "odoo.model.discuss_channel":
+        channel_record = cls.env["discuss.channel"].search(
+            [("name", "=", channel_name)], limit=1
+        )
         if not channel_record:
             channel_record = cls.env["discuss.channel"].create({"name": channel_name})
 
-        channel_record.add_members(
-            partner_ids=[cls.test_user.partner_id.id],
+        channel_record._add_members(
+            users=cls.test_user,
             post_joined_message=False,
         )
-        channel_record.with_user(cls.test_user).channel_pin(pinned=True)
+        channel_record.with_user(cls.test_user).self_member_id.unpin_dt = False
         return channel_record
 
     @classmethod
@@ -63,7 +71,10 @@ class TourTestCase(SharedTourTestCase):
 
         model_record = cls.env["ir.model"].search([("model", "=", model_name)], limit=1)
         search_fields = cls.env["ir.model.fields"].search(
-            [("model_id", "=", model_record.id), ("name", "in", list(search_field_names))]
+            [
+                ("model_id", "=", model_record.id),
+                ("name", "in", list(search_field_names)),
+            ]
         )
         return config_model.create(
             {

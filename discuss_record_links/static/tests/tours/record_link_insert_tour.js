@@ -1,13 +1,10 @@
-/** @odoo-module */
-
 import { registry } from "@web/core/registry"
 import {
     composerSelector,
     composerStepTimeout,
     getComposerInput,
     getComposerValue,
-    openDiscussApplication,
-    openDiscussThread,
+    assertFixtureThread,
     setComposerValue,
 } from "./discuss_tour_helpers"
 
@@ -36,26 +33,10 @@ registry.category("web_tour.tours").add("drl_record_link_insert", {
             timeout: 20000,
         },
         {
-            content: "Open Discuss app",
-            trigger: ".o_app, .o-mail-Discuss, .o-mail-Thread",
-            run: openDiscussApplication,
-        },
-        {
-            content: "Wait for Discuss channels",
-            trigger: ".o-mail-DiscussSidebarChannel, .o-mail-DiscussSidebar-item",
-            timeout: 20000,
-        },
-        {
-            content: "Open a thread",
-            trigger: ".o-mail-Discuss, .o-mail-Thread",
-            run() {
-                openDiscussThread()
-            },
-        },
-        {
             content: "Focus composer",
             trigger: composerSelector,
             run() {
+                assertFixtureThread()
                 const composerElement = getComposerInput()
                 if (!composerElement) {
                     throw new Error("Composer input not found")

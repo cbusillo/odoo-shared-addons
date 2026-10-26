@@ -29,7 +29,7 @@ class TestAuthentikSignin(UnitTestCase):
             }
         )
         # Uninvited signup stays closed; Authentik users must still be created.
-        self.env["ir.config_parameter"].sudo().set_param("auth_signup.invitation_scope", "b2b")
+        self.env["ir.config_parameter"].sudo().set_str("auth_signup.invitation_scope", "b2b")
 
     def _signin(self, validation: dict[str, object], *, access_token: str = "token-1") -> str | None:
         params = {"access_token": access_token, "state": json.dumps({})}

@@ -53,7 +53,7 @@ class TestViewMetadata(UnitTestCase):
 
     def test_opt_out_keeps_inherited_pages_without_external_ui(self) -> None:
         with patch.object(type(self.FixtureRecord), "_external_ids_auto_ui", False):
-            self.env.registry.clear_cache()
+            self.env.transaction.invalidate_ormcache("templates")
             result = self.FixtureRecord.get_views([(self.form.id, "form")])
             arch = etree.fromstring(result["views"]["form"]["arch"].encode())
             self.assertEqual(len(arch.xpath(".//page[@name='fixture_inherited']")), 1)
@@ -62,7 +62,7 @@ class TestViewMetadata(UnitTestCase):
                     ".//field[@name='external_ids' or @name='external_ids_count']"
                 )
             )
-        self.env.registry.clear_cache()
+        self.env.transaction.invalidate_ormcache("templates")
 
     def test_non_form_view_is_unchanged(self) -> None:
         view = self.env["ir.ui.view"].create(

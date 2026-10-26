@@ -1,6 +1,6 @@
 {
     "name": "Transaction Utilities",
-    "version": "19.0.1.0",
+    "version": "20.0.1.0",
     "category": "Technical",
     "author": "Shiny Computers",
     "maintainers": ["cbusillo"],

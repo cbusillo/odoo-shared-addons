@@ -30,8 +30,8 @@ class TestAuthentikSso(UnitTestCase):
     def test_normalize_authentik_validation_empty_claim_overrides(self) -> None:
         payload = {"sub": "user-2", "email": "user2@example.com"}
 
-        self.ConfigParameter.set_param("authentik_sso.user_id_claims", " ")
-        self.ConfigParameter.set_param("authentik_sso.login_claims", " ")
+        self.ConfigParameter.set_str("authentik_sso.user_id_claims", " ")
+        self.ConfigParameter.set_str("authentik_sso.login_claims", " ")
         normalized = self.Users._normalize_authentik_validation(payload)
 
         self.assertEqual(normalized.get("user_id"), "user-2")
@@ -41,7 +41,7 @@ class TestAuthentikSso(UnitTestCase):
     def test_extract_authentik_groups(self) -> None:
         payload = {"roles": ["Admins", " Users ", ""]}
 
-        self.ConfigParameter.set_param("authentik_sso.group_claim", "roles")
+        self.ConfigParameter.set_str("authentik_sso.group_claim", "roles")
         groups = self.Users._extract_authentik_groups(payload)
 
         self.assertEqual(groups, {"Admins", "Users"})
@@ -59,25 +59,25 @@ class TestAuthentikSso(UnitTestCase):
         )
 
         self.assertEqual(
-            self.ConfigParameter.get_param("authentik_sso.admin_group"), "Odoo Admins"
+            self.ConfigParameter.get_str("authentik_sso.admin_group"), "Odoo Admins"
         )
         self.assertEqual(
-            self.ConfigParameter.get_param("authentik_sso.group_claim"), "roles"
+            self.ConfigParameter.get_str("authentik_sso.group_claim"), "roles"
         )
         self.assertEqual(
-            self.ConfigParameter.get_param("authentik_sso.login_claims"),
+            self.ConfigParameter.get_str("authentik_sso.login_claims"),
             "preferred_username,email",
         )
         self.assertEqual(
-            self.ConfigParameter.get_param("authentik_sso.name_claims"),
+            self.ConfigParameter.get_str("authentik_sso.name_claims"),
             "display_name,email",
         )
         self.assertEqual(
-            self.ConfigParameter.get_param("authentik_sso.provider_name"),
+            self.ConfigParameter.get_str("authentik_sso.provider_name"),
             "Internal SSO",
         )
         self.assertEqual(
-            self.ConfigParameter.get_param("authentik_sso.user_id_claims"), "sub,email"
+            self.ConfigParameter.get_str("authentik_sso.user_id_claims"), "sub,email"
         )
 
     def test_apply_from_values_creates_provider(self) -> None:
@@ -243,7 +243,7 @@ class TestAuthentikSso(UnitTestCase):
         mapping = self.env.ref("authentik_sso.authentik_group_mapping_admins")
         extra_group = self.env["res.groups"].create({"name": "Extra Admin"})
         admin_user.write({"group_ids": [(4, extra_group.id)]})
-        self.ConfigParameter.set_param(AUTHENTIK_ADMIN_GROUP_PARAM, False)
+        self.ConfigParameter.set_str(AUTHENTIK_ADMIN_GROUP_PARAM, False)
 
         # A mapping holding only the system group is a choice, not a
         # placeholder to refill from the admin user's groups.
@@ -261,7 +261,7 @@ class TestAuthentikSso(UnitTestCase):
         extra_group = self.env["res.groups"].create({"name": "Extra Admin"})
         admin_user.write({"group_ids": [(4, extra_group.id)]})
         # Use the default Authentik admin group name, as a new install does.
-        self.ConfigParameter.set_param(AUTHENTIK_ADMIN_GROUP_PARAM, False)
+        self.ConfigParameter.set_str(AUTHENTIK_ADMIN_GROUP_PARAM, False)
         self.AuthentikMapping.search([]).unlink()
 
         self._load_mapping_data("init")

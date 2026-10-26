@@ -56,37 +56,37 @@ class AuthentikSsoConfig(models.AbstractModel):
 
     def _apply_runtime_settings(self, overrides: Mapping[str, str | None]) -> None:
         parameter_model = self.env["ir.config_parameter"].sudo()
-        parameter_model.set_param(
+        parameter_model.set_str(
             AUTHENTIK_ADMIN_GROUP_PARAM,
             _clean_setting_value(
                 overrides.get("admin_group"), default=DEFAULT_ADMIN_GROUP
             ),
         )
-        parameter_model.set_param(
+        parameter_model.set_str(
             AUTHENTIK_GROUP_CLAIM_PARAM,
             _clean_setting_value(
                 overrides.get("group_claim"), default=DEFAULT_GROUP_CLAIM
             ),
         )
-        parameter_model.set_param(
+        parameter_model.set_str(
             AUTHENTIK_LOGIN_CLAIMS_PARAM,
             _clean_setting_value(
                 overrides.get("login_claims"), default=DEFAULT_LOGIN_CLAIMS
             ),
         )
-        parameter_model.set_param(
+        parameter_model.set_str(
             AUTHENTIK_NAME_CLAIMS_PARAM,
             _clean_setting_value(
                 overrides.get("name_claims"), default=DEFAULT_NAME_CLAIMS
             ),
         )
-        parameter_model.set_param(
+        parameter_model.set_str(
             AUTHENTIK_PROVIDER_NAME_PARAM,
             _clean_setting_value(
                 overrides.get("provider_name"), default=DEFAULT_PROVIDER_NAME
             ),
         )
-        parameter_model.set_param(
+        parameter_model.set_str(
             AUTHENTIK_USER_ID_CLAIMS_PARAM,
             _clean_setting_value(
                 overrides.get("user_id_claims"), default=DEFAULT_USER_ID_CLAIMS

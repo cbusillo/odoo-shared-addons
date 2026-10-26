@@ -43,7 +43,7 @@ class TourTestCase(SharedTourTestCase):
 
     @classmethod
     def set_config_parameter(cls, parameter_name: str, value: str | int) -> None:
-        cls.env["ir.config_parameter"].sudo().set_param(parameter_name, str(value))
+        cls.env["ir.config_parameter"].sudo().set_str(parameter_name, str(value))
 
     @classmethod
     def ensure_record_link_config(

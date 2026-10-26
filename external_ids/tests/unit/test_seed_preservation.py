@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from odoo.tests import TransactionCase, tagged
 
 from ...migrations.preserve_seed_records import preserve_seed_records
@@ -6,7 +8,9 @@ from ...migrations.preserve_seed_records import preserve_seed_records
 @tagged("post_install", "-at_install", "unit_test", "external_ids")
 class TestSeedPreservation(TransactionCase):
     def test_upgrade_cleanup_keeps_seeded_system_and_existing_identity(self) -> None:
-        system = self.env["external.system"].create({"name": "Legacy test system", "code": "legacy-test"})
+        system = self.env["external.system"].create(
+            {"name": "Legacy test system", "code": "legacy-test"}
+        )
         template = self.env["external.system.url"].create(
             {
                 "name": "Legacy link",
@@ -45,7 +49,11 @@ class TestSeedPreservation(TransactionCase):
         self.assertTrue(all(xmlids.mapped("noupdate")))
         # Exercise Odoo's actual obsolete-data cleanup, not a simulation of it.
         xmlids.write({"module": "seed_upgrade_probe"})
-        self.env["ir.model.data"]._process_end(["seed_upgrade_probe"])
+        with (
+            patch.object(self.env.registry, "ready", False),
+            patch.object(self.env.registry, "loaded_xmlids", set(), create=True),
+        ):
+            self.env["ir.model.data"]._process_end(["seed_upgrade_probe"])
         self.assertEqual(binding.system_id, system)
         self.assertTrue(system.exists())
         self.assertTrue(template.exists())

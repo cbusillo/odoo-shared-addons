@@ -97,7 +97,7 @@ class LaunchplaneSettings(models.AbstractModel):
             len(payload_overrides),
         )
         for key, value in payload_overrides.items():
-            parameter_model.set_param(key, value)
+            parameter_model.set_str(key, value)
 
     def _payload_addon_overrides(
         self,
@@ -186,11 +186,11 @@ class LaunchplaneSettings(models.AbstractModel):
         test_store = _parse_boolean(test_store_raw, default=False)
 
         parameter_model = self.env["ir.config_parameter"].sudo()
-        parameter_model.set_param("shopify.shop_url_key", shop_url_key)
-        parameter_model.set_param("shopify.api_token", api_token)
-        parameter_model.set_param("shopify.webhook_key", webhook_key)
-        parameter_model.set_param("shopify.api_version", api_version)
-        parameter_model.set_param("shopify.test_store", "True" if test_store else "False")
+        parameter_model.set_str("shopify.shop_url_key", shop_url_key)
+        parameter_model.set_str("shopify.api_token", api_token)
+        parameter_model.set_str("shopify.webhook_key", webhook_key)
+        parameter_model.set_str("shopify.api_version", api_version)
+        parameter_model.set_str("shopify.test_store", "True" if test_store else "False")
         self._remove_shopify_legacy_keys()
         self._update_shopify_external_urls(shop_url_key)
         self._hand_off_shopify_store_state(dev_store_verified=self._shopify_dev_store_verified(shop_url_key))
@@ -203,8 +203,8 @@ class LaunchplaneSettings(models.AbstractModel):
         if _is_production_instance():
             return False
         parameter_model = self.env["ir.config_parameter"].sudo()
-        stored_key = (parameter_model.get_param("shopify.shop_url_key") or "").strip()
-        stored_test_store = _parse_boolean(parameter_model.get_param("shopify.test_store"), default=False)
+        stored_key = (parameter_model.get_str("shopify.shop_url_key") or "").strip()
+        stored_test_store = _parse_boolean(parameter_model.get_str("shopify.test_store"), default=False)
         return bool(shop_url_key) and stored_key == shop_url_key and stored_test_store
 
     def _shopify_store_state_adapter(self) -> Callable[..., None] | None:

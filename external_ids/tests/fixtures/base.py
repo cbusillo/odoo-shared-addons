@@ -19,15 +19,12 @@ class UnitTestCase(TransactionCase):
         cls.registry._setup_models__(cls.cr, ["external.id.fixture"])
         cls.registry.init_models(cls.cr, ["external.id.fixture"], {"module": "external_ids"})
 
-        cls.env["ir.model.access"].create(
+        cls.env["ir.access"].create(
             {
                 "name": "External identity test fixture admin",
                 "model_id": cls.env["ir.model"]._get("external.id.fixture").id,
                 "group_id": cls.env.ref("base.group_system").id,
-                "perm_read": True,
-                "perm_write": True,
-                "perm_create": True,
-                "perm_unlink": True,
+                "operation": "crud",
             }
         )
         cls.env = cls.env(user=cls.env.ref("base.user_admin"))

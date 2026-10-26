@@ -21,7 +21,7 @@ _logger = logging.getLogger(__name__)
 
 def _authentik_provider_name(env) -> str:
     raw_value = (
-        env["ir.config_parameter"].sudo().get_param(AUTHENTIK_PROVIDER_NAME_PARAM) or ""
+        env["ir.config_parameter"].sudo().get_str(AUTHENTIK_PROVIDER_NAME_PARAM) or ""
     )
     cleaned = raw_value.strip()
     return cleaned or DEFAULT_PROVIDER_NAME

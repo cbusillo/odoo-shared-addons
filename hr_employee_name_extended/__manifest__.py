@@ -1,6 +1,6 @@
 {
     "name": "HR Employee Name Extended",
-    "version": "19.0.4.0.0",
+    "version": "20.0.4.0.0",
     "category": "Human Resources",
     "summary": "Separate first/last names with flexible formatting",
     "description": """
@@ -14,7 +14,6 @@ Supports different name formats for international use.
         "base_setup",
     ],
     "data": [
-        "security/ir.model.access.csv",
         "views/hr_employee_views.xml",
         "views/res_config_settings_views.xml",
         "views/server_actions.xml",

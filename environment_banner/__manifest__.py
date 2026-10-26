@@ -1,6 +1,6 @@
 {
     "name": "Environment Banner",
-    "version": "19.0.0.1",
+    "version": "20.0.0.1",
     "category": "Technical",
     "summary": "Show a non-production banner in the backend",
     "description": """

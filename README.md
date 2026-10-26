@@ -44,6 +44,13 @@ are in [`.github/github.json`](.github/github.json).
 
 ## Addon CI
 
+This branch targets Community 20 and the qualified image pinned in the workflow.
+Existing Odoo 19 consumers retain their exact source pins until their tenant
+conversion advances both image and addons. Native `ir.access` policies preserve
+the existing groups and operations; the employee-name addon has no owned access
+policy. Parameter values use native string accessors so literal boolean strings
+and integration credential clearing keep their existing meanings.
+
 The Addon tests lane runs the complete owned-addon suite on every PR head,
 main push and train branch. See the
 [shared addon-CI guide](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/addon-ci.md)

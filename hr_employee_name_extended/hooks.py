@@ -6,7 +6,7 @@ from .tools.name import NameFormatter
 def _initialize_employee_names(env: Environment) -> None:
     Employee = env["hr.employee"].sudo()
     icp = env["ir.config_parameter"].sudo()
-    fmt = (icp.get_param("user_name_extended.format") or "western").strip().lower()
+    fmt = (icp.get_str("user_name_extended.format") or "western").strip().lower()
 
     domain = ["|", ("first_name", "=", False), ("last_name", "=", False)]
     step = 200

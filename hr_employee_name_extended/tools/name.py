@@ -12,8 +12,8 @@ class NameFormatter:
     @classmethod
     def _pattern(cls, env: Environment) -> str:
         icp = env["ir.config_parameter"].sudo()
-        fmt = (icp.get_param("user_name_extended.format") or "western").strip().lower()
-        custom = (icp.get_param("user_name_extended.custom_pattern") or "").strip() if fmt == "custom" else ""
+        fmt = (icp.get_str("user_name_extended.format") or "western").strip().lower()
+        custom = (icp.get_str("user_name_extended.custom_pattern") or "").strip() if fmt == "custom" else ""
         base = cls.DEFAULT_PATTERNS.get(fmt, cls.DEFAULT_PATTERNS["western"])
         return custom or base
 
@@ -34,7 +34,7 @@ class NameFormatter:
         cls, env: Environment, first_name: str, last_name: str, nickname: str | None = None, fmt_override: str | None = None
     ) -> str:
         if fmt_override == "custom":
-            pattern = env["ir.config_parameter"].sudo().get_param("user_name_extended.custom_pattern") or cls._pattern(env)
+            pattern = env["ir.config_parameter"].sudo().get_str("user_name_extended.custom_pattern") or cls._pattern(env)
         elif fmt_override:
             pattern = cls.DEFAULT_PATTERNS.get(fmt_override, cls._pattern(env))
         else:

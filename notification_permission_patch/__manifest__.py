@@ -1,6 +1,6 @@
 {
     "name": "Notification Permission Patch",
-    "version": "19.0.0.1",
+    "version": "20.0.0.1",
     "category": "Technical",
     "summary": "Keep browser notification subscriptions in sync with permission changes",
     "description": "Browser notification permission observer for the Odoo web client.",

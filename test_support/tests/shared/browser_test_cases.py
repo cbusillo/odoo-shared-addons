@@ -36,7 +36,7 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        cls.env["ir.config_parameter"].sudo().set_param("ir_attachment.location", "db")
+        cls.env["ir.config_parameter"].sudo().set_str("ir_attachment.location", "db")
         cls._reset_web_assets_cache()
         cls._setup_test_user()
         cls._ensure_required_domain_data()

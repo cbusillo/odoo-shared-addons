@@ -55,7 +55,7 @@ class AuthentikSsoGroupMapping(models.Model):
         raw_value = (
             self.env["ir.config_parameter"]
             .sudo()
-            .get_param(AUTHENTIK_ADMIN_GROUP_PARAM)
+            .get_str(AUTHENTIK_ADMIN_GROUP_PARAM)
             or ""
         )
         cleaned = raw_value.strip()

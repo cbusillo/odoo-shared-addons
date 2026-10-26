@@ -73,7 +73,6 @@ const isProductionHost = ({ hostname, environmentName, productionHostnamePattern
 }
 
 export class EnvironmentBanner extends Component {
-    static props = {}
     static template = "environment_banner.EnvironmentBanner"
 
     get bannerClasses() {

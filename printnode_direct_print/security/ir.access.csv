@@ -1,0 +1,5 @@
+id,name,model_id:id,group_id:id,operation,domain
+preference_user,Personal printers,model_printnode_preference,base.group_user,crud,"[('user_id', '=', user.id)]"
+preference_admin,Manage printers,model_printnode_preference,base.group_system,crud,
+printer_user,Discovered printers,model_printnode_printer,base.group_user,r,
+direct_report_user,Opted-in printer report metadata,base.model_ir_actions_report,base.group_user,r,"[('printnode_direct', '=', True)]"

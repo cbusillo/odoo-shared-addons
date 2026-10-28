@@ -16,6 +16,8 @@
       "launchplane_settings/AGENTS.md",
       "launchplane_settings/README.md",
       "notification_permission_patch/AGENTS.md",
+      "printnode_direct_print/AGENTS.md",
+      "printnode_direct_print/README.md",
       "test_support/AGENTS.md",
       "transaction_utilities/AGENTS.md"
     ],

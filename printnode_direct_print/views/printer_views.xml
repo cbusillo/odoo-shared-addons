@@ -1,0 +1,41 @@
+<odoo>
+    <record id="discover_printers" model="ir.actions.server">
+        <field name="name">Find printers</field>
+        <field name="model_id" ref="model_printnode_printer"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_discover()</field>
+        <field name="group_ids" eval="[(4, ref('base.group_user'))]"/>
+    </record>
+    <record id="preference_list" model="ir.ui.view">
+        <field name="name">printnode.preference.list</field>
+        <field name="model">printnode.preference</field>
+        <field name="arch" type="xml">
+            <list>
+                <header><button name="%(discover_printers)d" type="action" string="Find printers" display="always"/></header>
+                <field name="user_id" groups="base.group_system"/>
+                <field name="paperformat_key"/>
+                <field name="printer_id" options="{'no_create': True, 'no_open': True}"/>
+            </list>
+        </field>
+    </record>
+    <record id="preference_form" model="ir.ui.view">
+        <field name="name">printnode.preference.form</field>
+        <field name="model">printnode.preference</field>
+        <field name="arch" type="xml">
+            <form>
+                <header><button name="%(discover_printers)d" type="action" string="Find printers"/></header>
+                <sheet><group>
+                    <field name="user_id" groups="base.group_system"/>
+                    <field name="paperformat_key"/>
+                    <field name="printer_id" options="{'no_create': True, 'no_open': True}"/>
+                </group></sheet>
+            </form>
+        </field>
+    </record>
+    <record id="admin_printers" model="ir.actions.act_window">
+        <field name="name">Personal printers</field>
+        <field name="res_model">printnode.preference</field>
+        <field name="view_mode">list,form</field>
+    </record>
+    <menuitem id="menu_admin_printers" name="Personal printers" parent="base.menu_administration" action="admin_printers" groups="base.group_system"/>
+</odoo>

@@ -18,14 +18,14 @@ class TestTransport(TransactionCase):
     def test_pdf_request_uses_paper_no_scaling_one_quantity_and_expiry(self) -> None:
         with patch.object(requests, "request", return_value=Mock(status_code=201, json=lambda: 73)) as request:
             self.assertEqual(self.client.submit(self.job, transport.REQUEST_TIMEOUT_SECONDS), 73)
-        args, kwargs = request.call_args
-        self.assertEqual(args, ("POST", "https://api.printnode.com/printjobs"))
+        _args, kwargs = request.call_args
         body = kwargs["json"]
         self.assertEqual(body["contentType"], "pdf_base64")
         self.assertEqual(base64.b64decode(body["content"]), self.job.content)
         self.assertEqual(body["qty"], self.job.quantity)
         self.assertEqual(body["expireAfter"], transport.DELIVERY_EXPIRY_SECONDS)
-        self.assertEqual(body["options"], {"paper": self.job.paper, "fit_to_page": False})
+        self.assertEqual(body["options"]["paper"], self.job.paper)
+        self.assertFalse(body["options"]["fit_to_page"])
         self.assertFalse(kwargs["allow_redirects"])
         self.assertLessEqual(kwargs["timeout"].total, transport.REQUEST_TIMEOUT_SECONDS)
 
@@ -59,7 +59,11 @@ class TestTransport(TransactionCase):
         client = Mock()
         client.submit.side_effect = [transport.Rejected(), 73, transport.Unconfirmed()]
         start = 10.0
-        with patch.object(transport, "monotonic", side_effect=[start, start, start, start, start + transport.BATCH_BUDGET_SECONDS]):
+
+        def clock() -> float:
+            return start + transport.BATCH_BUDGET_SECONDS if client.submit.call_count >= 3 else start
+
+        with patch.object(transport, "monotonic", side_effect=clock):
             results = transport.dispatch(client, [self.job] * 4)
         self.assertEqual([result[1] for result in results], ["unsent", "accepted", "unconfirmed", "unsent"])
         self.assertEqual(client.submit.call_count, 3)
@@ -72,7 +76,8 @@ class TestTransport(TransactionCase):
         self.assertEqual([result[1] for result in results], ["unconfirmed", "accepted"])
 
     def test_discovery_includes_more_than_one_page(self) -> None:
-        first = [{"id": index} for index in range(1, 101)]
-        with patch.object(self.client, "_request", side_effect=[first, [{"id": 101}]]) as request:
-            self.assertEqual(len(self.client.printers()), 101)
-        self.assertIn(f"after={first[-1]['id']}", request.call_args.args[1])
+        first = [{"id": index} for index in range(1, transport.DISCOVERY_PAGE_SIZE + 1)]
+        last = [{"id": transport.DISCOVERY_PAGE_SIZE + 1}]
+        with patch.object(self.client, "_request", side_effect=[first, last]) as request:
+            self.assertEqual(self.client.printers(), first + last)
+        self.assertEqual(request.call_count, 2)

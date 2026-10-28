@@ -24,6 +24,8 @@ class IrActionsReport(models.Model):
         self.ensure_one()
         self.env["printnode.routing"]._check_actor()
         report = self.sudo(False)
+        if not report.env.companies:
+            raise AccessError(self.env._("Choose an allowed company before printing."))
         report.check_access("read")
         if not report.printnode_direct or report.report_type != "qweb-pdf":
             raise UserError(self.env._("%(report)s is not enabled for direct PDF printing.", report=report.name))
@@ -45,7 +47,11 @@ class IrActionsReport(models.Model):
             if key in ("lang", "tz", "allowed_company_ids", "force_report_rendering")
         }
         clean_context.update(active_model=report.model, active_ids=res_ids, active_id=res_ids[0] if res_ids else False)
-        return report.with_context(clean_context), res_ids, report._printnode_validate_data(dict(data or {}))
+        report = report.with_context(clean_context)
+        report_data = report._printnode_validate_data(dict(data or {}))
+        if not res_ids and not report_data:
+            raise UserError(self.env._("Choose the records to print."))
+        return report, res_ids, report_data
 
     def _printnode_validate_data(self, data: dict) -> dict:
         if data:

@@ -15,6 +15,11 @@ addons declare their stock as a normal paperformat XML data record. Users never
 type dimensions. To print somewhere else for a while, edit My printers and
 restore the choice afterward; there is no temporary switch.
 
+The selected paperformat is a native relation, so a referenced declaration cannot
+be deleted. The stored physical key changes when the person chooses a size;
+editing a report's declaration to another size requires choosing that new stock
+in My printers rather than silently moving the old default.
+
 ## Integration
 
 This branch targets **Odoo 20**. Consumers on Odoo 19 need a qualified compatible
@@ -87,7 +92,13 @@ has already saved: that caller must describe a print failure as a saved record
 whose print failed, rather than as a failed save.
 
 The native postcommit callback holds one in-memory batch with frozen payloads,
-printers and quantities. Native rollback/retry clearing discards that attempt.
+printers and quantities. Full rollback/retry clearing discards that attempt.
+An opaque native bus row marks each prepared job. The callback reads surviving
+marks in a fresh cursor, deletes them, and dispatches only those jobs. Savepoint
+rollback, including import dry runs, removes its marks automatically. Marks
+store no document, printer or title; unused marks use native bus cleanup.
+HTTP onchange calls are refused; tenant private callers must
+print only from saved-record actions or save hooks, never from onchange.
 No callback retains the transaction's cursor. Submission uses bounded requests,
 one total batch budget and short `expireAfter` delivery expiry. There is no
 automatic retry. The `printnode-community` 0.3.0 API has `qty` but no request
@@ -116,7 +127,3 @@ label content/quantities and trigger conditions, and test the real workflow on
 its compatible Odoo version. Verify loaded stock, orientation, client PDF
 engine/driver settings, barcode scanning and physical results separately.
 Mocks and PDFs do not establish hardware or Client acceptance.
-
-OPW adoption belongs to its Odoo 20 program and drops the redundant Picture
-destination. CM adoption replaces browser storage before Client acceptance;
-its retained Odoo 19 PR and physical/acceptance holds remain separate.

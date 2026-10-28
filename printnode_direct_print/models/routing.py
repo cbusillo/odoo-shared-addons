@@ -1,8 +1,10 @@
 import logging
 from collections import defaultdict
+from uuid import uuid4
 
-from odoo import api, models
-from odoo.exceptions import UserError
+from odoo import SUPERUSER_ID, api, models
+from odoo.exceptions import AccessError, UserError
+from odoo.http import request
 
 from ..transport import PAPER_TOLERANCE_TENTHS_MM, PreparedPrint, PrintNodeClient, Rejected, Unconfirmed, dispatch
 from .printers import physical_size
@@ -11,10 +13,26 @@ _logger = logging.getLogger(__name__)
 BATCH_KEY = "printnode_direct_print.batch"
 
 
+def take_committed_batch(registry: object, jobs: list[PreparedPrint]) -> tuple[PrintNodeClient | None, list[PreparedPrint]]:
+    with registry.cursor() as cursor:
+        cursor.execute("SET LOCAL statement_timeout = '3s'")
+        env = api.Environment(cursor, jobs[0].user_id, {})
+        markers = env["bus.bus"].sudo().browse([job.commit_marker_id for job in jobs]).exists()
+        surviving = set(markers.ids)
+        pending = [job for job in jobs if job.commit_marker_id in surviving]
+        if not pending:
+            return None, []
+        client = env["printnode.routing"]._client()
+        markers.unlink()
+        cursor.commit()
+        return client, pending
+
+
 def notify_results(registry: object, user_id: int, results: list[tuple[PreparedPrint, str, int | None]]) -> None:
     with registry.cursor() as cursor:
         cursor.execute("SET LOCAL statement_timeout = '3s'")
         env = api.Environment(cursor, user_id, {})
+        env = env(context={"lang": env.user.lang})
         messages = []
         failed = False
         for job, status, job_id in results:
@@ -24,14 +42,12 @@ def notify_results(registry: object, user_id: int, results: list[tuple[PreparedP
                 )
             elif status == "unsent":
                 failed = True
-                messages.append(
-                    env._("Saved, but %(title)s was not submitted to %(printer)s.", title=job.title, printer=job.printer_name)
-                )
+                messages.append(env._("%(title)s was not submitted to %(printer)s.", title=job.title, printer=job.printer_name))
             else:
                 failed = True
                 messages.append(
                     env._(
-                        "Saved; delivery of %(title)s to %(printer)s is unconfirmed. Check the printer before printing again.",
+                        "Delivery of %(title)s to %(printer)s is unconfirmed. Check the printer before printing again.",
                         title=job.title,
                         printer=job.printer_name,
                     )
@@ -50,12 +66,13 @@ def notify_results(registry: object, user_id: int, results: list[tuple[PreparedP
 
 
 def dispatch_batch(registry: object, jobs: list[PreparedPrint]) -> None:
+    if not jobs:
+        return
     try:
-        with registry.cursor() as cursor:
-            cursor.execute("SET LOCAL statement_timeout = '3s'")
-            env = api.Environment(cursor, jobs[0].user_id, {})
-            client = env["printnode.routing"]._client()
-        results = dispatch(client, jobs)
+        client, pending = take_committed_batch(registry, jobs)
+        if client is None:
+            return
+        results = dispatch(client, pending)
     except Exception:
         _logger.exception("Print batch could not dispatch after commit")
         results = [(job, "unsent", None) for job in jobs]
@@ -72,7 +89,14 @@ def dispatch_batch(registry: object, jobs: list[PreparedPrint]) -> None:
 
 
 class PrintNodeRouting(models.AbstractModel):
-    _inherit = "printnode.routing"
+    _name = "printnode.routing"
+    _description = "Printer routing"
+
+    def _check_actor(self) -> None:
+        if self.env.uid == SUPERUSER_ID or not self.env.user._is_internal() or self.env.context.get("cron_id"):
+            raise AccessError(self.env._("Printing needs the signed-in person. Open My printers in your own account."))
+        if request and request.params.get("method") in ("onchange", "onchange_batch"):
+            raise UserError(self.env._("Save the record before printing. Nothing was submitted."))
 
     def _client(self) -> PrintNodeClient:
         key = self.env["ir.config_parameter"].sudo().get_param("printnode.api_key")
@@ -107,8 +131,11 @@ class PrintNodeRouting(models.AbstractModel):
 
     def _preflight(self, paperformat: "odoo.model.report_paperformat", content_type: str) -> tuple[dict, str | None]:
         selected = self._resolve_printer(paperformat)
+        printers = self.env.cr.postcommit.data.setdefault("printnode_direct_print.printers", {})
         try:
-            printer = self._client().printer(selected.external_id)
+            if selected.external_id not in printers:
+                printers[selected.external_id] = self._client().printer(selected.external_id)
+            printer = printers[selected.external_id]
         except (Rejected, Unconfirmed) as error:
             raise UserError(
                 self.env._(
@@ -153,7 +180,8 @@ class PrintNodeRouting(models.AbstractModel):
         if content_type == "raw" and content.startswith(b"%PDF-"):
             raise UserError(self.env._("PDF documents must use PDF transport. Nothing was submitted."))
         printer, paper = self._preflight(paperformat, content_type)
-        job = PreparedPrint(self.env.uid, printer["id"], printer["name"], title, content, content_type, quantity, paper)
+        marker = self.env["bus.bus"].sudo().create({"channel": f"printnode_direct_print.{uuid4().hex}", "message": "{}"})
+        job = PreparedPrint(self.env.uid, printer["id"], printer["name"], title, content, content_type, quantity, paper, marker.id)
         callbacks = self.env.cr.postcommit
         if BATCH_KEY not in callbacks.data:
             jobs = callbacks.data[BATCH_KEY] = []

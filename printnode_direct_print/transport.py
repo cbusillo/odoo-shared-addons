@@ -10,6 +10,7 @@ REQUEST_TIMEOUT_SECONDS = 5
 BATCH_BUDGET_SECONDS = 20
 DELIVERY_EXPIRY_SECONDS = 60
 PAPER_TOLERANCE_TENTHS_MM = 15
+DISCOVERY_PAGE_SIZE = 100
 _logger = logging.getLogger(__name__)
 
 
@@ -31,6 +32,7 @@ class PreparedPrint:
     content_type: str
     quantity: int
     paper: str | None
+    commit_marker_id: int = 0
 
 
 class PrintNodeClient:
@@ -62,11 +64,11 @@ class PrintNodeClient:
         printers = []
         after = 0
         while True:
-            page = self._request("GET", f"printers?dir=asc&limit=100&after={after}")
+            page = self._request("GET", "printers", params={"dir": "asc", "limit": DISCOVERY_PAGE_SIZE, "after": after})
             if not isinstance(page, list):
                 raise Unconfirmed
             printers.extend(page)
-            if len(page) < 100:
+            if len(page) < DISCOVERY_PAGE_SIZE:
                 return printers
             next_after = max(printer["id"] for printer in page)
             if next_after <= after:

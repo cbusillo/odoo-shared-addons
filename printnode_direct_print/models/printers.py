@@ -1,4 +1,4 @@
-from odoo import SUPERUSER_ID, api, fields, models
+from odoo import api, fields, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 from ..transport import Rejected, Unconfirmed
@@ -44,36 +44,43 @@ class PrintNodePrinter(models.Model):
 class PrintNodePreference(models.Model):
     _name = "printnode.preference"
     _description = "Personal printer"
-    _rec_name = "paperformat_key"
+    _rec_name = "size_label"
 
     user_id = fields.Many2one("res.users", required=True, default=lambda self: self.env.user, ondelete="cascade")
-    paperformat_key = fields.Selection(selection="_paper_choices", string="Paper size", required=True)
+    paperformat_id = fields.Many2one(
+        "report.paperformat", domain=lambda self: self._paperformat_domain(), string="Paper size", required=True, ondelete="restrict"
+    )
+    size_label = fields.Char(compute="_compute_size_label", string="Physical size")
     width = fields.Integer(compute="_compute_size", store=True)
     height = fields.Integer(compute="_compute_size", store=True)
     printer_id = fields.Many2one("printnode.printer", required=True, ondelete="restrict", string="Printer")
     _user_size_uniq = models.Constraint("unique(user_id, width, height)", "You already have a printer for this paper size.")
 
     @api.model
-    def _paper_choices(self) -> list[tuple[str, str]]:
+    def _paperformat_domain(self) -> list:
         choices = {}
         for paper in self.env["report.paperformat"].search([], order="id"):
             if paper.print_page_width <= 0 or paper.print_page_height <= 0:
                 continue
             size = physical_size(paper)
-            label = f"{size[0] / 10:g} × {size[1] / 10:g} mm"
-            if paper.format != "custom":
-                label = f"{paper.format} ({label})"
-            choices.setdefault(size, (str(paper.id), label))
-        return list(choices.values())
+            choices.setdefault(size, paper.id)
+        return [("id", "in", list(choices.values()))]
 
-    @api.depends("paperformat_key")
+    @api.depends("paperformat_id")
     def _compute_size(self) -> None:
         for preference in self:
-            if not preference.paperformat_key:
+            if not preference.paperformat_id:
                 preference.width = preference.height = 0
                 continue
-            paper = self.env["report.paperformat"].browse(int(preference.paperformat_key)).exists()
-            preference.width, preference.height = physical_size(paper)
+            preference.width, preference.height = physical_size(preference.paperformat_id)
+
+    @api.depends("width", "height", "paperformat_id.format")
+    def _compute_size_label(self) -> None:
+        for preference in self:
+            label = f"{preference.width / 10:g} × {preference.height / 10:g} mm"
+            if preference.paperformat_id.format not in (False, "custom"):
+                label = f"{preference.paperformat_id.format} ({label})"
+            preference.size_label = label
 
     def _check_owners(self, user_ids: list[int]) -> None:
         if not self.env.user.has_group("base.group_system") and any(user_id != self.env.uid for user_id in user_ids):
@@ -81,7 +88,8 @@ class PrintNodePreference(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list[dict]) -> "odoo.model.printnode_preference":
-        self._check_owners([values.get("user_id", self.env.uid) for values in vals_list])
+        default_user = self.default_get(["user_id"]).get("user_id", self.env.uid)
+        self._check_owners([values.get("user_id", default_user) for values in vals_list])
         for values in vals_list:
             values.pop("width", None)
             values.pop("height", None)
@@ -107,12 +115,3 @@ class PrintNodePreference(models.Model):
             "domain": [("user_id", "=", self.env.uid)],
             "context": {"default_user_id": self.env.uid},
         }
-
-
-class PrintNodeRoutingActor(models.AbstractModel):
-    _name = "printnode.routing"
-    _description = "Printer routing"
-
-    def _check_actor(self) -> None:
-        if self.env.uid == SUPERUSER_ID or not self.env.user._is_internal() or self.env.context.get("cron_id"):
-            raise AccessError(self.env._("Printing needs the signed-in person. Open My printers in your own account."))

@@ -13,7 +13,7 @@
             <list>
                 <header><button name="%(discover_printers)d" type="action" string="Find printers" display="always"/></header>
                 <field name="user_id" groups="base.group_system"/>
-                <field name="paperformat_key"/>
+                <field name="size_label"/>
                 <field name="printer_id" options="{'no_create': True, 'no_open': True}"/>
             </list>
         </field>
@@ -26,7 +26,8 @@
                 <header><button name="%(discover_printers)d" type="action" string="Find printers"/></header>
                 <sheet><group>
                     <field name="user_id" groups="base.group_system"/>
-                    <field name="paperformat_key"/>
+                    <field name="paperformat_id" options="{'no_create': True, 'no_open': True}"/>
+                    <field name="size_label"/>
                     <field name="printer_id" options="{'no_create': True, 'no_open': True}"/>
                 </group></sheet>
             </form>

@@ -1,3 +1,5 @@
+from dataclasses import replace
+from io import BytesIO
 from unittest.mock import Mock, patch
 
 from odoo import Command, api
@@ -55,7 +57,7 @@ class TestRouting(TransactionCase):
             .with_user(self.people[0])
             .create(
                 {
-                    "paperformat_key": str(self.paper.id),
+                    "paperformat_id": self.paper.id,
                     "printer_id": self.printers[0].id,
                 }
             )
@@ -74,6 +76,9 @@ class TestRouting(TransactionCase):
         self.patch_client = patch.object(type(self.service), "_client", return_value=self.client)
         self.patch_client.start()
         self.addCleanup(self.patch_client.stop)
+        self.saved_precommit = self.cr.precommit
+        self.cr.precommit = type(self.saved_precommit)()
+        self.addCleanup(setattr, self.cr, "precommit", self.saved_precommit)
         self.saved_callbacks = self.cr.postcommit
         self.cr.postcommit = type(self.saved_callbacks)()
         self.addCleanup(setattr, self.cr, "postcommit", self.saved_callbacks)
@@ -91,7 +96,7 @@ class TestRouting(TransactionCase):
             self.service.with_user(self.people[1])._resolve_printer(self.paper)
         self.env["printnode.preference"].with_user(self.people[1]).create(
             {
-                "paperformat_key": str(self.paper.id),
+                "paperformat_id": self.paper.id,
                 "printer_id": self.printers[1].id,
             }
         )
@@ -109,24 +114,22 @@ class TestRouting(TransactionCase):
                 operation()
         for model in [other, other.sudo()]:
             with self.assertRaises(AccessError):
-                model.create(
-                    {"user_id": self.people[0].id, "paperformat_key": str(self.letter.id), "printer_id": self.printers[0].id}
-                )
+                model.create({"user_id": self.people[0].id, "paperformat_id": self.letter.id, "printer_id": self.printers[0].id})
             with self.assertRaises(AccessError):
                 model.write({"user_id": self.people[1].id})
+            with self.assertRaises(AccessError):
+                model.with_context(default_user_id=self.people[0].id).create(
+                    {"paperformat_id": self.letter.id, "printer_id": self.printers[0].id}
+                )
         self.preference.with_user(self.admin).write({"printer_id": self.printers[1].id})
 
     def test_named_letter_and_size_picker_use_native_dimensions_without_aliases(self) -> None:
-        self.assertEqual(
-            physical_size(self.letter),
-            tuple(sorted((round(self.letter.print_page_width * 10), round(self.letter.print_page_height * 10)))),
-        )
-        choices = self.env["printnode.preference"]._paper_choices()
-        self.assertIn(str(self.paper.id), dict(choices))
-        self.assertNotIn(str(self.alias.id), dict(choices))
+        choices = self.env["printnode.preference"]._paperformat_domain()[0][2]
+        self.assertIn(self.paper.id, choices)
+        self.assertNotIn(self.alias.id, choices)
         self.env["printnode.preference"].with_user(self.people[0]).create(
             {
-                "paperformat_key": str(self.letter.id),
+                "paperformat_id": self.letter.id,
                 "printer_id": self.printers[1].id,
             }
         )
@@ -144,7 +147,7 @@ class TestRouting(TransactionCase):
         self.assertNotIn(routing.BATCH_KEY, self.cr.postcommit.data)
 
     def test_printer_discovery_is_explicit_and_keeps_stale_choices(self) -> None:
-        self.preference.read(["printer_id", "paperformat_key"])
+        self.preference.read(["printer_id", "paperformat_id"])
         self.client.printers.assert_not_called()
         self.client.printers.return_value = [self.live_printer]
         self.env["printnode.printer"].with_user(self.people[0]).action_discover()
@@ -166,10 +169,12 @@ class TestRouting(TransactionCase):
             {**self.live_printer, "computer": {"state": "disconnected"}},
             {**self.live_printer, "capabilities": None},
         ]:
+            self.cr.postcommit.data.pop("printnode_direct_print.printers", None)
             self.client.printer.return_value = printer
             with self.assertRaises(UserError):
                 self._prepare()
         self.client.printer.side_effect = transport.Rejected()
+        self.cr.postcommit.data.pop("printnode_direct_print.printers", None)
         with self.assertRaises(UserError):
             self._prepare()
         self.client.submit.assert_not_called()
@@ -215,11 +220,15 @@ class TestRouting(TransactionCase):
         self.assertNotIn("job_id", result)
         self.client.submit.assert_not_called()
         self.assertEqual(len(self.cr.postcommit), 1)
+        self.client.printer.assert_called_once()
         jobs = self.cr.postcommit.data[routing.BATCH_KEY]
         self.preference.write({"printer_id": self.printers[1].id})
         self.assertEqual(jobs[0].printer_id, self.printers[0].external_id)
         self.assertEqual(jobs[0].quantity, 2)
-        with patch.object(routing, "notify_results") as notify:
+        with (
+            patch.object(routing, "notify_results") as notify,
+            patch.object(routing, "take_committed_batch", return_value=(self.client, jobs)),
+        ):
             self.cr.postcommit.run()
         self.assertEqual(self.client.submit.call_count, 2)
         self.assertEqual([entry[1] for entry in notify.call_args.args[2]], ["accepted", "accepted"])
@@ -229,7 +238,10 @@ class TestRouting(TransactionCase):
         self.client.submit.side_effect = transport.Unconfirmed()
         later = Mock()
         self.cr.postcommit.add(later)
-        with patch.object(routing, "notify_results", side_effect=RuntimeError("fixture notification failure")) as notify:
+        with (
+            patch.object(routing, "notify_results", side_effect=RuntimeError("fixture notification failure")) as notify,
+            patch.object(routing, "take_committed_batch", side_effect=lambda _registry, jobs: (self.client, jobs)),
+        ):
             self.cr.postcommit.run()
         self.assertEqual(notify.call_args.args[2][0][1], "unconfirmed")
         later.assert_called_once()
@@ -259,6 +271,8 @@ class TestRouting(TransactionCase):
     def test_report_access_optin_data_and_company_are_checked_before_render(self) -> None:
         report = self.report.with_user(self.people[0])
         with patch.object(type(report), "_render_qweb_pdf") as render:
+            with self.assertRaises(UserError):
+                report.printnode_print([])
             self.report.printnode_direct = False
             with self.assertRaises(UserError):
                 report.printnode_print([])
@@ -315,25 +329,29 @@ class TestRouting(TransactionCase):
         self.report.report_name = "printnode_direct_print.fixture_report_template"
         self.env["printnode.preference"].with_user(self.people[0]).create(
             {
-                "paperformat_key": str(self.letter.id),
+                "paperformat_id": self.letter.id,
                 "printer_id": self.printers[0].id,
             }
         )
-        for paper in (self.paper, self.letter):
-            self.report.paperformat_id = paper
-            size = physical_size(paper)
-            self.client.printer.return_value = {**self.live_printer, "capabilities": {"papers": {"fixture-paper": size}}}
-            result = (
-                self.report.with_user(self.people[0])
-                .with_context(force_report_rendering=True)
-                .printnode_print([self.people[0].partner_id.id])
-            )
-            self.assertEqual(result["state"], "prepared")
-            job = self.cr.postcommit.data[routing.BATCH_KEY][-1]
-            page = PdfReader(BytesIO(job.content)).pages[0]
-            actual = sorted((float(page.mediabox.width) * 25.4 / 72, float(page.mediabox.height) * 25.4 / 72))
-            for measured, expected in zip(actual, size, strict=True):
-                self.assertAlmostEqual(measured, expected / 10, delta=0.5)
+        self.client.printer.return_value = {
+            **self.live_printer,
+            "capabilities": {"papers": {"label": physical_size(self.paper), "letter": physical_size(self.letter)}},
+        }
+        with self.allow_pdf_render():
+            for paper in (self.paper, self.letter):
+                self.report.paperformat_id = paper
+                size = physical_size(paper)
+                result = (
+                    self.report.with_user(self.people[0])
+                    .with_context(force_report_rendering=True)
+                    .printnode_print([self.people[0].partner_id.id])
+                )
+                self.assertEqual(result["state"], "prepared")
+                job = self.cr.postcommit.data[routing.BATCH_KEY][-1]
+                page = PdfReader(BytesIO(job.content)).pages[0]
+                actual = sorted((float(page.mediabox.width) * 25.4 / 72, float(page.mediabox.height) * 25.4 / 72))
+                for measured, expected in zip(actual, size, strict=True):
+                    self.assertAlmostEqual(measured, expected / 10, delta=0.5)
         self.client.submit.assert_not_called()
 
     def test_native_notification_preserves_mixed_results_in_one_warning(self) -> None:
@@ -359,7 +377,7 @@ class TestRouting(TransactionCase):
                 {"name": "Commit fixture", "format": "custom", "page_width": 57, "page_height": 31}
             )
             printer = env["printnode.printer"].sudo().create({"name": "Commit printer", "external_id": 12345})
-            env["printnode.preference"].create({"paperformat_key": str(paper.id), "printer_id": printer.id})
+            env["printnode.preference"].create({"paperformat_id": paper.id, "printer_id": printer.id})
             service = env["printnode.routing"]
             service._prepare_print(b"raw", paper, content_type="raw", title="Rolled back")
             cursor.rollback()
@@ -369,7 +387,7 @@ class TestRouting(TransactionCase):
                 {"name": "Commit fixture", "format": "custom", "page_width": 57, "page_height": 31}
             )
             printer = env["printnode.printer"].sudo().create({"name": "Commit printer", "external_id": 12345})
-            env["printnode.preference"].create({"paperformat_key": str(paper.id), "printer_id": printer.id})
+            env["printnode.preference"].create({"paperformat_id": paper.id, "printer_id": printer.id})
             service._prepare_print(b"raw", paper, content_type="raw", title="Committed")
             with patch.object(routing, "notify_results"):
                 cursor.commit()
@@ -380,6 +398,32 @@ class TestRouting(TransactionCase):
             paper.unlink()
             cursor.commit()
 
+    def test_savepoint_rollback_discards_only_its_prints_before_commit(self) -> None:
+        with self.registry.cursor() as cursor:
+            env = api.Environment(cursor, self.admin.id, {})
+            paper = env["report.paperformat"].create(
+                {"name": "Savepoint fixture", "format": "custom", "page_width": 57, "page_height": 31}
+            )
+            printer = env["printnode.printer"].sudo().create({"name": "Savepoint printer", "external_id": 12346})
+            env["printnode.preference"].create({"paperformat_id": paper.id, "printer_id": printer.id})
+            service = env["printnode.routing"]
+            service._prepare_print(b"raw", paper, content_type="raw", title="Kept")
+            for flush in (False, True):
+                with self.assertRaises(ValueError):
+                    with cursor.savepoint(flush=flush):
+                        service._prepare_print(b"raw", paper, content_type="raw", title="Discarded")
+                        raise ValueError("fixture rollback")
+            with patch.object(routing, "notify_results"):
+                cursor.commit()
+            self.assertEqual([call.args[0].title for call in self.client.submit.call_args_list], ["Kept"])
+            env["printnode.preference"].search([("printer_id", "=", printer.id)]).unlink()
+            printer.sudo().unlink()
+            paper.unlink()
+            cursor.commit()
 
-from dataclasses import replace
-from io import BytesIO
+    def test_onchange_requests_cannot_prepare_a_print(self) -> None:
+        with patch.object(routing, "request", Mock(params={"method": "onchange"})):
+            with self.assertRaises(UserError):
+                self._prepare()
+        self.client.printer.assert_not_called()
+        self.client.submit.assert_not_called()

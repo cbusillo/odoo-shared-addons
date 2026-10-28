@@ -39,6 +39,9 @@ are in [`.github/github.json`](.github/github.json).
   payload projection for verified readers.
 - `notification_permission_patch`: browser notification permission observer for
   the Odoo web client.
+- [`printnode_direct_print`](printnode_direct_print/README.md): server-side
+  personal printers by physical paper size, shared by report actions and save
+  hooks, with submission after commit.
 - `test_support`: shared fixtures, test helpers, and base test cases.
 - `transaction_utilities`: transaction and cron runtime-budget helpers.
 

@@ -109,7 +109,7 @@ class PrintNodeRouting(models.AbstractModel):
             raise UserError(self.env._("Save the record before printing. Nothing was submitted."))
 
     def _client(self) -> PrintNodeClient:
-        key = self.env["ir.config_parameter"].sudo().get_param("printnode.api_key")
+        key = self.env["ir.config_parameter"].sudo().get_str("printnode.api_key")
         if not key:
             raise UserError(self.env._("PrintNode is not configured. Ask your administrator to configure printing."))
         return PrintNodeClient(key)

@@ -9,7 +9,10 @@ export async function routeReport(action, orm) {
         return false;
     }
     await orm.call("ir.actions.report", "printnode_print", [[action.id]], {
-        res_ids: action.context?.active_ids || [],
+        res_ids:
+            action.data && Object.keys(action.data).length
+                ? null
+                : action.context?.active_ids || [],
         data: action.data || null,
         context: action.context || {},
     });

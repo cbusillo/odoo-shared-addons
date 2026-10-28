@@ -30,7 +30,7 @@ test("direct reports preserve wizard data and selected records without choosing 
             expect(model).toBe("ir.actions.report");
             expect(method).toBe("printnode_print");
             expect(args).toEqual([[action.id]]);
-            expect(kwargs.res_ids).toEqual([17]);
+            expect(kwargs.res_ids).toBe(null);
             expect(kwargs.data).toEqual(action.data);
             expect.step("prepared");
             return { state: "prepared", printer: "Receiving" };
@@ -53,7 +53,7 @@ test("printing failures propagate without success or download fallback", async (
 
 test("the native action path prints and preserves close callbacks", async () => {
     onRpc("printnode_print", ({ kwargs }) => {
-        expect(kwargs.res_ids).toEqual([17]);
+        expect(kwargs.res_ids).toBe(null);
         expect(kwargs.data).toEqual({ form: { quantity: 2 } });
         expect.step("prepared");
         return { state: "prepared", printer: "Receiving" };

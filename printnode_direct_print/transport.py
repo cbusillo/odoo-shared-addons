@@ -2,6 +2,7 @@ import base64
 import logging
 from dataclasses import dataclass
 from time import monotonic
+from typing import NamedTuple
 
 import requests
 from urllib3.util import Timeout
@@ -33,6 +34,12 @@ class PreparedPrint:
     quantity: int
     paper: str | None
     commit_marker_id: int = 0
+
+
+class PrintOutcome(NamedTuple):
+    job: PreparedPrint
+    state: str
+    job_id: int | None = None
 
 
 class PrintNodeClient:
@@ -102,21 +109,21 @@ class PrintNodeClient:
         return job_id
 
 
-def dispatch(client: PrintNodeClient, jobs: list[PreparedPrint]) -> list[tuple[PreparedPrint, str, int | None]]:
+def dispatch(client: PrintNodeClient, jobs: list[PreparedPrint]) -> list[PrintOutcome]:
     deadline = monotonic() + BATCH_BUDGET_SECONDS
     results = []
     for job in jobs:
         remaining = deadline - monotonic()
         if remaining <= 0:
-            results.append((job, "unsent", None))
+            results.append(PrintOutcome(job, "unsent"))
             continue
         try:
             job_id = client.submit(job, remaining)
         except Rejected:
-            results.append((job, "unsent", None))
+            results.append(PrintOutcome(job, "unsent"))
         except Exception:
             _logger.exception("Print submission unconfirmed for printer %s", job.printer_id)
-            results.append((job, "unconfirmed", None))
+            results.append(PrintOutcome(job, "unconfirmed"))
         else:
-            results.append((job, "accepted", job_id))
+            results.append(PrintOutcome(job, "accepted", job_id))
     return results

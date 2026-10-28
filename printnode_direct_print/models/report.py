@@ -1,5 +1,13 @@
+from typing import NamedTuple
+
 from odoo import fields, models
 from odoo.exceptions import AccessError, UserError
+
+
+class AuthorizedPrint(NamedTuple):
+    report: "odoo.model.ir_actions_report"
+    record_ids: list[int] | None
+    data: dict
 
 
 class IrActionsReport(models.Model):
@@ -18,9 +26,7 @@ class IrActionsReport(models.Model):
             action.update(id=self.id, printnode_direct=True)
         return action
 
-    def _authorized_print(
-        self, res_ids: list[int] | None, data: dict | None
-    ) -> tuple["odoo.model.ir_actions_report", list[int], dict]:
+    def _authorized_print(self, res_ids: list[int] | None, data: dict | None) -> AuthorizedPrint:
         self.ensure_one()
         self.env["printnode.routing"]._check_actor()
         report = self.sudo(False)
@@ -31,27 +37,28 @@ class IrActionsReport(models.Model):
             raise UserError(self.env._("%(report)s is not enabled for direct PDF printing.", report=report.name))
         if report.group_ids and not (report.group_ids & report.env.user.all_group_ids):
             raise AccessError(self.env._("You do not have access to this report."))
-        if res_ids is None:
-            res_ids = list(self.env.context.get("active_ids", []))
-        if not isinstance(res_ids, list) or any(type(record_id) is not int or record_id <= 0 for record_id in res_ids):
-            raise UserError(self.env._("Choose the records to print."))
-        records = report.env[report.model].browse(res_ids)
-        records.check_access("read")
-        if len(records.exists()) != len(set(res_ids)):
-            raise AccessError(self.env._("Some records are no longer available."))
         if data is not None and not isinstance(data, dict):
             raise UserError(self.env._("Report data must be a mapping."))
+        res_ids = None if data else (res_ids or [])
+        if res_ids is not None and (
+            not isinstance(res_ids, list) or any(type(record_id) is not int or record_id <= 0 for record_id in res_ids)
+        ):
+            raise UserError(self.env._("Choose the records to print."))
+        records = report.env[report.model].browse(res_ids or [])
+        records.check_access("read")
+        if set(records.exists().ids) != set(res_ids or []):
+            raise AccessError(self.env._("Some records are no longer available."))
         clean_context = {
             key: value
             for key, value in report.env.context.items()
             if key in ("lang", "tz", "allowed_company_ids", "force_report_rendering")
         }
-        clean_context.update(active_model=report.model, active_ids=res_ids, active_id=res_ids[0] if res_ids else False)
+        clean_context.update(active_model=report.model, active_ids=res_ids or [], active_id=res_ids[0] if res_ids else False)
         report = report.with_context(clean_context)
         report_data = report._printnode_validate_data(dict(data or {}))
         if not res_ids and not report_data:
             raise UserError(self.env._("Choose the records to print."))
-        return report, res_ids, report_data
+        return AuthorizedPrint(report, res_ids, report_data)
 
     def _printnode_validate_data(self, data: dict) -> dict:
         if data:

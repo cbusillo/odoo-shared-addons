@@ -52,6 +52,12 @@ is refused by default: a tenant report overrides `_printnode_validate_data`
 to validate its own exact options and any IDs in them, then returns that data.
 This hook must not trust a caller's IDs, model or embedded context.
 
+Nonempty validated data is a wizard request: it renders with no document IDs,
+matching native Odoo. The opener's active IDs may belong to another model and
+never become report records. The validator must authorize the targets contained
+in the data. Record requests use explicit IDs for the report model; there is no
+context fallback. Repeated explicit IDs retain native rendering behavior.
+
 For tenant-rendered bytes and raw ZPL, authorized private Python code uses:
 
 ```python
@@ -114,6 +120,10 @@ person to check the printer before intentionally printing again. One summary
 preserves mixed results. Submission and notification exceptions are logged and
 contained so later native callbacks still run. Notification work uses a fresh
 cursor with a statement timeout.
+
+If committed-marker verification itself fails, the callback logs it and attempts
+no print; the committed job set is unknown, so it makes no per-job outcome claim.
+An absent Sent confirmation remains unconfirmed.
 
 A process dying after commit can lose its in-memory batch or confirmation. An
 absent Sent confirmation is unconfirmed, requiring an intentional check and

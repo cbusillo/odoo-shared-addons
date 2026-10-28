@@ -1,8 +1,11 @@
+import json
 from dataclasses import replace
 from io import BytesIO
 from unittest.mock import Mock, patch
 
 from odoo import Command, api
+from odoo.addons.bus.models.bus import channel_with_db
+from odoo.addons.bus.tools.notifications import json_dump
 from odoo.exceptions import AccessError, UserError, ValidationError
 from odoo.tests import TransactionCase, tagged
 from odoo.tools.pdf import PdfReader
@@ -76,9 +79,6 @@ class TestRouting(TransactionCase):
         self.patch_client = patch.object(type(self.service), "_client", return_value=self.client)
         self.patch_client.start()
         self.addCleanup(self.patch_client.stop)
-        self.saved_precommit = self.cr.precommit
-        self.cr.precommit = type(self.saved_precommit)()
-        self.addCleanup(setattr, self.cr, "precommit", self.saved_precommit)
         self.saved_callbacks = self.cr.postcommit
         self.cr.postcommit = type(self.saved_callbacks)()
         self.addCleanup(setattr, self.cr, "postcommit", self.saved_callbacks)
@@ -227,7 +227,7 @@ class TestRouting(TransactionCase):
         self.assertEqual(jobs[0].quantity, 2)
         with (
             patch.object(routing, "notify_results") as notify,
-            patch.object(routing, "take_committed_batch", return_value=(self.client, jobs)),
+            patch.object(routing, "take_committed_batch", return_value=jobs),
         ):
             self.cr.postcommit.run()
         self.assertEqual(self.client.submit.call_count, 2)
@@ -240,7 +240,7 @@ class TestRouting(TransactionCase):
         self.cr.postcommit.add(later)
         with (
             patch.object(routing, "notify_results", side_effect=RuntimeError("fixture notification failure")) as notify,
-            patch.object(routing, "take_committed_batch", side_effect=lambda _registry, jobs: (self.client, jobs)),
+            patch.object(routing, "take_committed_batch", side_effect=lambda _registry, jobs: jobs),
         ):
             self.cr.postcommit.run()
         self.assertEqual(notify.call_args.args[2][0][1], "unconfirmed")
@@ -274,8 +274,9 @@ class TestRouting(TransactionCase):
             with self.assertRaises(UserError):
                 report.printnode_print([])
             self.report.printnode_direct = False
-            with self.assertRaises(UserError):
-                report.printnode_print([])
+            with self.assertRaises(UserError) as error:
+                self.report.with_user(self.admin).printnode_print([self.people[0].partner_id.id])
+            self.assertIs(type(error.exception), UserError)
             self.report.printnode_direct = True
             self.report.group_ids = [Command.link(self.env.ref("base.group_system").id)]
             with self.assertRaises(AccessError):
@@ -302,11 +303,34 @@ class TestRouting(TransactionCase):
 
     def test_validated_wizard_data_and_clean_action_metadata_survive(self) -> None:
         report = self.report.with_user(self.people[0]).with_context(active_model="wrong", active_ids=[99999], arbitrary="discard")
-        data = {"form": {"quantity": 3}}
-        with patch.object(type(report), "_printnode_validate_data", side_effect=lambda value: value):
-            authorized, record_ids, preserved = report._authorized_print([self.people[0].partner_id.id], data)
+        data = {"partner_ids": [self.people[0].partner_id.id]}
+
+        def validate_data(bound_report: "odoo.model.ir_actions_report", values: dict) -> dict:
+            bound_report.env["res.partner"].browse(values["partner_ids"]).check_access("read")
+            return values
+
+        self.env["ir.access"].create(
+            {
+                "name": "Wizard target restriction",
+                "model_id": self.env["ir.model"]._get("res.partner").id,
+                "operation": "r",
+                "domain": "[('id', '=', user.partner_id.id)]",
+            }
+        )
+        with (
+            patch.object(type(report), "_printnode_validate_data", new=validate_data),
+            patch.object(type(report), "_render_qweb_pdf", return_value=(b"%PDF-fixture", "pdf")) as render,
+        ):
+            authorized, record_ids, preserved = report._authorized_print([99999], data)
+            self.assertEqual(report._prepare_report_print(None, data)["state"], "prepared")
+            self.assertIsNone(render.call_args.kwargs["res_ids"])
+            self.assertEqual(render.call_args.kwargs["data"], data)
+            with self.assertRaises(AccessError):
+                report.printnode_print(None, {"partner_ids": [self.people[1].partner_id.id]})
+            self.assertEqual(render.call_count, 1)
         self.assertEqual(preserved, data)
-        self.assertEqual(authorized.env.context["active_ids"], record_ids)
+        self.assertIsNone(record_ids)
+        self.assertEqual(authorized.env.context["active_ids"], [])
         self.assertEqual(authorized.env.context["active_model"], report.model)
         self.assertNotIn("arbitrary", authorized.env.context)
 
@@ -358,17 +382,56 @@ class TestRouting(TransactionCase):
         self._prepare()
         job = self.cr.postcommit.data[routing.BATCH_KEY][0]
         results = [
-            (job, "accepted", 73),
-            (replace(job, title="Rejected fixture"), "unsent", None),
-            (replace(job, title="Unknown fixture"), "unconfirmed", None),
+            transport.PrintOutcome(job, "accepted", 73),
+            transport.PrintOutcome(replace(job, title="Rejected fixture"), "unsent"),
+            transport.PrintOutcome(replace(job, title="Unknown fixture"), "unconfirmed"),
         ]
         with patch.object(type(self.env["bus.bus"]), "_sendone") as send:
             routing.notify_results(self.registry, self.admin.id, results)
         message = send.call_args.args[2]
+        self.assertEqual(send.call_args.args[0], self.admin)
         self.assertEqual(message["type"], "warning")
         self.assertTrue(message["sticky"])
         for prepared, _status, _job_id in results:
             self.assertIn(prepared.title, message["message"])
+        routing.notify_results(self.registry, self.admin.id, results)
+        with self.registry.cursor() as cursor:
+            env = api.Environment(cursor, self.admin.id, {})
+            channel = json_dump(channel_with_db(cursor.dbname, env.user))
+            row = env["bus.bus"].sudo().search([("channel", "=", channel)], order="id desc", limit=1)
+            self.assertEqual(json.loads(row.message)["payload"], message)
+            row.unlink()
+            cursor.commit()
+
+    def test_record_requests_preserve_duplicates_without_inheriting_opener_ids(self) -> None:
+        report = self.report.with_user(self.people[0]).with_context(active_model="stock.picking", active_ids=[99999])
+        selected = [self.people[0].partner_id.id] * 2
+        with patch.object(type(report), "_render_qweb_pdf", return_value=(b"%PDF-fixture", "pdf")) as render:
+            report.printnode_print(selected)
+            self.assertEqual(render.call_args.kwargs["res_ids"], selected)
+            with self.assertRaises(UserError):
+                report.printnode_print(None)
+            self.assertEqual(render.call_count, 1)
+
+    def test_callback_failure_claims_only_verified_committed_jobs(self) -> None:
+        self._prepare()
+        kept = self.cr.postcommit.data[routing.BATCH_KEY][0]
+        discarded = replace(kept, title="Discarded fixture")
+        with (
+            patch.object(routing, "take_committed_batch", return_value=[kept]),
+            patch.object(type(self.service), "_client", side_effect=UserError("fixture unavailable")),
+            patch.object(routing, "notify_results") as notify,
+        ):
+            routing.dispatch_batch(self.registry, [kept, discarded])
+        self.assertEqual([result.job for result in notify.call_args.args[2]], [kept])
+        self.assertEqual(notify.call_args.args[2][0].state, "unsent")
+        with (
+            patch.object(routing, "take_committed_batch", side_effect=RuntimeError("fixture read failure")),
+            patch.object(routing, "notify_results") as notify,
+        ):
+            routing.dispatch_batch(self.registry, [kept, discarded])
+            notify.assert_not_called()
+        self.client.submit.assert_not_called()
 
     def test_native_commit_dispatches_and_rollback_discards_prior_attempt(self) -> None:
         with self.registry.cursor() as cursor:

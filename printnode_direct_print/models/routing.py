@@ -6,14 +6,14 @@ from odoo import SUPERUSER_ID, api, models
 from odoo.exceptions import AccessError, UserError
 from odoo.http import request
 
-from ..transport import PAPER_TOLERANCE_TENTHS_MM, PreparedPrint, PrintNodeClient, Rejected, Unconfirmed, dispatch
+from ..transport import PAPER_TOLERANCE_TENTHS_MM, PreparedPrint, PrintNodeClient, PrintOutcome, Rejected, Unconfirmed, dispatch
 from .printers import physical_size
 
 _logger = logging.getLogger(__name__)
 BATCH_KEY = "printnode_direct_print.batch"
 
 
-def take_committed_batch(registry: object, jobs: list[PreparedPrint]) -> tuple[PrintNodeClient | None, list[PreparedPrint]]:
+def take_committed_batch(registry: object, jobs: list[PreparedPrint]) -> list[PreparedPrint]:
     with registry.cursor() as cursor:
         cursor.execute("SET LOCAL statement_timeout = '3s'")
         env = api.Environment(cursor, jobs[0].user_id, {})
@@ -21,14 +21,13 @@ def take_committed_batch(registry: object, jobs: list[PreparedPrint]) -> tuple[P
         surviving = set(markers.ids)
         pending = [job for job in jobs if job.commit_marker_id in surviving]
         if not pending:
-            return None, []
-        client = env["printnode.routing"]._client()
+            return []
         markers.unlink()
         cursor.commit()
-        return client, pending
+        return pending
 
 
-def notify_results(registry: object, user_id: int, results: list[tuple[PreparedPrint, str, int | None]]) -> None:
+def notify_results(registry: object, user_id: int, results: list[PrintOutcome]) -> None:
     with registry.cursor() as cursor:
         cursor.execute("SET LOCAL statement_timeout = '3s'")
         env = api.Environment(cursor, user_id, {})
@@ -52,8 +51,7 @@ def notify_results(registry: object, user_id: int, results: list[tuple[PreparedP
                         printer=job.printer_name,
                     )
                 )
-        env["bus.bus"]._sendone(
-            env.user.partner_id,
+        env.user._bus_send(
             "simple_notification",
             {
                 "title": env._("Printing"),
@@ -69,18 +67,30 @@ def dispatch_batch(registry: object, jobs: list[PreparedPrint]) -> None:
     if not jobs:
         return
     try:
-        client, pending = take_committed_batch(registry, jobs)
-        if client is None:
-            return
-        results = dispatch(client, pending)
+        pending = take_committed_batch(registry, jobs)
+    except Exception:
+        _logger.exception("Committed prints could not be verified; no submissions attempted")
+        return
+    if not pending:
+        return
+    try:
+        with registry.cursor() as cursor:
+            cursor.execute("SET LOCAL statement_timeout = '3s'")
+            client = api.Environment(cursor, pending[0].user_id, {})["printnode.routing"]._client()
     except Exception:
         _logger.exception("Print batch could not dispatch after commit")
-        results = [(job, "unsent", None) for job in jobs]
+        results = [PrintOutcome(job, "unsent") for job in pending]
+    else:
+        try:
+            results = dispatch(client, pending)
+        except Exception:
+            _logger.exception("Print batch completion is unconfirmed")
+            results = [PrintOutcome(job, "unconfirmed") for job in pending]
     grouped = defaultdict(list)
     for result in results:
-        grouped[result[0].user_id].append(result)
-        if result[1] != "accepted":
-            _logger.warning("Print delivery %s for user %s, printer %s", result[1], result[0].user_id, result[0].printer_id)
+        grouped[result.job.user_id].append(result)
+        if result.state != "accepted":
+            _logger.warning("Print delivery %s for user %s, printer %s", result.state, result.job.user_id, result.job.printer_id)
     for user_id, user_results in grouped.items():
         try:
             notify_results(registry, user_id, user_results)
@@ -123,8 +133,8 @@ class PrintNodeRouting(models.AbstractModel):
             raise UserError(
                 self.env._(
                     "No printer set for %(width)s × %(height)s mm. Open My printers to choose one.",
-                    width=width / 10,
-                    height=height / 10,
+                    width=f"{width / 10:g}",
+                    height=f"{height / 10:g}",
                 )
             )
         return preference.printer_id
@@ -163,8 +173,8 @@ class PrintNodeRouting(models.AbstractModel):
             self.env._(
                 "%(printer)s has no matching %(width)s × %(height)s mm paper size. Nothing was submitted.",
                 printer=printer["name"],
-                width=size[0] / 10,
-                height=size[1] / 10,
+                width=f"{size[0] / 10:g}",
+                height=f"{size[1] / 10:g}",
             )
         )
 

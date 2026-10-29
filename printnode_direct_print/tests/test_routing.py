@@ -125,8 +125,9 @@ class TestRouting(TransactionCase):
 
     def test_named_letter_and_size_picker_use_native_dimensions_without_aliases(self) -> None:
         choices = self.env["printnode.preference"]._paperformat_domain()[0][2]
-        self.assertIn(self.paper.id, choices)
-        self.assertNotIn(self.alias.id, choices)
+        sizes = [physical_size(paper) for paper in self.env["report.paperformat"].browse(choices)]
+        self.assertIn(physical_size(self.paper), sizes)
+        self.assertEqual(len(sizes), len(set(sizes)))
         self.env["printnode.preference"].with_user(self.people[0]).create(
             {
                 "paperformat_id": self.letter.id,

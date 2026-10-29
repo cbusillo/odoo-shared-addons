@@ -86,7 +86,7 @@ Copy each selected owned addon into that new directory; do not point the root
 at one addon's directory, use host symlinks, or reuse stale copies after editing.
 The support root supplies dependencies from the current worktree. CI selects
 the full repository root. [Test rules](AGENTS.md#tests) own safety-module
-selection and the checked readiness handoff; no branch setting changes here.
+selection.
 
 ## TLS lint
 

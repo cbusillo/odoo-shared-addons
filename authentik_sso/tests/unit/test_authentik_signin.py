@@ -1,7 +1,7 @@
 import json
 from unittest.mock import patch
 
-from odoo import SUPERUSER_ID
+from odoo import SUPERUSER_ID, api
 from odoo.exceptions import AccessDenied
 
 from ..common_imports import common
@@ -36,7 +36,7 @@ class TestAuthentikSignin(UnitTestCase):
     def _signin(self, validation: dict[str, object], *, access_token: str = "token-1") -> str | None:
         params = {"access_token": access_token, "state": json.dumps({})}
         self.env.flush_all()
-        anonymous_env = self.env(user=None, context={})
+        anonymous_env = api.Environment(self.env.cr, None, {})
         with patch.object(self.env.cr.transaction, "default_env", anonymous_env):
             login = anonymous_env["res.users"].with_user(SUPERUSER_ID)._auth_oauth_signin(self.provider.id, validation, params)
             anonymous_env.cr.flush()

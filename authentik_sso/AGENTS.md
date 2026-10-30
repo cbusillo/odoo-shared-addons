@@ -18,6 +18,8 @@ Testing
   fallback order, and group mapping application.
 - Exercise non-admin and portal-user paths when access rules or group mappings
   change.
+- Sign-in tests retain the callback's anonymous transaction environment while
+  creating users through Odoo's trusted OAuth environment, including its flush.
 
 Implementation Notes
 

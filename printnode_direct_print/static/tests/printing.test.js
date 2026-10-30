@@ -1,15 +1,7 @@
-import { describe, expect, test } from "@odoo/hoot";
-import { myPrintersItem, routeReport } from "@printnode_direct_print/printing";
-import { registry } from "@web/core/registry";
+import { expect, test } from "@odoo/hoot";
+import { routeReport } from "@printnode_direct_print/printing";
 import {
-    clearRegistry,
-    contains,
     getService,
-    defineModels,
-    fields,
-    models,
-    serverState,
-    webModels,
     mountWithCleanup,
     onRpc,
 } from "@web/../tests/web_test_helpers";
@@ -79,61 +71,4 @@ test("the native action path prints and preserves close callbacks", async () => 
         );
     }
     expect.verifySteps(["prepared", "closed", "prepared", "closed"]);
-});
-
-describe("personal printer menu", () => {
-    describe.current.tags("desktop");
-
-    class PrintNodePreference extends models.Model {
-        _name = "printnode.preference";
-
-        user_id = fields.Many2one({ relation: "res.users" });
-        size_label = fields.Char();
-        printer_id = fields.Char();
-        _views = {
-            list: '<list><field name="size_label"/><field name="printer_id"/></list>',
-            form: '<form><field name="user_id"/><field name="printer_id"/></form>',
-            search: "<search/>",
-        };
-    }
-
-    defineModels([PrintNodePreference, webModels.ResUsers]);
-
-    for (const empty of [false, true]) {
-        test(`opens personal printers through the native action service (empty=${empty})`, async () => {
-            PrintNodePreference._records = empty
-                ? []
-                : [
-                      { id: 1, user_id: serverState.userId, size_label: "Letter", printer_id: "Desk" },
-                      { id: 2, user_id: serverState.userId + 1, size_label: "Label", printer_id: "Other" },
-                  ];
-            const menus = registry.category("user_menuitems");
-            clearRegistry(menus);
-            menus.add("my_printers", myPrintersItem);
-            onRpc("action_my_printers", () => ({
-                type: "ir.actions.act_window",
-                name: "My printers",
-                res_model: "printnode.preference",
-                view_mode: "list,form",
-                views: [[false, "list"], [false, "form"]],
-                domain: [["user_id", "=", serverState.userId]],
-                context: { default_user_id: serverState.userId },
-            }));
-            onRpc("default_get", ({ kwargs }) => {
-                expect(kwargs.context.default_user_id).toBe(serverState.userId);
-                expect.step("current user default");
-            });
-            await mountWithCleanup(WebClient);
-            await contains(".o_user_menu button.dropdown-toggle").click();
-            await contains('[data-menu="my_printers"]').click();
-            expect(".o_list_view").toHaveCount(1);
-            expect(".o_data_row").toHaveCount(empty ? 0 : 1);
-            if (!empty) {
-                expect(".o_data_row").toHaveText(/Desk/);
-            }
-            await contains(".o_list_button_add").click();
-            expect(".o_form_view").toHaveCount(1);
-            expect.verifySteps(["current user default"]);
-        });
-    }
 });

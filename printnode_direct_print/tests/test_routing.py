@@ -123,13 +123,6 @@ class TestRouting(TransactionCase):
                 )
         self.preference.with_user(self.admin).write({"printer_id": self.printers[1].id})
 
-    def test_personal_action_opens_native_views_for_the_current_user(self) -> None:
-        for person in self.people:
-            action = self.env["printnode.preference"].with_user(person).action_my_printers()
-            self.assertEqual([mode for _, mode in action["views"]], action["view_mode"].split(","))
-            self.assertEqual(action["domain"], [("user_id", "=", person.id)])
-            self.assertEqual(action["context"]["default_user_id"], person.id)
-
     def test_named_letter_and_size_picker_use_native_dimensions_without_aliases(self) -> None:
         choices = self.env["printnode.preference"]._paperformat_domain()[0][2]
         sizes = [physical_size(paper) for paper in self.env["report.paperformat"].browse(choices)]

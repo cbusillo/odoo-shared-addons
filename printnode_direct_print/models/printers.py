@@ -112,7 +112,6 @@ class PrintNodePreference(models.Model):
             "name": self.env._("My printers"),
             "res_model": self._name,
             "view_mode": "list,form",
-            "views": [(False, "list"), (False, "form")],
             "domain": [("user_id", "=", self.env.uid)],
             "context": {"default_user_id": self.env.uid},
         }

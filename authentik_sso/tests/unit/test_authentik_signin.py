@@ -105,3 +105,48 @@ class TestAuthentikSignin(UnitTestCase):
         self.env.invalidate_all()
         self.assertFalse(local_user.oauth_uid)
         self.assertEqual(self.Users.search_count([("login", "=", "local.staff@example.test")]), 1)
+
+    def _other_provider_signin(self, subject: str) -> str | None:
+        provider = self.env.ref("auth_oauth.provider_openerp")
+        users = self.Users.with_user(SUPERUSER_ID).with_context(oauth_use_internal_template=True)
+        return users._auth_oauth_signin(
+            provider.id,
+            {"user_id": subject, "email": f"{subject}@example.invalid", "name": subject},
+            {"access_token": "other-provider-token", "state": json.dumps({})},
+        )
+
+    def test_other_provider_uses_native_portal_template(self) -> None:
+        self.env["ir.config_parameter"].sudo().set_str("auth_signup.invitation_scope", "b2c")
+
+        login = self._other_provider_signin("other-portal")
+
+        user = self.Users.search([("login", "=", login)])
+        self.assertTrue(user.active)
+        self.assertTrue(user.share)
+        self.assertTrue(user.has_group("base.group_portal"))
+        self.assertFalse(user.has_group("base.group_user"))
+        self.assertEqual(user.oauth_provider_id, self.env.ref("auth_oauth.provider_openerp"))
+
+    def test_other_provider_keeps_native_invitation_requirement(self) -> None:
+        with self.assertRaises(AccessDenied):
+            self._other_provider_signin("other-uninvited")
+
+        self.assertFalse(self.Users.search([("login", "=", "other-uninvited@example.invalid")]))
+
+    def test_existing_other_provider_keeps_its_groups(self) -> None:
+        provider = self.env.ref("auth_oauth.provider_openerp")
+        user = self.Users.create(
+            {
+                "name": "Other Provider Staff",
+                "login": "existing-other@example.invalid",
+                "oauth_provider_id": provider.id,
+                "oauth_uid": "existing-other",
+            }
+        )
+        groups = user.group_ids
+
+        login = self._other_provider_signin("existing-other")
+
+        self.assertEqual(login, user.login)
+        self.assertEqual(user.group_ids, groups)
+        self.assertEqual(user.sudo().oauth_access_token, "other-provider-token")

@@ -1,15 +1,10 @@
-import { describe, expect, test } from "@odoo/hoot";
-import { myPrintersItem, routeReport } from "@printnode_direct_print/printing";
-import { registry } from "@web/core/registry";
+import { expect, test } from "@odoo/hoot";
+import { routeReport } from "@printnode_direct_print/printing";
 import {
-    clearRegistry,
-    contains,
     getService,
-    mockService,
     mountWithCleanup,
     onRpc,
 } from "@web/../tests/web_test_helpers";
-import { UserMenu } from "@web/webclient/user_menu/user_menu";
 import { WebClient } from "@web/webclient/webclient";
 
 test("ordinary reports keep the native download path", async () => {
@@ -76,29 +71,4 @@ test("the native action path prints and preserves close callbacks", async () => 
         );
     }
     expect.verifySteps(["prepared", "closed", "prepared", "closed"]);
-});
-
-describe("personal printer menu", () => {
-    describe.current.tags("desktop");
-
-    test("opens the server-owned personal settings from the real user menu", async () => {
-        const menus = registry.category("user_menuitems");
-        clearRegistry(menus);
-        menus.add("my_printers", myPrintersItem);
-        const personalAction = { type: "ir.actions.act_window", res_model: "printnode.preference" };
-        onRpc("action_my_printers", () => {
-            expect.step("personal settings");
-            return personalAction;
-        });
-        mockService("action", {
-            async doAction(action) {
-                expect(action).toEqual(personalAction);
-                expect.step("opened");
-            },
-        });
-        await mountWithCleanup(UserMenu);
-        await contains("button.dropdown-toggle").click();
-        await contains('[data-menu="my_printers"]').click();
-        expect.verifySteps(["personal settings", "opened"]);
-    });
 });

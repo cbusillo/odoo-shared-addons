@@ -30,7 +30,7 @@ class TestPersonalPrintersAction(HttpCase):
                     }
                     throw new Error(`Missing ${selector}`);
                 }
-                (await waitFor(".o_user_menu button.dropdown-toggle")).click();
+                (await waitFor("button.o_user_menu")).click();
                 (await waitFor('[data-menu="my_printers"]')).click();
                 await waitFor(".o_list_view");
                 if (document.querySelector(".o_data_row")) {

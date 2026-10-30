@@ -1,5 +1,7 @@
 import json
+from unittest.mock import patch
 
+from odoo import SUPERUSER_ID
 from odoo.exceptions import AccessDenied
 
 from ..common_imports import common
@@ -33,8 +35,12 @@ class TestAuthentikSignin(UnitTestCase):
 
     def _signin(self, validation: dict[str, object], *, access_token: str = "token-1") -> str | None:
         params = {"access_token": access_token, "state": json.dumps({})}
-        # The OAuth controller signs users in through sudo(), as Odoo's own does.
-        return self.Users.sudo()._auth_oauth_signin(self.provider.id, validation, params)
+        self.env.flush_all()
+        anonymous_env = self.env(user=None, context={})
+        with patch.object(self.env.cr.transaction, "default_env", anonymous_env):
+            login = anonymous_env["res.users"].with_user(SUPERUSER_ID)._auth_oauth_signin(self.provider.id, validation, params)
+            anonymous_env.cr.flush()
+            return login
 
     def test_existing_user_signs_in_and_gets_mapped_groups(self) -> None:
         user = self.Users.create(
@@ -55,7 +61,7 @@ class TestAuthentikSignin(UnitTestCase):
         self.assertEqual(user.sudo().oauth_access_token, "token-existing")
         self.assertIn(user, self.engineering_group.user_ids)
 
-    def test_new_user_is_created_as_internal_user(self) -> None:
+    def test_anonymous_transaction_creates_internal_oauth_user(self) -> None:
         login = self._signin(
             {"sub": "sub-new", "email": "new.staff@example.test", "name": "New Staff", "groups": ["Engineering"]}
         )

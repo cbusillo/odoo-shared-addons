@@ -65,13 +65,13 @@ class ResUsers(models.Model):
                     else:
                         values["signature"] = False
                 values["active"] = True
-                # Like Odoo's own signup: a taken login fails the copy, which must
-                # surface as a signup refusal, not a database error.
                 try:
                     with self.env.cr.savepoint():
-                        return template_user.with_context(no_reset_password=True).copy(
+                        user = template_user.with_context(no_reset_password=True).copy(
                             values
                         )
+                        self.env.flush_all()
+                        return user
                 except Exception as error:
                     raise SignupError(str(error)) from error
             _logger.warning(

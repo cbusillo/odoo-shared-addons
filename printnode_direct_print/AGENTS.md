@@ -11,4 +11,5 @@ extension point. Do not add workflow, company, browser or desk routing keys.
 The complete addon test modules cover authorization and transaction safety;
 select this entire addon for local validation. Tests use synthetic printers
 and intercept outbound transport. Never use a real PrintNode key or printer
-for source validation. Native browser tests belong in `static/tests`.
+for source validation. HOOT unit tests belong in `static/tests`; browser tests needing the real server
+use `HttpCase` in `tests`.

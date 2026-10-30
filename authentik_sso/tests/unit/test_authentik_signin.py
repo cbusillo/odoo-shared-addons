@@ -62,9 +62,7 @@ class TestAuthentikSignin(UnitTestCase):
         self.assertIn(user, self.engineering_group.user_ids)
 
     def test_anonymous_transaction_creates_internal_oauth_user(self) -> None:
-        login = self._signin(
-            {"sub": "sub-new", "email": "new.staff@example.test", "name": "New Staff", "groups": ["Engineering"]}
-        )
+        login = self._signin({"sub": "sub-new", "email": "new.staff@example.test", "name": "New Staff", "groups": ["Engineering"]})
 
         user = self.Users.search([("login", "=", login)])
         self.assertEqual(login, "new.staff@example.test")
@@ -81,10 +79,14 @@ class TestAuthentikSignin(UnitTestCase):
             self._signin({"groups": ["Engineering"]})
 
     def test_unknown_user_without_creation_returns_nothing(self) -> None:
-        login = self.Users.sudo().with_context(no_user_creation=True)._auth_oauth_signin(
-            self.provider.id,
-            {"sub": "sub-unknown", "email": "unknown@example.test"},
-            {"access_token": "token", "state": json.dumps({})},
+        login = (
+            self.Users.sudo()
+            .with_context(no_user_creation=True)
+            ._auth_oauth_signin(
+                self.provider.id,
+                {"sub": "sub-unknown", "email": "unknown@example.test"},
+                {"access_token": "token", "state": json.dumps({})},
+            )
         )
 
         self.assertIsNone(login)

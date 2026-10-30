@@ -27,7 +27,9 @@ are in [`.github/github.json`](.github/github.json).
 ## Addon Inventory
 
 - `authentik_sso`: Authentik OAuth2/OpenID Connect provider setup and group
-  mapping helpers.
+  mapping helpers. Internal-template signup applies only to the configured
+  Authentik provider; other OAuth providers retain native signup, invitation
+  and portal-template behavior.
 - `discuss_record_links`: Discuss/Chatter shortcuts for linking to business
   records.
 - `environment_banner`: backend banner for identifying non-production

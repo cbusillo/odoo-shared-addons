@@ -115,6 +115,7 @@ describe("personal printer menu", () => {
                 name: "My printers",
                 res_model: "printnode.preference",
                 view_mode: "list,form",
+                views: [[false, "list"], [false, "form"]],
                 domain: [["user_id", "=", serverState.userId]],
                 context: { default_user_id: serverState.userId },
             }));

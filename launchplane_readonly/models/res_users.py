@@ -61,6 +61,7 @@ class ResUsers(models.Model):
             or self.all_group_ids != group.all_implied_ids
             or self.share
             or self.env["res.users.apikeys"].sudo().search_count([("user_id", "=", self.id)])
+            or any(self[name] for name in ("oauth_provider_id", "oauth_uid", "oauth_access_token") if name in self._fields)
         ):
             raise AccessError(self.env._("The test account ownership or privileges changed."))
 

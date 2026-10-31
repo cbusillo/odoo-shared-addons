@@ -3,6 +3,7 @@ from typing import Any
 
 from odoo import api, models
 from odoo.exceptions import AccessError
+from odoo.http import request
 
 from ..policy import GROUP
 
@@ -13,10 +14,14 @@ class Base(models.AbstractModel):
     _inherit = "base"
 
     def _launchplane_readonly_actor(self) -> bool:
-        if not self.env.uid or self.env.uid <= 2:
-            return False
-        user = self.env.user.sudo()
-        return bool(user.launchplane_readonly_owner or user.has_group(GROUP))
+        actor_ids = {self.env.uid}
+        if request:
+            actor_ids.add(request.session.uid)
+        for uid in actor_ids - {None, False, 1, 2}:
+            user = self.env["res.users"].sudo().browse(uid).exists()
+            if user and (user.launchplane_readonly_owner or user.has_group(GROUP)):
+                return True
+        return False
 
     def _launchplane_readonly_refuse(self) -> None:
         if self._launchplane_readonly_actor():
@@ -29,16 +34,14 @@ class Base(models.AbstractModel):
         return super().create(vals_list)
 
     def write(self, values: dict[str, Any]) -> bool:
-        if not (AUTHENTICATING.get() and self._name == "res.users" and self.ids == [self.env.uid] and set(values) <= {"tz"}):
+        own_timezone = set(values) <= {"tz"} and (
+            (self._name == "res.users" and self.ids == [self.env.uid])
+            or (self._name == "res.partner" and self == self.env.user.partner_id)
+        )
+        if not (AUTHENTICATING.get() and own_timezone):
             self._launchplane_readonly_refuse()
         return super().write(values)
 
     @api.ondelete(at_uninstall=True)
     def _launchplane_readonly_deny_delete(self) -> None:
         self._launchplane_readonly_refuse()
-
-    @api.private
-    def with_user(self, user: Any) -> "odoo.model.base":
-        if self._launchplane_readonly_actor() and user and getattr(user, "id", user) != self.env.uid:
-            self._launchplane_readonly_refuse()
-        return super().with_user(user)

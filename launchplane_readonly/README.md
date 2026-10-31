@@ -31,7 +31,8 @@ also binds authentication to the current native runtime; qualification itself
 does not rebind an account. Both active and inactive owned accounts qualify for
 service cleanup. A stale runtime, changed role, archived account or production
 target cannot use an existing browser session. Noninteractive and API-key
-authentication refuse; browser password authentication retains native checks.
+authentication refuse; the password session endpoint intentionally supports the
+service's scripted browser login and retains native checks.
 The addon stores only nonsecret ownership/runtime facts. Launchplane retains
 encrypted secrets, activation, rotation, API-key removal and cleanup authority.
 
@@ -39,8 +40,8 @@ For the QA actor, HTTP requests require native readonly classification, with
 the native web-client bootstrap admitted separately. Reports, printing, server
 actions, imports, exports and button execution refuse before dispatch. Admitted
 requests execute through PostgreSQL's read-only connection pool without Odoo's
-writable fallback, including after a commit. ORM create/write/delete and user
-switches also refuse for the QA actor, including sudo. Reports and server actions
+writable fallback, including after a commit. ORM create/write/delete also refuse
+for the QA actor, including sudo and user switches inside its HTTP request. Reports and server actions
 have direct server guards. Native login logging/timezone bookkeeping has a
 private scoped exception; user settings are initialized with the shell.
 Ordinary users retain native behavior. This trusts image-owned readonly methods
@@ -55,4 +56,8 @@ Native tests cover identity reuse/collisions, production/copy/generation
 refusal, legacy credentials, RPC/ORM/sudo writes, preference changes, reports,
 server actions and the real PostgreSQL read-only dispatch backstop. Tenant
 tests own stock/scanner/chatter/printing integration and the exact read surface.
+HTTP dispatch uses a separate read-only database transaction. HTTP/tour fixtures
+must use committed disposable data; ordinary uncommitted HttpCase fixtures are
+not visible to that connection. Native UI qualification must cover the complete
+installed app set, cold assets and session/device bookkeeping before activation.
 Source tests do not establish actual CM preview activation or authenticated QA.

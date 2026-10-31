@@ -1,14 +1,14 @@
 import json
 import os
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from odoo import SUPERUSER_ID, Command, api
 from odoo.exceptions import AccessDenied, AccessError
 from odoo.http import request_var
+from odoo.http.session import Session, SessionExpiredException, get_default_session
 from odoo.service.model import call_kw
 from odoo.tests import TransactionCase, tagged
-from psycopg2.errors import ReadOnlySqlTransaction
 
 from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, product_login
 
@@ -56,7 +56,7 @@ class TestReadOnlyIdentity(TransactionCase):
             self.users._launchplane_readonly_test_identity(self.identity, self.login)
         self.assertTrue(self.user.with_user(self.user)._launchplane_readonly_actor())
 
-    def test_production_and_stale_copy_refuse_without_writes(self) -> None:
+    def test_production_and_stale_copy_refuse(self) -> None:
         for platform in ("", "prod", "production"):
             with patch.dict(os.environ, {"PLATFORM_INSTANCE": platform}), self.assertRaises(AccessError):
                 self.users._launchplane_readonly_test_identity(self.identity, self.login)
@@ -98,17 +98,25 @@ class TestReadOnlyIdentity(TransactionCase):
             lambda: readonly.sudo().write({"name": "changed"}),
             lambda: readonly.sudo().create({"name": "changed"}),
             lambda: readonly.sudo().unlink(),
-            lambda: readonly.with_user(SUPERUSER_ID).write({"name": "changed"}),
             lambda: self.user.with_user(self.user).write({"tz": "Europe/Paris"}),
-            lambda: call_kw(self.user.with_user(self.user), "_launchplane_readonly_test_identity", [self.identity, self.login], {}),
+            lambda: self.user.with_user(self.user)._launchplane_readonly_test_identity(self.identity, self.login),
             lambda: self.env["ir.actions.server"].with_user(self.user).sudo().run(),
             lambda: self.env["ir.actions.report"].with_user(self.user).sudo().report_action([partner.id]),
             lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_pdf("missing-report"),
+            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_html("missing-report", [partner.id]),
+            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_text("missing-report", [partner.id]),
         ):
             with self.subTest(operation=operation), self.assertRaises(AccessError):
                 operation()
         self.assertEqual(partner.name, "Synthetic business record")
-        partner.write({"name": "Ordinary authorized write"})
+        ordinary = self.users.with_context(no_reset_password=True).create(
+            {
+                "name": "TEST Ordinary user",
+                "login": "synthetic-ordinary",
+                "group_ids": [Command.set(self.env.ref("base.group_user").ids)],
+            }
+        )
+        partner.with_user(ordinary).write({"name": "Ordinary authorized write"})
         self.assertEqual(partner.name, "Ordinary authorized write")
 
     def test_legacy_credentials_and_api_keys_refuse_but_browser_password_works(self) -> None:
@@ -134,9 +142,53 @@ class TestReadOnlyIdentity(TransactionCase):
             fake.env.cr.execute("UPDATE res_partner SET name=name WHERE id=1")
 
         write_sql.routing = {}
-        with self.assertRaises(ReadOnlySqlTransaction):
+        with self.assertRaises(AccessError):
             self.env.registry["ir.http"]._dispatch(write_sql)
         self.assertIs(fake.env.cr, self.env.cr)
+
+    def test_native_login_keeps_only_authentication_bookkeeping(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        logs = self.env["res.users.log"].sudo()
+        before = logs.search_count([("create_uid", "=", self.user.id)])
+        result = self.users._login(
+            {"type": "password", "login": self.login, "password": "synthetic-password"}, {"interactive": True}
+        )
+        self.assertEqual(result["uid"], self.user.id)
+        self.assertEqual(logs.search_count([("create_uid", "=", self.user.id)]), before + 1)
+
+    def test_native_read_pre_dispatch_allows_superuser_configuration_reads(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        dispatcher = SimpleNamespace(pre_dispatch=Mock())
+        fake = SimpleNamespace(
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id),
+            httprequest=SimpleNamespace(path="/web/session/get_session_info"),
+            dispatcher=dispatcher,
+        )
+
+        def update_context(**values: str) -> None:
+            fake.env = fake.env(context=dict(fake.env.context, **values))
+
+        fake.update_context = update_context
+        token = request_var.set(fake)
+        self.addCleanup(request_var.reset, token)
+        function = SimpleNamespace(__name__="get_session_info", __self__=None)
+        rule = SimpleNamespace(endpoint=SimpleNamespace(func=function, routing={"readonly": True}))
+        self.env.registry["ir.http"]._pre_dispatch(rule, {})
+        dispatcher.pre_dispatch.assert_called_once_with(rule, {})
+        with self.assertRaises(AccessError):
+            self.env["res.partner"].with_user(SUPERUSER_ID).create({"name": "Unsafe escalation"})
+
+    def test_stale_session_logs_out_instead_of_trapping_the_browser(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        session = Session(dict(get_default_session(), uid=self.user.id, db=self.env.cr.dbname), "synthetic-session")
+        fake = SimpleNamespace(env=self.env(user=self.user), session=session, default_lang=lambda: "en_US")
+        token = request_var.set(fake)
+        self.addCleanup(request_var.reset, token)
+        self.identity["deployment_record_id"] = "refreshed"
+        with patch.dict(os.environ, {RUNTIME_ENV: json.dumps(self.identity)}), self.assertRaises(SessionExpiredException):
+            self.env.registry["ir.http"]._pre_dispatch(None, {})
+        self.assertFalse(session.uid)
 
     def test_request_guard_refuses_business_routes_before_dispatch(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})

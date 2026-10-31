@@ -1,6 +1,7 @@
+from contextlib import nullcontext
 from typing import Any
 
-from odoo import api, models, sql_db
+from odoo import models, sql_db
 from odoo.addons.web.controllers.export import Export, ExportFormat
 from odoo.addons.web.controllers.home import Home
 from odoo.addons.web.controllers.report import ReportController
@@ -45,18 +46,28 @@ class IrHttp(models.AbstractModel):
         return super()._pre_dispatch(rule, args)
 
     @classmethod
+    def _launchplane_readonly_cursor(cls) -> Any:
+        cursor = request.env.registry.cursor(readonly=True)
+        if cursor.readonly:
+            return cursor
+        cursor.close()
+        return sql_db.db_connect(request.env.cr.dbname, readonly=True).cursor()
+
+    @classmethod
     def _dispatch(cls, endpoint: Any) -> Any:
         if not cls._launchplane_readonly_request():
             return super()._dispatch(endpoint)
         original = request.env
-        with sql_db.db_connect(original.cr.dbname, readonly=True).cursor() as cursor:
-            request.env = api.Environment(cursor, original.uid, original.context, su=original.su)
+        manager = nullcontext(original.cr) if original.cr.readonly else cls._launchplane_readonly_cursor()
+        with manager as cursor:
+            request.env = original(cr=cursor)
             try:
                 try:
                     result = super()._dispatch(endpoint)
                     request.env.flush_all()
                     return result
                 except ReadOnlySqlTransaction as error:
+                    cursor.rollback()
                     raise AccessError(original._("This test identity cannot change database records.")) from error
             finally:
                 request.env = original

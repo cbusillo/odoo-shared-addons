@@ -3,14 +3,16 @@ import os
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
-from odoo import SUPERUSER_ID, Command, api
+from odoo import SUPERUSER_ID, Command
 from odoo.exceptions import AccessDenied, AccessError
 from odoo.http import request_var
 from odoo.http.session import Session, SessionExpiredException, get_default_session
 from odoo.service.model import call_kw
-from odoo.tests import TransactionCase, tagged
+from odoo.tests import HttpCase, TransactionCase, tagged
+from odoo.tests.common import JsonRpcException
+from psycopg2.errors import ReadOnlySqlTransaction
 
-from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, product_login
+from ..policy import COPY_PARAMETER, RUNTIME_ENV, product_login
 
 
 @tagged("post_install", "-at_install")
@@ -60,6 +62,12 @@ class TestReadOnlyIdentity(TransactionCase):
         for platform in ("", "prod", "production"):
             with patch.dict(os.environ, {"PLATFORM_INSTANCE": platform}), self.assertRaises(AccessError):
                 self.users._launchplane_readonly_test_identity(self.identity, self.login)
+        production = dict(self.identity, instance="prod")
+        with (
+            patch.dict(os.environ, {RUNTIME_ENV: json.dumps(production), "PLATFORM_INSTANCE": "prod"}),
+            self.assertRaises(AccessError),
+        ):
+            self.users._launchplane_readonly_test_identity(production, self.login, create=True)
         self.env["ir.config_parameter"].sudo().set_str(COPY_PARAMETER, "b" * 64)
         with self.assertRaises(AccessError):
             self.users._launchplane_readonly_test_identity(self.identity, self.login)
@@ -116,7 +124,7 @@ class TestReadOnlyIdentity(TransactionCase):
                 "group_ids": [Command.set(self.env.ref("base.group_user").ids)],
             }
         )
-        partner.with_user(ordinary).write({"name": "Ordinary authorized write"})
+        partner.with_user(ordinary).sudo().write({"name": "Ordinary authorized write"})
         self.assertEqual(partner.name, "Ordinary authorized write")
 
     def test_legacy_credentials_and_api_keys_refuse_but_browser_password_works(self) -> None:
@@ -141,10 +149,34 @@ class TestReadOnlyIdentity(TransactionCase):
             fake.env.cr.commit()
             fake.env.cr.execute("UPDATE res_partner SET name=name WHERE id=1")
 
-        write_sql.routing = {}
-        with self.assertRaises(AccessError):
-            self.env.registry["ir.http"]._dispatch(write_sql)
+        endpoint = Mock(side_effect=write_sql)
+        endpoint.routing = {}
+        original = self._registry_readonly_enabled
+        try:
+            for enabled in (True, False):
+                self.set_registry_readonly_mode(enabled)
+                before = endpoint.call_count
+                with self.subTest(readonly_registry=enabled), self.assertRaises(AccessError) as refusal:
+                    self.env.registry["ir.http"]._dispatch(endpoint)
+                self.assertIsInstance(refusal.exception.__cause__, ReadOnlySqlTransaction)
+                self.assertEqual(endpoint.call_count, before + 1)
+        finally:
+            self.set_registry_readonly_mode(original)
         self.assertIs(fake.env.cr, self.env.cr)
+
+    def test_native_readonly_cursor_sees_uncommitted_records(self) -> None:
+        partner = self.env["res.partner"].create({"name": "Synthetic uncommitted record"})
+        self.env.flush_all()
+        fake = SimpleNamespace(env=self.env(user=self.user), session=SimpleNamespace(uid=self.user.id), params={})
+        token = request_var.set(fake)
+        self.addCleanup(request_var.reset, token)
+
+        def read_partner() -> str:
+            return fake.env["res.partner"].browse(partner.id).name
+
+        endpoint = Mock(side_effect=read_partner)
+        endpoint.routing = {}
+        self.assertEqual(self.env.registry["ir.http"]._dispatch(endpoint), partner.name)
 
     def test_native_login_keeps_only_authentication_bookkeeping(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})
@@ -162,7 +194,7 @@ class TestReadOnlyIdentity(TransactionCase):
         fake = SimpleNamespace(
             env=self.env(user=self.user),
             session=SimpleNamespace(uid=self.user.id),
-            httprequest=SimpleNamespace(path="/web/session/get_session_info"),
+            httprequest=SimpleNamespace(path="/web/session/get_session_info", max_content_length=None),
             dispatcher=dispatcher,
         )
 
@@ -205,3 +237,60 @@ class TestReadOnlyIdentity(TransactionCase):
             fake.httprequest.path = path
             with self.subTest(path=path), self.assertRaises(AccessError):
                 self.env.registry["ir.http"]._pre_dispatch(rule, {})
+
+
+@tagged("post_install", "-at_install")
+class TestReadOnlyHttp(TestReadOnlyIdentity, HttpCase):
+    def _login_browser(self) -> None:
+        self.authenticate(None, None)
+        self.opener.cookies.set("tz", "Europe/Paris")
+        result = self.make_jsonrpc_request(
+            "/web/session/authenticate", {"db": self.env.cr.dbname, "login": self.login, "password": "synthetic-password"}
+        )
+        self.assertEqual(result["uid"], self.user.id)
+
+    def _rpc(self, model: str, method: str, args: list) -> object:
+        return self.make_jsonrpc_request("/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": {}})
+
+    def test_real_login_read_preferences_and_write_refusal(self) -> None:
+        partner = self.env["res.partner"].create({"name": "Synthetic HTTP record"})
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self._login_browser()
+        self.assertEqual(self._rpc(partner._name, "read", [[partner.id], ["name"]])[0]["name"], partner.name)
+        self.assertEqual(self._rpc(self.user._name, "action_get", [])["res_model"], self.user._name)
+        with self.assertRaises(JsonRpcException):
+            self._rpc(partner._name, "write", [[partner.id], {"name": "Unsafe HTTP write"}])
+        with self.assertRaises(JsonRpcException):
+            self._rpc(self.user._name, "write", [[self.user.id], {"tz": "UTC"}])
+        partner.invalidate_recordset(["name"])
+        self.assertEqual(partner.name, "Synthetic HTTP record")
+        if "printnode.preference" in self.env.registry:
+            preference = self.env["printnode.preference"]
+            self.assertEqual(self._rpc(preference._name, "action_my_printers", [])["res_model"], preference._name)
+            with patch.object(type(self.env["printnode.routing"]), "_client") as client:
+                with self.assertRaises(JsonRpcException):
+                    self._rpc("printnode.printer", "action_discover", [])
+                client.assert_not_called()
+
+    def test_service_prepares_cold_assets_before_qa_bootstrap(self) -> None:
+        from lxml import html
+
+        assets = self.env["ir.attachment"].sudo()
+        domain = [("res_model", "=", "ir.ui.view"), ("res_id", "=", False), ("public", "=", True), ("url", "=like", "/web/assets/%")]
+        assets.search(domain).unlink()
+        self.user.write({"active": True, "password": "synthetic-password"})
+        prepared_count = assets.search_count(domain)
+        self.assertGreater(prepared_count, 0)
+        self._login_browser()
+        response = self.url_open("/odoo")
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.url.endswith("/odoo"))
+        document = html.fromstring(response.content)
+        urls = [url for url in document.xpath("//script[@src]/@src | //link[@href]/@href") if url.startswith("/web/assets/")]
+        self.assertTrue(urls)
+        for url in urls:
+            self.assertEqual(self.url_open(url).status_code, 200)
+        self.assertEqual(assets.search_count(domain), prepared_count)
+        if "odoobot_state" in self.user._fields:
+            self.user.invalidate_recordset(["odoobot_state"])
+            self.assertEqual(self.user.odoobot_state, "disabled")

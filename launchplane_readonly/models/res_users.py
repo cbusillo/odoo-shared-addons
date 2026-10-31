@@ -90,6 +90,8 @@ class ResUsers(models.Model):
             values.update(
                 {name: False for name in ("oauth_provider_id", "oauth_uid", "oauth_access_token") if name in users._fields}
             )
+            if "odoobot_state" in users._fields:
+                values["odoobot_state"] = "disabled"
             user = users.create(values)
             if "res.users.settings" in self.env.registry:
                 self.env["res.users.settings"]._find_or_create_for_user(user)
@@ -111,13 +113,33 @@ class ResUsers(models.Model):
 
     def write(self, values: dict[str, Any]) -> bool:
         owned = self.sudo().filtered("launchplane_readonly_owner")
+        activating = owned and self.env.uid == SUPERUSER_ID and values.get("active") is True
         if owned and self.env.uid == SUPERUSER_ID and ("password" in values or values.get("active")):
             identity = json.loads(os.environ.get(RUNTIME_ENV, "null"))
             owner = self._launchplane_readonly_runtime_owner(identity)
             for user in owned:
                 user._launchplane_readonly_check_user(owner)
             values = dict(values, launchplane_readonly_runtime=canonical_identity(identity))
-        return super().write(values)
+        if activating and "odoobot_state" in self._fields:
+            values = dict(values, odoobot_state="disabled")
+        result = super().write(values)
+        if activating:
+            for user in owned:
+                user._launchplane_readonly_prepare_webclient()
+        return result
+
+    def _launchplane_readonly_prepare_webclient(self) -> None:
+        self.ensure_one()
+        qweb = self.env["ir.qweb"].with_context(lang=self.lang)
+        qweb._pregenerate_assets_bundles()
+        if self.env["res.lang"]._lang_get(self.lang).direction == "rtl":
+            for bundle in qweb._get_bundles_to_pregenarate()[1]:
+                qweb._get_asset_bundle(bundle, css=True, js=False, rtl=True).css()
+
+    @api.model
+    @api.readonly
+    def action_get(self) -> dict:
+        return super().action_get()
 
     def _check_credentials(self, credential: dict, env: dict) -> dict:
         if self._launchplane_readonly_actor():
@@ -133,7 +155,11 @@ class ResUsers(models.Model):
         identity = json.loads(os.environ.get(RUNTIME_ENV, "null"))
         user = self.sudo()
         user._launchplane_readonly_check_user(user._launchplane_readonly_runtime_owner(identity))
-        if not user.active or user.launchplane_readonly_runtime != canonical_identity(identity):
+        if (
+            not user.active
+            or user.launchplane_readonly_runtime != canonical_identity(identity)
+            or ("odoobot_state" in user._fields and user.odoobot_state != "disabled")
+        ):
             raise AccessError(self.env._("This test identity is not active on the current runtime."))
 
     def _login(self, credential: dict, user_agent_env: dict) -> dict:

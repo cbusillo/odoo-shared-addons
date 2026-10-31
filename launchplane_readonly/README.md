@@ -35,6 +35,10 @@ authentication refuse; the password session endpoint intentionally supports the
 service's scripted browser login and retains native checks.
 The addon stores only nonsecret ownership/runtime facts. Launchplane retains
 encrypted secrets, activation, rotation, API-key removal and cleanup authority.
+Service activation also uses Odoo's own asset pregeneration, including RTL CSS
+for the account's language, in the caller's transaction. It disables optional
+OdooBot onboarding so first bootstrap cannot create chats or messages. Failed
+preparation propagates to the native consumer; this addon never commits.
 
 For the QA actor, HTTP requests require native readonly classification, with
 the native web-client bootstrap admitted separately. Reports, printing, server
@@ -56,8 +60,13 @@ Native tests cover identity reuse/collisions, production/copy/generation
 refusal, legacy credentials, RPC/ORM/sudo writes, preference changes, reports,
 server actions and the real PostgreSQL read-only dispatch backstop. Tenant
 tests own stock/scanner/chatter/printing integration and the exact read surface.
-HTTP dispatch uses a separate read-only database transaction. HTTP/tour fixtures
-must use committed disposable data; ordinary uncommitted HttpCase fixtures are
-not visible to that connection. Native UI qualification must cover the complete
-installed app set, cold assets and session/device bookkeeping before activation.
+HTTP dispatch reuses a native read-only request cursor or obtains and verifies
+a native read-only registry cursor. A writable fallback is closed and replaced
+by the strict read-only pool. This preserves Odoo's native TestCursor and
+uncommitted HttpCase fixtures without weakening PostgreSQL enforcement. Native
+UI qualification must cover the installed app set, cold assets and session/device
+bookkeeping. Native pregeneration does not cover every dynamic/debug/website
+asset variant, and generated error CSS is not a successful frontend check.
+The service browser refuses websockets; live updates are outside this read-only
+surface. Missing assets do not grant QA a cache-write exception.
 Source tests do not establish actual CM preview activation or authenticated QA.

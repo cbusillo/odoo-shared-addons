@@ -5,6 +5,8 @@ from typing import Any
 from unittest.mock import Mock, patch
 
 from odoo import SUPERUSER_ID, Command
+from odoo.addons.web.controllers.export import Export, ExportFormat
+from odoo.addons.web.controllers.report import ReportController
 from odoo.exceptions import AccessDenied, AccessError
 from odoo.http import request_var
 from odoo.http.session import Session, SessionExpiredException, get_default_session, session_store
@@ -195,7 +197,6 @@ class TestReadOnlyIdentity(HttpCase):
     def test_native_readonly_cursor_sees_uncommitted_records(self) -> None:
         partner = self.env["res.partner"].create({"name": "Synthetic uncommitted record"})
         self.env.flush_all()
-        self.env.flush_all()
         fake = SimpleNamespace(
             env=self.env(user=self.user),
             session=SimpleNamespace(uid=self.user.id),
@@ -206,6 +207,8 @@ class TestReadOnlyIdentity(HttpCase):
         self.addCleanup(request_var.reset, token)
 
         def read_partner() -> str:
+            self.assertTrue(fake.env.cr.readonly)
+            self.assertIsNot(fake.env.cr, self.env.cr)
             return fake.env["res.partner"].browse(partner.id).name
 
         endpoint = Mock(side_effect=read_partner)
@@ -272,8 +275,19 @@ class TestReadOnlyIdentity(HttpCase):
         function = SimpleNamespace(__name__="business_write", __module__="synthetic", __self__=None)
         endpoint = SimpleNamespace(func=function, routing={"readonly": False})
         rule = SimpleNamespace(endpoint=endpoint)
-        for path in ("/web/dataset/call_kw", "/mail/message/post", "/report/pdf/synthetic", "/web/action/run", "/web/export/csv"):
+        for path, controller, readonly in (
+            ("/web/dataset/call_kw", None, False),
+            ("/mail/message/post", None, False),
+            ("/report/pdf/synthetic", ReportController(), True),
+            ("/web/export/csv", Export(), True),
+            ("/web/export/formats", ExportFormat(), True),
+            ("/web/action/run", None, True),
+            ("/base_import/import", None, True),
+            ("/web/dataset/call_button", None, True),
+        ):
             fake.httprequest.path = path
+            function.__self__ = controller
+            endpoint.routing["readonly"] = readonly
             with self.subTest(path=path), self.assertRaises(AccessError):
                 self.env.registry["ir.http"]._pre_dispatch(rule, {})
 
@@ -314,7 +328,14 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
     def test_real_login_read_preferences_and_write_refusal(self) -> None:
         partner = self.env["res.partner"].create({"name": "Synthetic HTTP record"})
         self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.cr.flush()
+        messages = self.env["mail.message"].sudo()
+        before_messages = messages.search_count([])
         self._login_browser()
+        self.assertEqual(messages.search_count([]), before_messages)
+        self.user.invalidate_recordset(["tz"])
+        login_timezone = self.user.tz
+        self.assertEqual(login_timezone, "Europe/Paris")
         self.assertEqual(self._rpc(partner._name, "read", [[partner.id], ["name"]])[0]["name"], partner.name)
         self.assertEqual(self._rpc(self.user._name, "action_get", [])["res_model"], self.user._name)
         with self.assertRaises(JsonRpcException):
@@ -323,6 +344,8 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             self._rpc(self.user._name, "write", [[self.user.id], {"tz": "UTC"}])
         partner.invalidate_recordset(["name"])
         self.assertEqual(partner.name, "Synthetic HTTP record")
+        self.user.invalidate_recordset(["tz"])
+        self.assertEqual(self.user.tz, login_timezone)
         if "printnode.preference" in self.env.registry:
             preference = self.env["printnode.preference"]
             self.assertEqual(self._rpc(preference._name, "action_my_printers", [])["res_model"], preference._name)

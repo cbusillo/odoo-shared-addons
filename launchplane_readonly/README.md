@@ -49,7 +49,9 @@ requests execute through PostgreSQL's read-only connection pool without Odoo's
 writable fallback, including after a commit. ORM create/write/delete also refuse
 for the QA actor, including sudo and user switches inside its HTTP request. Reports and server actions
 have direct server guards. Native login logging/timezone bookkeeping has a
-private scoped exception; user settings are initialized during service preparation.
+private scoped exception. The owned account uses native tracking-disable context
+during login so incidental bookkeeping cannot queue chatter after authentication;
+ordinary account tracking is unchanged. User settings are initialized during service preparation.
 Ordinary users retain native behavior. This trusts image-owned readonly methods
 to avoid external effects; readonly classification is not permission to add an
 external call to a read method. Copied production data must pass the product's

@@ -165,8 +165,10 @@ class ResUsers(models.Model):
             raise AccessError(self.env._("This test identity is not active on the current runtime."))
 
     def _login(self, credential: dict, user_agent_env: dict) -> dict:
+        user = self.sudo().search(self._get_login_domain(credential["login"]), order=self._get_login_order(), limit=1)
+        users = self.with_context(tracking_disable=True) if user.launchplane_readonly_owner else self
         token = AUTHENTICATING.set(True)
         try:
-            return super()._login(credential, user_agent_env)
+            return super(ResUsers, users)._login(credential, user_agent_env)
         finally:
             AUTHENTICATING.reset(token)

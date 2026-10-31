@@ -13,7 +13,7 @@ from odoo.tests import HttpCase, tagged
 from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, JsonRpcException
 from psycopg2.errors import ReadOnlySqlTransaction
 
-from ..policy import COPY_PARAMETER, RUNTIME_ENV, product_login
+from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, product_login
 
 
 @tagged("post_install", "-at_install")
@@ -37,6 +37,16 @@ class TestReadOnlyIdentity(HttpCase):
         self.env["ir.config_parameter"].sudo().set_str(COPY_PARAMETER, "a" * 64)
         self.login = product_login(self.identity["product"])
         self.user = self.users._launchplane_readonly_test_identity(self.identity, self.login, create=True)
+
+    def test_native_classification_keeps_the_role_minimal_and_rejects_implication_drift(self) -> None:
+        group = self.env.ref(GROUP)
+        self.env["res.groups"]._apply_group_regular()
+        self.assertTrue(group._is_light_groups())
+        self.assertEqual(group.implied_ids, self.env.ref("base.group_user"))
+        self.assertEqual(self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login))
+        group.write({"implied_ids": [Command.link(self.env.ref("base.group_erp_manager").id)]})
+        with self.assertRaises(AccessError):
+            self.users._launchplane_readonly_test_identity(self.identity, self.login)
 
     def test_shell_is_credential_free_and_reused_without_activation(self) -> None:
         self.assertFalse(self.user.active)

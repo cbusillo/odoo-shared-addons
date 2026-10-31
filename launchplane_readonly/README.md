@@ -4,7 +4,9 @@ This addon supplies `launchplane_readonly.group_user`, private account
 qualification and server-side read-only enforcement for Odoo 20. It installs
 no account, credential, business permissions or menus. Tenant addons add native
 `ir.access` read permissions and menu access directly on this role. The role
-implies only Internal User, whose existing read access remains available.
+implies only Internal User, whose existing read access remains available. It
+extends Odoo20's native light-group classification so native module loading
+does not add Regular User to this dedicated role; privilege drift still refuses.
 
 Launchplane's fixed native consumer calls
 `res.users._launchplane_readonly_test_identity(identity, login, create=False)`.

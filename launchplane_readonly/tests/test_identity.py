@@ -53,6 +53,7 @@ class TestReadOnlyIdentity(HttpCase):
         with self.assertRaises(AccessError):
             self.users._launchplane_readonly_test_identity(self.identity, self.login, create=True)
         self.user.write({"launchplane_readonly_owner": self.users._launchplane_readonly_runtime_owner(self.identity)})
+        self.user.write({"active": True, "password": "synthetic-password"})
         self.user.write({"group_ids": [Command.link(self.env.ref("base.group_erp_manager").id)]})
         with self.assertRaises(AccessError):
             self.users._launchplane_readonly_test_identity(self.identity, self.login)
@@ -247,9 +248,6 @@ class TestReadOnlyIdentity(HttpCase):
             with self.subTest(path=path), self.assertRaises(AccessError):
                 self.env.registry["ir.http"]._pre_dispatch(rule, {})
 
-
-@tagged("post_install", "-at_install")
-class TestReadOnlyHttp(TestReadOnlyIdentity):
     def _login_browser(self) -> None:
         self.authenticate(None, None, session_extra={"_trace_disable": False})
         self.opener.cookies.set("tz", "Europe/Paris")

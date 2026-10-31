@@ -105,6 +105,7 @@ class PrintNodePreference(models.Model):
         return super().unlink()
 
     @api.model
+    @api.readonly
     def action_my_printers(self) -> dict:
         self.env["printnode.routing"]._check_actor()
         return {

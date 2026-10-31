@@ -40,9 +40,10 @@ model reflection claims the original parsed fields before end-of-load cleanup.
 No SQL backfill, column rename, core patch or pre-upgrade bridge edit is needed.
 
 Native `ir.model.fields._reflect_fields` creates this addon's XMLIDs pointing
-at the existing field records. End cleanup can remove obsolete base XMLIDs
-without unlinking a field that has another XMLID; the original stored columns
-therefore survive. Keep this addon installed on subsequent upgrades. Do not
+at the existing field records. End cleanup also recognizes these fields on
+their original base model and keeps the base aliases. The addon owns the field
+definitions and its own XMLIDs; the original stored columns survive. Keep this
+addon installed on subsequent upgrades. Do not
 uninstall it while history is needed: uninstalling an owned field can drop its
 column. Installation after a completed base-only 20 update cannot recover
 already removed values; use the original retained migration input instead.

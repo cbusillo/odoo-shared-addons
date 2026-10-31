@@ -39,17 +39,24 @@ class TestDeviceHistory(TransactionCase):
 
     def _historical_log(self, **values: object) -> "odoo.model.res_device_log":
         return self._log(
-            user_agent=False,
-            legacy_user_agent_unavailable=True,
-            platform="legacy platform",
-            browser="legacy browser",
-            device_type="mobile",
-            **values,
+            **{
+                "user_agent": False,
+                "legacy_user_agent_unavailable": True,
+                "platform": "legacy platform",
+                "browser": "legacy browser",
+                "device_type": "mobile",
+                **values,
+            }
         )
 
     def test_historical_devices_and_session_keep_parsed_values(self) -> None:
         newest = self._historical_log(last_activity=datetime(2026, 1, 3))
-        older = self._historical_log(session_identifier=newest.session_identifier)
+        older = self._historical_log(
+            session_identifier=newest.session_identifier,
+            platform="older platform",
+            browser="older browser",
+            device_type="computer",
+        )
         device = self.devices.browse(newest.id)
         session = self.sessions.browse(older.id)
         for record in (device, session):
@@ -95,6 +102,16 @@ class TestDeviceHistory(TransactionCase):
                 [self.env.uid],
             )
 
+    def test_empty_request_agent_is_not_historical(self) -> None:
+        log = self._log(user_agent="")
+        reference = self.devices.browse(self._log().id)
+        device = self.devices.browse(log.id)
+        session = self.sessions.browse(log.id)
+        for record in (device, session):
+            self.assertEqual(record.user_agent, log.user_agent)
+            self.assertFalse(record.raw_user_agent_unavailable)
+            self.assertEqual(record.device_type, reference.device_type)
+
     def test_native_cleanup_keeps_distinct_historical_logs(self) -> None:
         first = self._historical_log()
         second = self._historical_log(
@@ -107,12 +124,16 @@ class TestDeviceHistory(TransactionCase):
     def test_access_remains_limited_to_own_history(self) -> None:
         owner = new_test_user(self.env, login=f"history-{uuid4().hex}", groups="base.group_user")
         outsider = new_test_user(self.env, login=f"other-{uuid4().hex}", groups="base.group_user")
+        administrator = new_test_user(self.env, login=f"admin-{uuid4().hex}", groups="base.group_system")
+        portal = new_test_user(self.env, login=f"portal-{uuid4().hex}", groups="base.group_portal")
         log = self._historical_log(user_id=owner.id)
         for model in (self.devices, self.sessions, self.logs):
             record = model.browse(log.id)
             self.assertEqual(record.with_user(owner).platform, log.platform)
-            with self.assertRaises(AccessError):
-                record.with_user(outsider).read(["platform"])
+            self.assertEqual(record.with_user(administrator).platform, log.platform)
+            for forbidden in (outsider, portal):
+                with self.assertRaises(AccessError):
+                    record.with_user(forbidden).read(["platform"])
         with self.assertRaises(AccessError):
             self.logs.with_user(owner).create({"user_agent": "forbidden"})
 
@@ -137,3 +158,9 @@ class TestDeviceHistory(TransactionCase):
         self.assertFalse(native.legacy_user_agent_unavailable)
         self.assertFalse(old.user_agent)
         self.assertTrue(native.user_agent)
+
+    def test_install_refuses_history_after_parsed_columns_are_lost(self) -> None:
+        self._historical_log()
+        self.env.cr.execute("ALTER TABLE res_device_log DROP COLUMN platform, DROP COLUMN browser, DROP COLUMN device_type")
+        with self.assertRaises(RuntimeError):
+            pre_init_hook(self.env)

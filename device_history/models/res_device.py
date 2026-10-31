@@ -24,7 +24,7 @@ class ResDevice(models.Model):
     @api.depends("user_agent")
     def _compute_raw_user_agent_unavailable(self) -> None:
         for device in self:
-            device.raw_user_agent_unavailable = not device.user_agent
+            device.raw_user_agent_unavailable = device.user_agent is False
 
     def _historical_device(self) -> "odoo.model.res_device":
         self.ensure_one()
@@ -32,10 +32,11 @@ class ResDevice(models.Model):
 
     @api.depends("user_agent")
     def _compute_device_info(self) -> None:
-        native = self.filtered("user_agent")
+        native = self.filtered(lambda device: device.user_agent is not False)
         super(ResDevice, native)._compute_device_info()
-        for device in self - native:
-            log = self.env["res.device.log"].browse(device._historical_device().id)
+        historical = self - native
+        logs = self.env["res.device.log"].browse([device._historical_device().id for device in historical])
+        for device, log in zip(historical, logs, strict=True):
             device.platform = log.platform or self.env._("Unknown")
             device.browser = log.browser or self.env._("Unknown")
             device.device_type = log.device_type or self.env._("Unknown")

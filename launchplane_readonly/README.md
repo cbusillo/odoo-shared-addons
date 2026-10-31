@@ -35,7 +35,7 @@ authentication refuse; the password session endpoint intentionally supports the
 service's scripted browser login and retains native checks.
 The addon stores only nonsecret ownership/runtime facts. Launchplane retains
 encrypted secrets, activation, rotation, API-key removal and cleanup authority.
-Service activation also uses Odoo's own asset pregeneration, including RTL CSS
+Service activation and active password rebinds use Odoo's own asset pregeneration, including RTL CSS
 for the account's language, in the caller's transaction. It disables optional
 OdooBot onboarding so first bootstrap cannot create chats or messages. Failed
 preparation propagates to the native consumer; this addon never commits.
@@ -47,7 +47,7 @@ requests execute through PostgreSQL's read-only connection pool without Odoo's
 writable fallback, including after a commit. ORM create/write/delete also refuse
 for the QA actor, including sudo and user switches inside its HTTP request. Reports and server actions
 have direct server guards. Native login logging/timezone bookkeeping has a
-private scoped exception; user settings are initialized with the shell.
+private scoped exception; user settings are initialized during service preparation.
 Ordinary users retain native behavior. This trusts image-owned readonly methods
 to avoid external effects; readonly classification is not permission to add an
 external call to a read method. Copied production data must pass the product's

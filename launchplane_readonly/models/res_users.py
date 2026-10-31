@@ -93,8 +93,6 @@ class ResUsers(models.Model):
             if "odoobot_state" in users._fields:
                 values["odoobot_state"] = "disabled"
             user = users.create(values)
-            if "res.users.settings" in self.env.registry:
-                self.env["res.users.settings"]._find_or_create_for_user(user)
         if not user and fixture:
             return user
         if len(user) != 1:
@@ -113,23 +111,27 @@ class ResUsers(models.Model):
 
     def write(self, values: dict[str, Any]) -> bool:
         owned = self.sudo().filtered("launchplane_readonly_owner")
-        activating = owned and self.env.uid == SUPERUSER_ID and values.get("active") is True
-        if owned and self.env.uid == SUPERUSER_ID and ("password" in values or values.get("active")):
+        preparing = self.browse([])
+        if self.env.uid == SUPERUSER_ID and ("password" in values or "active" in values):
+            preparing = owned.filtered(lambda user: values.get("active", user.active))
+        if preparing:
             identity = json.loads(os.environ.get(RUNTIME_ENV, "null"))
             owner = self._launchplane_readonly_runtime_owner(identity)
-            for user in owned:
+            for user in preparing:
                 user._launchplane_readonly_check_user(owner)
-            values = dict(values, launchplane_readonly_runtime=canonical_identity(identity))
-        if activating and "odoobot_state" in self._fields:
-            values = dict(values, odoobot_state="disabled")
         result = super().write(values)
-        if activating:
-            for user in owned:
+        if preparing:
+            binding: dict[str, Any] = {"launchplane_readonly_runtime": canonical_identity(identity)}
+            if "odoobot_state" in self._fields:
+                binding["odoobot_state"] = "disabled"
+            super(ResUsers, preparing).write(binding)
+            for user in preparing:
                 user._launchplane_readonly_prepare_webclient()
         return result
 
     def _launchplane_readonly_prepare_webclient(self) -> None:
         self.ensure_one()
+        self.env["res.users.settings"]._find_or_create_for_user(self)
         qweb = self.env["ir.qweb"].with_context(lang=self.lang)
         qweb._pregenerate_assets_bundles()
         if self.env["res.lang"]._lang_get(self.lang).direction == "rtl":

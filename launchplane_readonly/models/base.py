@@ -13,15 +13,19 @@ AUTHENTICATING = ContextVar("launchplane_readonly_authenticating", default=False
 class Base(models.AbstractModel):
     _inherit = "base"
 
-    def _launchplane_readonly_actor(self) -> bool:
+    def _launchplane_readonly_users(self) -> "odoo.model.res_users":
         actor_ids = {self.env.uid}
         if request:
             actor_ids.add(request.session.uid)
+        actors = self.env["res.users"].sudo().browse([])
         for uid in actor_ids - {None, False, 1, 2}:
-            user = self.env["res.users"].sudo().browse(uid).exists()
+            user = self.env.user.sudo() if uid == self.env.uid else self.env["res.users"].sudo().browse(uid).exists()
             if user and (user.launchplane_readonly_owner or user.has_group(GROUP)):
-                return True
-        return False
+                actors |= user
+        return actors
+
+    def _launchplane_readonly_actor(self) -> bool:
+        return bool(self._launchplane_readonly_users())
 
     def _launchplane_readonly_refuse(self) -> None:
         if self._launchplane_readonly_actor():

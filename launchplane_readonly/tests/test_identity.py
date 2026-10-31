@@ -6,17 +6,17 @@ from unittest.mock import Mock, patch
 from odoo import SUPERUSER_ID, Command
 from odoo.exceptions import AccessDenied, AccessError
 from odoo.http import request_var
-from odoo.http.session import Session, SessionExpiredException, get_default_session
+from odoo.http.session import Session, SessionExpiredException, get_default_session, session_store
 from odoo.service.model import call_kw
-from odoo.tests import HttpCase, TransactionCase, tagged
-from odoo.tests.common import JsonRpcException
+from odoo.tests import HttpCase, tagged
+from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, JsonRpcException
 from psycopg2.errors import ReadOnlySqlTransaction
 
 from ..policy import COPY_PARAMETER, RUNTIME_ENV, product_login
 
 
 @tagged("post_install", "-at_install")
-class TestReadOnlyIdentity(TransactionCase):
+class TestReadOnlyIdentity(HttpCase):
     def setUp(self) -> None:
         super().setUp()
         self.users = self.env["res.users"].with_user(SUPERUSER_ID)
@@ -57,6 +57,8 @@ class TestReadOnlyIdentity(TransactionCase):
         with self.assertRaises(AccessError):
             self.users._launchplane_readonly_test_identity(self.identity, self.login)
         self.assertTrue(self.user.with_user(self.user)._launchplane_readonly_actor())
+        self.user.write({"active": False, "password": "synthetic-revoked"})
+        self.assertFalse(self.user.active)
 
     def test_production_and_stale_copy_refuse(self) -> None:
         for platform in ("", "prod", "production"):
@@ -95,6 +97,13 @@ class TestReadOnlyIdentity(TransactionCase):
                     preview_user.with_user(preview_user)._check_credentials(
                         {"type": "password", "password": "synthetic-password"}, {"interactive": True}
                     )
+                settings = self.env["res.users.settings"]
+                settings.search([("user_id", "=", preview_user.id)]).unlink()
+                if "odoobot_state" in preview_user._fields:
+                    preview_user.write({"odoobot_state": False})
+                preview_user.write({"password": "synthetic-rotated"})
+                preview_user._launchplane_readonly_check_session()
+                self.assertTrue(settings.search([("user_id", "=", preview_user.id)]))
                 preview_user.write({"active": False, "password": "synthetic-revoked"})
 
     def test_native_rpc_and_sudo_business_writes_refuse(self) -> None:
@@ -240,14 +249,28 @@ class TestReadOnlyIdentity(TransactionCase):
 
 
 @tagged("post_install", "-at_install")
-class TestReadOnlyHttp(TestReadOnlyIdentity, HttpCase):
+class TestReadOnlyHttp(TestReadOnlyIdentity):
     def _login_browser(self) -> None:
-        self.authenticate(None, None)
+        self.authenticate(None, None, session_extra={"_trace_disable": False})
         self.opener.cookies.set("tz", "Europe/Paris")
         result = self.make_jsonrpc_request(
             "/web/session/authenticate", {"db": self.env.cr.dbname, "login": self.login, "password": "synthetic-password"}
         )
         self.assertEqual(result["uid"], self.user.id)
+
+    def test_real_webclient_starts_as_the_qa_identity(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self._login_browser()
+        sid = self.opener.cookies.get_dict()["session_id"]
+        self.addCleanup(session_store().delete, session_store().get(sid))
+        self.session = None
+        self.browser_js(
+            "/odoo",
+            f"""if (document.querySelector('.o_error_dialog')) throw new Error('QA bootstrap failed');
+console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
+            ready="Boolean(document.querySelector('.o_web_client .o_main_navbar'))",
+            cookies={"session_id": sid},
+        )
 
     def _rpc(self, model: str, method: str, args: list) -> object:
         return self.make_jsonrpc_request("/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": {}})

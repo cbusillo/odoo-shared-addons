@@ -10,24 +10,17 @@ from odoo.http import request
 from odoo.http.session import SessionExpiredException, logout
 from psycopg2.errors import ReadOnlySqlTransaction
 
-from ..policy import GROUP
-
 
 class IrHttp(models.AbstractModel):
     _inherit = "ir.http"
 
     @classmethod
-    def _launchplane_readonly_request(cls) -> bool:
-        return request.env["base"]._launchplane_readonly_actor()
-
-    @classmethod
     def _pre_dispatch(cls, rule: Any, args: dict) -> Any:
-        if cls._launchplane_readonly_request():
+        actors = request.env["base"]._launchplane_readonly_users()
+        if actors:
             try:
-                for uid in {request.session.uid, request.env.uid} - {None, False, 1, 2}:
-                    user = request.env["res.users"].sudo().browse(uid).exists()
-                    if user and (user.launchplane_readonly_owner or user.has_group(GROUP)):
-                        user._launchplane_readonly_check_session()
+                for user in actors:
+                    user._launchplane_readonly_check_session()
             except (AccessError, ValueError, TypeError) as error:
                 logout(request.session, keep_db=True)
                 raise SessionExpiredException() from error
@@ -55,7 +48,7 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _dispatch(cls, endpoint: Any) -> Any:
-        if not cls._launchplane_readonly_request():
+        if not request.env["base"]._launchplane_readonly_actor():
             return super()._dispatch(endpoint)
         original = request.env
         manager = nullcontext(original.cr) if original.cr.readonly else cls._launchplane_readonly_cursor()

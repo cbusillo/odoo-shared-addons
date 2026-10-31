@@ -30,7 +30,7 @@ class DiscussRecordLinks(http.Controller):
     out instead of failing the whole response.
     """
 
-    @http.route("/discuss_record_links/search", type="jsonrpc", auth="user", methods=["POST"])
+    @http.route("/discuss_record_links/search", type="jsonrpc", auth="user", methods=["POST"], readonly=True)
     def search(self, term: str = ""):
         env = request.env
         _ensure_internal_user(env)
@@ -77,7 +77,7 @@ class DiscussRecordLinks(http.Controller):
         # Return a single flat list; client groups by .group
         return {"suggestions": suggestions}
 
-    @http.route("/discuss_record_links/labels", type="jsonrpc", auth="user", methods=["POST"])
+    @http.route("/discuss_record_links/labels", type="jsonrpc", auth="user", methods=["POST"], readonly=True)
     def labels(self, targets: list[dict] | None = None):
         """Return rendered labels for a list of {model, id} using configured templates.
 

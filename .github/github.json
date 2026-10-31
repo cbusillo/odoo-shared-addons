@@ -7,6 +7,8 @@
     "codeqlWorkflow": ".github/workflows/codeql.yml",
     "addonGuides": [
       "authentik_sso/AGENTS.md",
+      "device_history/AGENTS.md",
+      "device_history/README.md",
       "discuss_record_links/AGENTS.md",
       "environment_banner/AGENTS.md",
       "environment_banner/README.md",

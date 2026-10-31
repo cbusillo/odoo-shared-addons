@@ -32,6 +32,8 @@ are in [`.github/github.json`](.github/github.json).
   and portal-template behavior.
 - `discuss_record_links`: Discuss/Chatter shortcuts for linking to business
   records.
+- [`device_history`](device_history/README.md): preserve historical parsed
+  device information when raw User-Agent telemetry is unavailable.
 - `environment_banner`: backend banner for identifying non-production
   environments.
 - `external_ids`: generic external-system identity and URL-link management.

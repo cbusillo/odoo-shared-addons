@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="res_device_form" model="ir.ui.view">
+        <field name="name">device.history.device.form</field>
+        <field name="model">res.device</field>
+        <field name="inherit_id" ref="base.res_device_view_form"/>
+        <field name="arch" type="xml">
+            <field name="user_agent" position="after">
+                <field name="raw_user_agent_unavailable" invisible="not raw_user_agent_unavailable"/>
+            </field>
+        </field>
+    </record>
+    <record id="res_session_form" model="ir.ui.view">
+        <field name="name">device.history.session.form</field>
+        <field name="model">res.session</field>
+        <field name="inherit_id" ref="base.res_session_view_form"/>
+        <field name="arch" type="xml">
+            <field name="session_identifier" position="after">
+                <field name="raw_user_agent_unavailable" invisible="not raw_user_agent_unavailable"/>
+            </field>
+        </field>
+    </record>
+</odoo>

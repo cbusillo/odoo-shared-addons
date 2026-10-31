@@ -1,6 +1,7 @@
 import json
 import os
 from types import SimpleNamespace
+from typing import Any
 from unittest.mock import Mock, patch
 
 from odoo import SUPERUSER_ID, Command
@@ -270,7 +271,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             cookies={"session_id": sid},
         )
 
-    def _rpc(self, model: str, method: str, args: list) -> object:
+    def _rpc(self, model: str, method: str, args: list) -> Any:
         return self.make_jsonrpc_request("/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": {}})
 
     def test_real_login_read_preferences_and_write_refusal(self) -> None:

@@ -41,6 +41,8 @@ are in [`.github/github.json`](.github/github.json).
 - [`launchplane_settings`](launchplane_settings/README.md): adapter for applying
   Launchplane-managed instance settings inside Odoo, with a pure installed
   payload projection for verified readers.
+- [`launchplane_readonly`](launchplane_readonly/README.md): owned read-only QA
+  account qualification and server enforcement; tenant addons supply read access.
 - `notification_permission_patch`: browser notification permission observer for
   the Odoo web client.
 - [`printnode_direct_print`](printnode_direct_print/README.md): server-side

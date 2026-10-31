@@ -1,0 +1,6 @@
+<odoo>
+    <record id="group_user" model="res.groups">
+        <field name="name">Read-only QA</field>
+        <field name="implied_ids" eval="[Command.link(ref('base.group_user'))]"/>
+    </record>
+</odoo>

@@ -6,6 +6,8 @@
     "repoGuide": "AGENTS.md",
     "codeqlWorkflow": ".github/workflows/codeql.yml",
     "addonGuides": [
+      "launchplane_readonly/AGENTS.md",
+      "launchplane_readonly/README.md",
       "authentik_sso/AGENTS.md",
       "device_history/AGENTS.md",
       "device_history/README.md",

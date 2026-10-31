@@ -12,7 +12,6 @@
         "sale",
         "account",
         "crm",
-        "delivery",
         "stock",
     ],
     "installable": True,

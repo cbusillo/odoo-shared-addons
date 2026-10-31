@@ -48,7 +48,7 @@ are in [`.github/github.json`](.github/github.json).
 - [`printnode_direct_print`](printnode_direct_print/README.md): server-side
   personal printers by physical paper size, shared by report actions and save
   hooks, with submission after commit.
-- `test_support`: shared fixtures, test helpers, and base test cases.
+- `test_support`: shared fixtures, helpers and base cases; carrier-factory callers declare `delivery` themselves.
 - `transaction_utilities`: transaction and cron runtime-budget helpers.
 
 ## Addon CI

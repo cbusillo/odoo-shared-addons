@@ -10,7 +10,7 @@ from odoo.http import request_var
 from odoo.http.session import Session, SessionExpiredException, get_default_session, session_store
 from odoo.service.model import call_kw
 from odoo.tests import HttpCase, tagged
-from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, JsonRpcException
+from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, TEST_CURSOR_COOKIE_NAME, JsonRpcException
 from psycopg2.errors import ReadOnlySqlTransaction
 
 from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, product_login
@@ -122,6 +122,7 @@ class TestReadOnlyIdentity(HttpCase):
         partner = self.env["res.partner"].create({"name": "Synthetic business record"})
         readonly = partner.with_user(self.user)
         self.assertEqual(readonly.read(["name"])[0]["name"], partner.name)
+        report_ref = "stock.action_report_delivery"
         for operation in (
             lambda: call_kw(readonly, "write", [[partner.id], {"name": "changed"}], {}),
             lambda: readonly.sudo().write({"name": "changed"}),
@@ -131,9 +132,9 @@ class TestReadOnlyIdentity(HttpCase):
             lambda: self.user.with_user(self.user)._launchplane_readonly_test_identity(self.identity, self.login),
             lambda: self.env["ir.actions.server"].with_user(self.user).sudo().run(),
             lambda: self.env["ir.actions.report"].with_user(self.user).sudo().report_action([partner.id]),
-            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_pdf("missing-report"),
-            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_html("missing-report", [partner.id]),
-            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_text("missing-report", [partner.id]),
+            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_pdf(report_ref),
+            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_html(report_ref, [partner.id]),
+            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_text(report_ref, [partner.id]),
         ):
             with self.subTest(operation=operation), self.assertRaises(AccessError):
                 operation()
@@ -162,7 +163,13 @@ class TestReadOnlyIdentity(HttpCase):
             self.env["res.users.apikeys"].with_user(user).sudo().create({"name": "unsafe", "user_id": user.id})
 
     def test_readonly_dispatch_refuses_raw_sql_even_after_commit(self) -> None:
-        fake = SimpleNamespace(env=self.env(user=self.user), session=SimpleNamespace(uid=self.user.id), params={})
+        self.env.flush_all()
+        fake = SimpleNamespace(
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id),
+            params={},
+            httprequest=SimpleNamespace(cookies={TEST_CURSOR_COOKIE_NAME: self.http_request_key}),
+        )
         token = request_var.set(fake)
         self.addCleanup(request_var.reset, token)
 
@@ -188,7 +195,13 @@ class TestReadOnlyIdentity(HttpCase):
     def test_native_readonly_cursor_sees_uncommitted_records(self) -> None:
         partner = self.env["res.partner"].create({"name": "Synthetic uncommitted record"})
         self.env.flush_all()
-        fake = SimpleNamespace(env=self.env(user=self.user), session=SimpleNamespace(uid=self.user.id), params={})
+        self.env.flush_all()
+        fake = SimpleNamespace(
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id),
+            params={},
+            httprequest=SimpleNamespace(cookies={TEST_CURSOR_COOKIE_NAME: self.http_request_key}),
+        )
         token = request_var.set(fake)
         self.addCleanup(request_var.reset, token)
 
@@ -211,11 +224,14 @@ class TestReadOnlyIdentity(HttpCase):
 
     def test_native_read_pre_dispatch_allows_superuser_configuration_reads(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
         dispatcher = SimpleNamespace(pre_dispatch=Mock())
         fake = SimpleNamespace(
             env=self.env(user=self.user),
-            session=SimpleNamespace(uid=self.user.id),
-            httprequest=SimpleNamespace(path="/web/session/get_session_info", max_content_length=None),
+            session=SimpleNamespace(uid=self.user.id, debug=False),
+            httprequest=SimpleNamespace(path="/web/session/get_session_info", max_content_length=None, args={}),
+            is_frontend=False,
+            is_frontend_multilang=False,
             dispatcher=dispatcher,
         )
 
@@ -234,8 +250,9 @@ class TestReadOnlyIdentity(HttpCase):
 
     def test_stale_session_logs_out_instead_of_trapping_the_browser(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
         session = Session(dict(get_default_session(), uid=self.user.id, db=self.env.cr.dbname), "synthetic-session")
-        fake = SimpleNamespace(env=self.env(user=self.user), session=session, default_lang=lambda: "en_US")
+        fake = SimpleNamespace(env=self.env(user=self.user), session=session, default_lang=lambda: "en_US", future_response=Mock())
         token = request_var.set(fake)
         self.addCleanup(request_var.reset, token)
         self.identity["deployment_record_id"] = "refreshed"
@@ -246,6 +263,7 @@ class TestReadOnlyIdentity(HttpCase):
     def test_request_guard_refuses_business_routes_before_dispatch(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})
         self.user._launchplane_readonly_check_session()
+        self.env.flush_all()
         fake = SimpleNamespace(
             env=self.env(user=self.user), session=SimpleNamespace(uid=self.user.id), httprequest=SimpleNamespace(path="")
         )
@@ -262,10 +280,19 @@ class TestReadOnlyIdentity(HttpCase):
     def _login_browser(self) -> None:
         self.authenticate(None, None, session_extra={"_trace_disable": False})
         self.opener.cookies.set("tz", "Europe/Paris")
-        result = self.make_jsonrpc_request(
-            "/web/session/authenticate", {"db": self.env.cr.dbname, "login": self.login, "password": "synthetic-password"}
+        response = self.opener.post(
+            self.base_url() + "/web/session/authenticate",
+            json={
+                "id": 0,
+                "jsonrpc": "2.0",
+                "method": "call",
+                "params": {"db": self.env.cr.dbname, "login": self.login, "password": "synthetic-password"},
+            },
         )
-        self.assertEqual(result["uid"], self.user.id)
+        response.raise_for_status()
+        decoded = response.json()
+        self.assertNotIn("error", decoded, decoded.get("error", {}).get("data", {}).get("debug"))
+        self.assertEqual(decoded["result"]["uid"], self.user.id)
 
     def test_real_webclient_starts_as_the_qa_identity(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})

@@ -1,4 +1,6 @@
+from collections.abc import Callable
 from contextlib import nullcontext
+from functools import partial
 from typing import Any
 
 from odoo import models, sql_db
@@ -27,7 +29,7 @@ class IrHttp(models.AbstractModel):
             path = request.httprequest.path
             controller = rule.endpoint.func.__self__
             if isinstance(controller, (ReportController, Export, ExportFormat)) or path.startswith(
-                ("/web/action/run", "/base_import", "/web/dataset/call_button")
+                ("/web/action/run", "/base_import")
             ):
                 raise AccessError(request.env._("This test identity can only read records."))
             readonly = rule.endpoint.routing.get("readonly", False)
@@ -36,6 +38,7 @@ class IrHttp(models.AbstractModel):
             bootstrap = rule.endpoint.func.__name__ == "web_client" and isinstance(controller, Home)
             if not (readonly or bootstrap):
                 raise AccessError(request.env._("This test identity cannot use this action."))
+            request.dispatcher.dispatch = partial(cls._launchplane_readonly_call, request.dispatcher.dispatch)
         return super()._pre_dispatch(rule, args)
 
     @classmethod
@@ -48,15 +51,23 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _dispatch(cls, endpoint: Any) -> Any:
+        return cls._launchplane_readonly_call(super()._dispatch, endpoint)
+
+    @classmethod
+    def _post_dispatch(cls, response: Any) -> Any:
+        return cls._launchplane_readonly_call(super()._post_dispatch, response)
+
+    @classmethod
+    def _launchplane_readonly_call(cls, operation: Callable[..., Any], *args: Any) -> Any:
         if not request.env["base"]._launchplane_readonly_actor():
-            return super()._dispatch(endpoint)
+            return operation(*args)
         original = request.env
         manager = nullcontext(original.cr) if original.cr.readonly else cls._launchplane_readonly_cursor()
         with manager as cursor:
             request.env = original(cr=cursor)
             try:
                 try:
-                    result = super()._dispatch(endpoint)
+                    result = operation(*args)
                     request.env.flush_all()
                     return result
                 except ReadOnlySqlTransaction as error:

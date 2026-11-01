@@ -1,18 +1,21 @@
 import json
 import os
+from collections.abc import Iterator
+from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
 
-from odoo import SUPERUSER_ID, Command
+from odoo import SUPERUSER_ID, Command, api
 from odoo.addons.web.controllers.export import Export, ExportFormat
 from odoo.addons.web.controllers.report import ReportController
 from odoo.exceptions import AccessDenied, AccessError
-from odoo.http import request_var
+from odoo.http import request, request_var
 from odoo.http.session import Session, SessionExpiredException, get_default_session, session_store
 from odoo.service.model import call_kw
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, TEST_CURSOR_COOKIE_NAME, JsonRpcException
+from odoo.tools import lazy
 from psycopg2.errors import ReadOnlySqlTransaction
 
 from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, product_login
@@ -228,7 +231,7 @@ class TestReadOnlyIdentity(HttpCase):
     def test_native_read_pre_dispatch_allows_superuser_configuration_reads(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})
         self.env.flush_all()
-        dispatcher = SimpleNamespace(pre_dispatch=Mock())
+        dispatcher = SimpleNamespace(pre_dispatch=Mock(), dispatch=Mock())
         fake = SimpleNamespace(
             env=self.env(user=self.user),
             session=SimpleNamespace(uid=self.user.id, debug=False),
@@ -283,7 +286,7 @@ class TestReadOnlyIdentity(HttpCase):
             ("/web/export/formats", ExportFormat(), True),
             ("/web/action/run", None, True),
             ("/base_import/import", None, True),
-            ("/web/dataset/call_button", None, True),
+            ("/web/dataset/call_button", None, False),
         ):
             fake.httprequest.path = path
             function.__self__ = controller
@@ -324,6 +327,111 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
 
     def _rpc(self, model: str, method: str, args: list) -> Any:
         return self.make_jsonrpc_request("/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": {}})
+
+    @contextmanager
+    def _initial_writable_rpc_cursor(self) -> Iterator[None]:
+        native_cursor = self.registry.cursor
+        native_mode = self._registry_readonly_enabled
+        self.set_registry_readonly_mode(True)
+        first = True
+
+        def cursor(readonly: bool = False) -> Any:
+            nonlocal first
+            if first and request and request.httprequest.path.startswith("/web/dataset/call_kw"):
+                first = False
+                return native_cursor(readonly=False)
+            return native_cursor(readonly=readonly)
+
+        try:
+            with patch.object(self.registry, "cursor", cursor):
+                yield
+        finally:
+            self.set_registry_readonly_mode(native_mode)
+
+    def test_real_http_materializes_lazy_reads_before_closing_readonly_cursor(
+        self,
+    ) -> None:
+        partner = self.env["res.partner"].create({"name": "Synthetic lazy HTTP record"})
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+
+        @api.model
+        @api.readonly
+        def read_lazy(partners: "odoo.model.res_partner") -> dict:
+            def read_name() -> str:
+                partners.env.cr.execute("SELECT name FROM res_partner WHERE id=%s", (partner.id,))
+                return partners.env.cr.fetchone()[0]
+
+            return {"name": lazy(read_name)}
+
+        with (
+            self._initial_writable_rpc_cursor(),
+            patch.object(type(partner), "launchplane_test_lazy_read", read_lazy, create=True),
+        ):
+            self.assertEqual(
+                self._rpc(partner._name, "launchplane_test_lazy_read", []),
+                {"name": partner.name},
+            )
+
+    def test_real_http_lazy_sql_write_refuses_without_writable_retry(self) -> None:
+        partner = self.env["res.partner"].create({"name": "Synthetic immutable HTTP record"})
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        calls = []
+
+        @api.model
+        @api.readonly
+        def lazy_write(partners: "odoo.model.res_partner") -> dict:
+            def write_sql() -> None:
+                calls.append(partners.env.cr.readonly)
+                partners.env.cr.commit()
+                partners.env.cr.execute(
+                    "UPDATE res_partner SET name=%s WHERE id=%s",
+                    ("Unsafe lazy HTTP write", partner.id),
+                )
+
+            return {"value": lazy(write_sql)}
+
+        with (
+            self._initial_writable_rpc_cursor(),
+            patch.object(type(partner), "launchplane_test_lazy_write", lazy_write, create=True),
+        ):
+            with self.assertRaises(JsonRpcException) as refusal:
+                self._rpc(partner._name, "launchplane_test_lazy_write", [])
+            self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+        self.assertEqual(calls, [True])
+        partner.invalidate_recordset(["name"])
+        self.assertEqual(partner.name, "Synthetic immutable HTTP record")
+
+    def test_real_http_readonly_button_matches_native_rpc_read(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        expected = self._rpc("res.users", "action_get", [])
+        actual = self.make_jsonrpc_request(
+            "/web/dataset/call_button",
+            {"model": "res.users", "method": "action_get", "args": [], "kwargs": {}},
+        )
+        self.assertEqual(actual["res_model"], expected["res_model"])
+        with self.assertRaises(JsonRpcException):
+            self.make_jsonrpc_request(
+                "/web/dataset/call_button",
+                {"model": "res.users", "method": "write", "args": [[self.user.id], {"tz": "UTC"}], "kwargs": {}},
+            )
+
+    def test_real_http_prepared_worker_bundle_is_readable_without_asset_writes(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        attachments = self.env["ir.attachment"].sudo()
+        before = attachments.search_count([])
+        self._login_browser()
+        response = self.url_open("/bus/websocket_worker_bundle")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("javascript", response.headers["Content-Type"])
+        self.assertTrue(response.content)
+        self.assertEqual(attachments.search_count([]), before)
 
     def test_real_login_read_preferences_and_write_refusal(self) -> None:
         partner = self.env["res.partner"].create({"name": "Synthetic HTTP record"})

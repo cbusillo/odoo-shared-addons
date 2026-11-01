@@ -44,7 +44,7 @@ preparation propagates to the native consumer; this addon never commits.
 
 For the QA actor, HTTP requests require native readonly classification, with
 the native web-client bootstrap admitted separately. Reports, printing, server
-actions, imports, exports and button execution refuse before dispatch. Admitted
+actions, imports, exports and non-readonly button execution refuse before dispatch. Admitted
 requests execute through PostgreSQL's read-only connection pool without Odoo's
 writable fallback, including after a commit. ORM create/write/delete also refuse
 for the QA actor, including sudo and user switches inside its HTTP request. Reports and server actions
@@ -56,6 +56,16 @@ Ordinary users retain native behavior. This trusts image-owned readonly methods
 to avoid external effects; readonly classification is not permission to add an
 external call to a read method. Copied production data must pass the product's
 credential sanitizer before serving, independently of this addon.
+
+The request-local dispatcher runs under the same read-only backstop through
+response serialization, including lazy mail-store values. Native readonly
+button methods use the same routing predicate as ordinary model reads; opening
+an action does not authorize executing its business operation. The native bus
+worker-bundle controller is classified readonly for QA actors and uses the assets already
+pregenerated during service preparation. Cold cache writes still refuse for
+the QA identity; ordinary users retain native cache-generation fallback.
+Native JSON/QWeb and resolved asset responses are covered; arbitrary streaming
+responses that defer database reads beyond dispatch are not qualified by this boundary.
 
 Run this addon's complete native tests through the repository's focused
 `qualityGate.test.local` selection. `test_policy.py` also runs without Odoo via

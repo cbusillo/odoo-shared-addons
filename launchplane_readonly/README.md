@@ -61,8 +61,10 @@ The request-local dispatcher runs under the same read-only backstop through
 response serialization, including lazy JSON values. Model-converter arguments
 and request parameters use that guarded environment. Cursor flush/precommit work,
 error rendering and cursor-context exit remain inside the refusal boundary;
-the original environment is restored only afterward. Unclassified fallback
-routes refuse for the QA identity before native fallback work. Native readonly
+the original environment is restored only afterward. The base attachment
+fallback refuses for the QA identity. An installed addon's earlier MRO override
+may run before that hook and requires its own source qualification; this is not
+a blanket guarantee for website fallback handlers. Native readonly
 button methods use the same routing predicate as ordinary model reads; opening
 an action does not authorize executing its business operation. The native bus
 worker-bundle controller is classified readonly for QA actors and uses the assets already

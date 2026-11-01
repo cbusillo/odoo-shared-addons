@@ -298,7 +298,7 @@ class TestReadOnlyIdentity(HttpCase):
         fake = SimpleNamespace(
             env=self.env(user=self.user),
             session=SimpleNamespace(uid=self.user.id, debug=False),
-            params={},
+            params=None,
             httprequest=SimpleNamespace(
                 path="/synthetic/converter",
                 max_content_length=None,

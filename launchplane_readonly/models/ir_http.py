@@ -88,13 +88,6 @@ class IrHttp(models.AbstractModel):
         try:
             with manager as cursor:
                 request.env = original(cr=cursor)
-                parameters = getattr(request, "params", None)
-                if parameters is not None:
-                    parameters.update(
-                        (key, value.with_env(request.env))
-                        for key, value in parameters.items()
-                        if isinstance(value, models.BaseModel)
-                    )
                 result = operation(*args)
                 cursor.flush()
                 return result

@@ -299,7 +299,12 @@ class TestReadOnlyIdentity(HttpCase):
             env=self.env(user=self.user),
             session=SimpleNamespace(uid=self.user.id, debug=False),
             params={},
-            httprequest=SimpleNamespace(path="/synthetic/converter", max_content_length=None, args={}),
+            httprequest=SimpleNamespace(
+                path="/synthetic/converter",
+                max_content_length=None,
+                args={},
+                cookies={TEST_CURSOR_COOKIE_NAME: self.http_request_key},
+            ),
             is_frontend=False,
             is_frontend_multilang=False,
             dispatcher=SimpleNamespace(pre_dispatch=Mock(), dispatch=dispatch),
@@ -344,7 +349,12 @@ class TestReadOnlyIdentity(HttpCase):
         self.assertIs(fake.env, original)
 
     def test_fallback_refuses_before_native_work_and_error_rendering_is_readonly(self) -> None:
-        fake = SimpleNamespace(env=self.env(user=self.user), session=SimpleNamespace(uid=self.user.id))
+        self.env.flush_all()
+        fake = SimpleNamespace(
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id),
+            httprequest=SimpleNamespace(cookies={TEST_CURSOR_COOKIE_NAME: self.http_request_key}),
+        )
         token = request_var.set(fake)
         self.addCleanup(request_var.reset, token)
         http = self.env.registry["ir.http"]

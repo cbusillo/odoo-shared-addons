@@ -38,7 +38,7 @@ class IrHttp(models.AbstractModel):
             bootstrap = rule.endpoint.func.__name__ == "web_client" and isinstance(controller, Home)
             if not (readonly or bootstrap):
                 raise AccessError(request.env._("This test identity cannot use this action."))
-            request.dispatcher.dispatch = partial(cls._launchplane_readonly_call, request.dispatcher.dispatch)
+            request.dispatcher.dispatch = partial(cls._launchplane_readonly_dispatch, request.dispatcher.dispatch)
         return super()._pre_dispatch(rule, args)
 
     @classmethod
@@ -58,20 +58,48 @@ class IrHttp(models.AbstractModel):
         return cls._launchplane_readonly_call(super()._post_dispatch, response)
 
     @classmethod
+    def _serve_fallback(cls) -> Any:
+        if request.env["base"]._launchplane_readonly_actor():
+            raise AccessError(request.env._("This test identity cannot use this action."))
+        return super()._serve_fallback()
+
+    @classmethod
+    def _handle_error(cls, exception: Exception) -> Any:
+        return cls._launchplane_readonly_call(super()._handle_error, exception)
+
+    @classmethod
+    def _launchplane_readonly_dispatch(cls, operation: Callable[..., Any], endpoint: Any, args: dict) -> Any:
+        def dispatch() -> Any:
+            values = {
+                key: value.with_env(request.env) if isinstance(value, models.BaseModel) else value
+                for key, value in args.items()
+            }
+            return operation(endpoint, values)
+
+        return cls._launchplane_readonly_call(dispatch)
+
+    @classmethod
     def _launchplane_readonly_call(cls, operation: Callable[..., Any], *args: Any) -> Any:
         if not request.env["base"]._launchplane_readonly_actor():
             return operation(*args)
         original = request.env
         manager = nullcontext(original.cr) if original.cr.readonly else cls._launchplane_readonly_cursor()
-        with manager as cursor:
-            request.env = original(cr=cursor)
-            try:
-                try:
-                    result = operation(*args)
-                    request.env.flush_all()
-                    return result
-                except ReadOnlySqlTransaction as error:
-                    cursor.rollback()
-                    raise AccessError(original._("This test identity cannot change database records.")) from error
-            finally:
-                request.env = original
+        cursor = None
+        try:
+            with manager as cursor:
+                request.env = original(cr=cursor)
+                if hasattr(request, "params"):
+                    request.params.update(
+                        (key, value.with_env(request.env))
+                        for key, value in request.params.items()
+                        if isinstance(value, models.BaseModel)
+                    )
+                result = operation(*args)
+                cursor.flush()
+                return result
+        except ReadOnlySqlTransaction as error:
+            if cursor is not None and not cursor.closed:
+                cursor.rollback()
+            raise AccessError(original._("This test identity cannot change database records.")) from error
+        finally:
+            request.env = original

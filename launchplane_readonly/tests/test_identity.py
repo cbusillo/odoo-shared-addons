@@ -428,7 +428,7 @@ class TestReadOnlyIdentity(HttpCase):
             "/odoo",
             f"""if (document.querySelector('.o_error_dialog')) throw new Error('QA bootstrap failed');
 console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
-            ready="Boolean(document.querySelector('.o_web_client .o_main_navbar'))",
+            ready="Boolean(document.querySelector('.o_error_dialog, .o_action_manager .o_search_panel'))",
             cookies={"session_id": sid},
         )
 

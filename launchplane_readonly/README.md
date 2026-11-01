@@ -58,7 +58,11 @@ external call to a read method. Copied production data must pass the product's
 credential sanitizer before serving, independently of this addon.
 
 The request-local dispatcher runs under the same read-only backstop through
-response serialization, including lazy mail-store values. Native readonly
+response serialization, including lazy JSON values. Model-converter arguments
+and request parameters use that guarded environment. Cursor flush/precommit work,
+error rendering and cursor-context exit remain inside the refusal boundary;
+the original environment is restored only afterward. Unclassified fallback
+routes refuse for the QA identity before native fallback work. Native readonly
 button methods use the same routing predicate as ordinary model reads; opening
 an action does not authorize executing its business operation. The native bus
 worker-bundle controller is classified readonly for QA actors and uses the assets already
@@ -84,3 +88,12 @@ asset variant, and generated error CSS is not a successful frontend check.
 The service browser refuses websockets; live updates are outside this read-only
 surface. Missing assets do not grant QA a cache-write exception.
 Source tests do not establish actual CM preview activation or authenticated QA.
+The synthetic lazy JSON tests exercise the serializer used by mail-store
+responses; they do not call `/mail/store` directly. HttpCase uses native
+TestCursors so its uncommitted account/record fixtures remain visible. It does
+not establish a complete HTTP request through the separate PostgreSQL pool
+fallback used when a registry returns a writable cursor. A dedicated native
+cursor-context test covers the real pool's exit hooks. The web-client check
+waits for the default action's search panel or an error dialog instead of
+passing as soon as the navigation bar appears; product QA still owns the
+installed app's complete read surface.

@@ -376,6 +376,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
 
     def test_real_http_lazy_sql_write_refuses_without_writable_retry(self) -> None:
         partner = self.env["res.partner"].create({"name": "Synthetic immutable HTTP record"})
+        expected_name = partner.name
         self.user.write({"active": True, "password": "synthetic-password"})
         self.env.flush_all()
         self._login_browser()
@@ -403,7 +404,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
         self.assertEqual(calls, [True])
         partner.invalidate_recordset(["name"])
-        self.assertEqual(partner.name, "Synthetic immutable HTTP record")
+        self.assertEqual(partner.name, expected_name)
 
     def test_real_http_readonly_button_matches_native_rpc_read(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})

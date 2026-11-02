@@ -111,7 +111,9 @@ responses that defer database reads beyond dispatch are not qualified by this bo
 The mail dependency supplies native chatter reads. For the QA actor only,
 the native `/mail/thread/messages` store handler retains native thread access,
 message filtering and projection without marking notifications read. Its resolved
-handler must be this addon's read-only implementation on every request. Other
+handler must be this addon's read-only implementation with the native parent
+handler on every request; an intervening override refuses rather than losing
+its filtering. Other
 store handlers retain native readonly classification; a batch containing a
 mutating handler refuses before any handler runs. Ordinary users retain the
 native message-read bookkeeping. The existing cursor guard covers the complete

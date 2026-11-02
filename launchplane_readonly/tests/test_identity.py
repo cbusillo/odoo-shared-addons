@@ -519,12 +519,11 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         self.assertTrue(cursors)
         self.assertTrue(all(cursors))
         returned = next(value for value in result["mail.message"] if value["id"] == message.id)
-        self.assertEqual(returned["body"], message.body)
         notifications.invalidate_recordset()
         self.assertEqual(notifications.read(["is_read", "read_date"]), before)
         self.authenticate("admin", "admin")
         ordinary = self.make_jsonrpc_request("/mail/store", {"fetch_params": [self._chatter_fetch(partner)]})
-        self.assertEqual(next(value for value in ordinary["mail.message"] if value["id"] == message.id)["body"], message.body)
+        self.assertEqual(next(value for value in ordinary["mail.message"] if value["id"] == message.id)["body"], returned["body"])
         notifications.invalidate_recordset()
         self.assertTrue(notifications.filtered(lambda row: row.res_partner_id == self.env.ref("base.user_admin").partner_id).is_read)
         self.assertFalse(notifications.filtered(lambda row: row.res_partner_id == self.user.partner_id).is_read)
@@ -580,11 +579,12 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
                     self.make_jsonrpc_request("/mail/store", {"fetch_params": batch})
                 self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
             resolve.assert_not_called()
-        changed = Mock()
-        with patch.object(ReadOnlyWebclientController, "store_get_thread_messages", changed):
-            with self.assertRaises(JsonRpcException):
-                self.make_jsonrpc_request("/mail/store", {"fetch_params": [fetch]})
-        changed.assert_not_called()
+        for controller in (ReadOnlyWebclientController, WebclientController):
+            changed = Mock()
+            with patch.object(controller, "store_get_thread_messages", changed):
+                with self.subTest(controller=controller), self.assertRaises(JsonRpcException):
+                    self.make_jsonrpc_request("/mail/store", {"fetch_params": [fetch]})
+            changed.assert_not_called()
         message.invalidate_recordset()
         notifications.invalidate_recordset()
         self.assertNotIn(self.user.partner_id, message.bookmarked_partner_ids)

@@ -7,6 +7,8 @@ from odoo.addons.mail.tools.store_handler import store_handler_registry
 from odoo.fields import Domain
 from odoo.http import request
 
+NATIVE_THREAD_MESSAGES = WebclientController.store_get_thread_messages
+
 
 class ReadOnlyWebclientController(WebclientController):
     def _is_mail_fetch_readonly(self) -> bool:
@@ -19,6 +21,8 @@ class ReadOnlyWebclientController(WebclientController):
                 entry = store_handler_registry._items.get(name)
                 handler = getattr(self, entry.func_name, None) if entry else None
                 if getattr(handler, "__func__", None) is not READONLY_THREAD_MESSAGES:
+                    return False
+                if getattr(super().store_get_thread_messages, "__func__", None) is not NATIVE_THREAD_MESSAGES:
                     return False
             elif not store_handler_registry.is_fetch_readonly([fetch_param]):
                 return False

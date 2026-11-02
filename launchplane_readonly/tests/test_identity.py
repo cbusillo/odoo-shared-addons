@@ -432,7 +432,9 @@ class TestReadOnlyIdentity(HttpCase):
         self.assertEqual(decoded["result"]["uid"], self.user.id)
 
     def test_real_webclient_starts_as_the_qa_identity(self) -> None:
+        employee = self._create_employee_with_department()
         self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
         self._login_browser()
         sid = self.opener.cookies.get_dict()["session_id"]
         self.addCleanup(session_store().delete, session_store().get(sid))
@@ -440,9 +442,28 @@ class TestReadOnlyIdentity(HttpCase):
         self.browser_js(
             "/odoo",
             f"""if (document.querySelector('.o_error_dialog')) throw new Error('QA bootstrap failed');
+const cards = [...document.querySelectorAll('.o_action_manager .o_kanban_record')];
+if (!cards.some(card => card.textContent.includes({json.dumps(employee.name)}))) {{
+    throw new Error('The QA employee was not rendered');
+}}
+const values = [...document.querySelectorAll('.o_action_manager .o_search_panel_category_value_header')];
+for (const name of {json.dumps([employee.company_id.display_name, employee.department_id.display_name])}) {{
+    const value = values.find(row => row.querySelector('.o_search_panel_label_title')?.textContent.trim() === name);
+    if (!(Number(value?.querySelector('.o_search_panel_counter')?.textContent.trim()) > 0)) {{
+        throw new Error('The QA company or department range was not rendered with a counter');
+    }}
+}}
 console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
-            ready="Boolean(document.querySelector('.o_error_dialog, .o_action_manager .o_search_panel'))",
+            ready="Boolean(document.querySelector('.o_error_dialog') || "
+            "(document.querySelector('.o_action_manager .o_search_panel') && "
+            "document.querySelector('.o_action_manager .o_kanban_record')))",
             cookies={"session_id": sid},
+        )
+
+    def _create_employee_with_department(self) -> "odoo.model.hr_employee":
+        department = self.env["hr.department"].create({"name": "Synthetic QA department"})
+        return self.env["hr.employee"].create(
+            {"name": "Synthetic QA employee", "department_id": department.id, "company_id": self.env.company.id}
         )
 
     def _rpc(self, model: str, method: str, args: list, kwargs: dict | None = None) -> Any:
@@ -453,17 +474,14 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
     def test_real_http_employee_ranges_match_native_reads_with_counters(self) -> None:
         if "hr.employee.public" not in self.registry:
             self.skipTest("The Employee read requires the installed hr addon.")
-        department = self.env["hr.department"].create({"name": "Synthetic QA department"})
-        employee = self.env["hr.employee"].create(
-            {"name": "Synthetic QA employee", "department_id": department.id, "company_id": self.env.company.id}
-        )
+        employee = self._create_employee_with_department()
         self.user.write({"active": True, "password": "synthetic-password"})
         self.env.flush_all()
         self._login_browser()
         employees = self.env["hr.employee.public"].with_user(self.user)
         for field, hierarchize, value in (
             ("company_id", False, employee.company_id.id),
-            ("department_id", True, department.id),
+            ("department_id", True, employee.department_id.id),
         ):
             kwargs = {"enable_counters": True, "hierarchize": hierarchize, "search_domain": [("id", "=", employee.id)]}
             expected = NATIVE_RANGE_READ(employees, field, **kwargs)

@@ -18,6 +18,26 @@ collision-free shell, and creates an inactive shell when `create=True`.
 Both helpers use only the caller's transaction and never commit or set a password.
 The pure `policy.product_login(product)` implements the LP login contract once.
 
+Registry-free copy consumers load `launchplane_readonly/policy.py` directly by
+file path, without importing the addon package and its Odoo adapters. The module
+also owns `GROUP`, `IMPLIED_GROUP`, `FORBIDDEN_IMPLIED_GROUPS`,
+`operative_marker_key(product: str) -> str` and `FIXTURE_JOURNAL_KEY`. The native
+role adapter uses those declarations: the QA role's direct implications must be
+exactly `IMPLIED_GROUP`, and its reflexive transitive closure must exclude every
+installed forbidden group. Missing optional XMLIDs are ignored. Account checks
+still require exactly the QA direct group and the same effective closure as that
+role, alongside the existing ownership, login and credential checks. A direct
+membership check alone does not qualify the role.
+
+The operative key retains the existing product-derived walkthrough identity;
+the fixture key names only the read-only identity journal. These are exact keys,
+not namespace selectors. Other fixture journals and ordinary walkthroughs keep
+their existing contracts. Existing images do not gain these exports until they
+adopt this source; consumer adapters must retain their legacy path for those
+images during coordinated adoption. The pre-registry sanitizer must require
+these exports before attempting the new copied-QA transition. Loading this
+policy grants no account or data operation, and does not prove consumer adoption.
+
 Qualification compares the caller to `LAUNCHPLANE_RUNTIME_IDENTITY_JSON`,
 requires the appropriate `PLATFORM_INSTANCE` (`testing` or `preview`), and
 binds ownership to the product, context, instance, database name and UUID.

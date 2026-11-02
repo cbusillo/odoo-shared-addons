@@ -5,7 +5,16 @@ from typing import Any
 from odoo import SUPERUSER_ID, Command, api, fields, models
 from odoo.exceptions import AccessDenied, AccessError
 
-from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, canonical_identity, product_login, qualify_runtime
+from ..policy import (
+    COPY_PARAMETER,
+    FORBIDDEN_IMPLIED_GROUPS,
+    GROUP,
+    IMPLIED_GROUP,
+    RUNTIME_ENV,
+    canonical_identity,
+    product_login,
+    qualify_runtime,
+)
 from .base import AUTHENTICATING
 
 
@@ -33,19 +42,10 @@ class ResUsers(models.Model):
     @api.model
     def _launchplane_readonly_group(self) -> "odoo.model.res_groups":
         group = self.env.ref(GROUP)
-        internal = self.env.ref("base.group_user")
-        forbidden = (
-            "base.group_system",
-            "base.group_erp_manager",
-            "base.group_allow_export",
-            "base.group_sanitize_override",
-            "stock.group_stock_user",
-            "account.group_account_invoice",
-            "purchase.group_purchase_user",
-            "sales_team.group_sale_salesman",
-        )
+        internal = self.env.ref(IMPLIED_GROUP)
         if group.implied_ids != internal or any(
-            (denied := self.env.ref(xmlid, raise_if_not_found=False)) and denied in group.all_implied_ids for xmlid in forbidden
+            (denied := self.env.ref(xmlid, raise_if_not_found=False)) and denied in group.all_implied_ids
+            for xmlid in FORBIDDEN_IMPLIED_GROUPS
         ):
             raise AccessError(self.env._("The read-only role has unexpected privileges."))
         return group

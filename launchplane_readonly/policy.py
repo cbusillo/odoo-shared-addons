@@ -7,6 +7,18 @@ from typing import Any
 RUNTIME_ENV = "LAUNCHPLANE_RUNTIME_IDENTITY_JSON"
 COPY_PARAMETER = "launchplane.testing_copy.restore_complete"
 GROUP = "launchplane_readonly.group_user"
+IMPLIED_GROUP = "base.group_user"
+FORBIDDEN_IMPLIED_GROUPS = (
+    "base.group_system",
+    "base.group_erp_manager",
+    "base.group_allow_export",
+    "base.group_sanitize_override",
+    "stock.group_stock_user",
+    "account.group_account_invoice",
+    "purchase.group_purchase_user",
+    "sales_team.group_sale_salesman",
+)
+FIXTURE_JOURNAL_KEY = "launchplane.preview_fixture.read-only-test-identity"
 
 
 def matches_native_read(model: type, method: str, implementation: Callable, helpers: tuple[Callable, ...]) -> bool:
@@ -26,9 +38,17 @@ def canonical_identity(identity: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
-def product_login(product: str) -> str:
+def _product_token(product: str) -> str:
     encoded = json.dumps(product, ensure_ascii=True, allow_nan=False, sort_keys=True, separators=(",", ":")).encode()
-    return "lp_walk_" + hashlib.sha256(encoded).hexdigest()[:32]
+    return hashlib.sha256(encoded).hexdigest()[:32]
+
+
+def product_login(product: str) -> str:
+    return "lp_walk_" + _product_token(product)
+
+
+def operative_marker_key(product: str) -> str:
+    return "launchplane.walkthrough." + _product_token(product)
 
 
 def qualify_runtime(

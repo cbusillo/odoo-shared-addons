@@ -1,0 +1,21 @@
+{
+  "sources": [
+    "https://github.com/cbusillo/launchplane/blob/bce5a4044f18e89870dd662198707753b4130116/control_plane/contracts/odoo_walkthrough.py",
+    "https://github.com/cbusillo/launchplane/blob/bce5a4044f18e89870dd662198707753b4130116/control_plane/contracts/canonical_json.py",
+    "https://github.com/cbusillo/launchplane/blob/bce5a4044f18e89870dd662198707753b4130116/control_plane/dokploy/odoo_walkthrough.py",
+    "https://github.com/cbusillo/odoo-tenant-cm/blob/e7f5110da6bdc042410b44de6d571957ff2c43e8/addons/cm_stock_scanner/scenarios/preview_fixture.py"
+  ],
+  "fixture_journal_key": "launchplane.preview_fixture.read-only-test-identity",
+  "products": [
+    {
+      "product": "synthetic-product",
+      "login": "lp_walk_36da7c409ff042b931aa6e76c6ffcc46",
+      "operative_marker_key": "launchplane.walkthrough.36da7c409ff042b931aa6e76c6ffcc46"
+    },
+    {
+      "product": "synthetic-\u2603-\"quoted\"",
+      "login": "lp_walk_fc1a4dee041927c24e185576f94bd848",
+      "operative_marker_key": "launchplane.walkthrough.fc1a4dee041927c24e185576f94bd848"
+    }
+  ]
+}

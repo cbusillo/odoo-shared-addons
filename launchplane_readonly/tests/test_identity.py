@@ -2,7 +2,7 @@ import json
 import os
 from collections.abc import Iterator
 from contextlib import contextmanager, nullcontext
-from types import SimpleNamespace
+from types import MethodType, SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
 
@@ -569,11 +569,10 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         self.env.flush_all()
         effects = []
 
-        class UnqualifiedDataSet(DataSet):
-            def call_kw(self, *args: Any, **kwargs: Any) -> None:
-                effects.append("controller override ran")
+        def unqualified(controller: DataSet, *args: Any, **kwargs: Any) -> None:
+            effects.append("controller override ran")
 
-        controller = UnqualifiedDataSet()
+        endpoint = MethodType(unqualified, DataSet())
         fake = SimpleNamespace(
             env=self.env(user=self.user),
             session=SimpleNamespace(uid=self.user.id),
@@ -582,7 +581,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         )
         token = request_var.set(fake)
         self.addCleanup(request_var.reset, token)
-        rule = SimpleNamespace(endpoint=SimpleNamespace(func=controller.call_kw, routing={"readonly": True}))
+        rule = SimpleNamespace(endpoint=SimpleNamespace(func=endpoint, routing={"readonly": True}))
         with self.assertRaises(AccessError):
             self.registry["ir.http"]._pre_dispatch(rule, {})
         self.assertEqual(effects, [])

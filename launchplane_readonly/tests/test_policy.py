@@ -118,3 +118,11 @@ class TestRuntimeQualification(unittest.TestCase):
         login = policy.product_login(self.identity["product"])
         self.assertEqual(login, policy.product_login(self.identity["product"]))
         self.assertNotEqual(login, policy.product_login("another-product"))
+
+    def test_witness_keys_preserve_the_legacy_protocol(self) -> None:
+        evidence = json.loads(Path(__file__).with_name("fixtures").joinpath("legacy_witness_keys.json").read_text())
+        self.assertEqual(policy.FIXTURE_JOURNAL_KEY, evidence["fixture_journal_key"])
+        for witness in evidence["products"]:
+            with self.subTest(product=witness["product"]):
+                self.assertEqual(policy.product_login(witness["product"]), witness["login"])
+                self.assertEqual(policy.operative_marker_key(witness["product"]), witness["operative_marker_key"])

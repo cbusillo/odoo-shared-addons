@@ -23,7 +23,7 @@ from odoo.tools import lazy
 from psycopg2.errors import ReadOnlySqlTransaction
 
 from ..models.ir_http import NATIVE_RANGE_READ
-from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, product_login
+from ..policy import COPY_PARAMETER, GROUP, IMPLIED_GROUP, RUNTIME_ENV, product_login
 
 
 @tagged("post_install", "-at_install")
@@ -50,22 +50,36 @@ class TestReadOnlyIdentity(HttpCase):
 
     def test_native_classification_keeps_the_role_minimal_and_rejects_implication_drift(self) -> None:
         group = self.env.ref(GROUP)
+        internal = self.env.ref(IMPLIED_GROUP)
         self.env["res.groups"]._apply_group_regular()
         self.assertTrue(group._is_light_groups())
-        self.assertEqual(group.implied_ids, self.env.ref("base.group_user"))
+        self.assertEqual(group.implied_ids, internal)
         self.assertEqual(self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login))
         group.write({"implied_ids": [Command.link(self.env.ref("base.group_erp_manager").id)]})
         with self.assertRaises(AccessError):
             self.users._launchplane_readonly_test_identity(self.identity, self.login)
+        group.write({"implied_ids": [Command.set(internal.ids)]})
+        original = internal.implied_ids
+        for xmlid in ("base.group_erp_manager", "stock.group_stock_user"):
+            denied = self.env.ref(xmlid, raise_if_not_found=False)
+            if not denied:
+                continue
+            with self.subTest(xmlid=xmlid):
+                try:
+                    internal.write({"implied_ids": [Command.link(denied.id)]})
+                    self.assertEqual(group.implied_ids, internal)
+                    with self.assertRaises(AccessError):
+                        self.users._launchplane_readonly_test_identity(self.identity, self.login)
+                finally:
+                    internal.write({"implied_ids": [Command.set(original.ids)]})
+                self.assertEqual(self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login))
 
     def test_shell_is_credential_free_and_reused_without_activation(self) -> None:
         self.assertFalse(self.user.active)
         self.assertFalse(self.user.email)
         self.env.cr.execute("SELECT password FROM res_users WHERE id=%s", (self.user.id,))
         self.assertFalse(self.env.cr.fetchone()[0])
-        self.assertEqual(
-            self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login, create=True)
-        )
+        self.assertEqual(self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login, create=True))
         self.user.write({"active": True, "password": "synthetic-test-password"})
         self.assertEqual(self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login))
         self.user.write({"active": False, "password": "synthetic-revocation-password"})
@@ -116,9 +130,7 @@ class TestReadOnlyIdentity(HttpCase):
             with patch.dict(os.environ, {RUNTIME_ENV: json.dumps(self.identity)}):
                 with self.assertRaises(AccessError):
                     self.users._launchplane_readonly_test_identity(old, self.login)
-                self.assertEqual(
-                    preview_user, self.users._launchplane_readonly_test_identity(self.identity, self.login)
-                )
+                self.assertEqual(preview_user, self.users._launchplane_readonly_test_identity(self.identity, self.login))
                 with self.assertRaises(AccessDenied):
                     preview_user.with_user(preview_user)._check_credentials(
                         {"type": "password", "password": "synthetic-password"}, {"interactive": True}
@@ -147,12 +159,8 @@ class TestReadOnlyIdentity(HttpCase):
             lambda: self.env["ir.actions.server"].with_user(self.user).sudo().run(),
             lambda: self.env["ir.actions.report"].with_user(self.user).sudo().report_action([partner.id]),
             lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_pdf(report_ref),
-            lambda: (
-                self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_html(report_ref, [partner.id])
-            ),
-            lambda: (
-                self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_text(report_ref, [partner.id])
-            ),
+            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_html(report_ref, [partner.id]),
+            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_text(report_ref, [partner.id]),
         ):
             with self.subTest(operation=operation), self.assertRaises(AccessError):
                 operation()
@@ -271,9 +279,7 @@ class TestReadOnlyIdentity(HttpCase):
         self.user.write({"active": True, "password": "synthetic-password"})
         self.env.flush_all()
         session = Session(dict(get_default_session(), uid=self.user.id, db=self.env.cr.dbname), "synthetic-session")
-        fake = SimpleNamespace(
-            env=self.env(user=self.user), session=session, default_lang=lambda: "en_US", future_response=Mock()
-        )
+        fake = SimpleNamespace(env=self.env(user=self.user), session=session, default_lang=lambda: "en_US", future_response=Mock())
         token = request_var.set(fake)
         self.addCleanup(request_var.reset, token)
         self.identity["deployment_record_id"] = "refreshed"
@@ -559,9 +565,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             ("/web/dataset/call_kw", WebBase.search_panel_select_multi_range.__name__),
         ):
             with self.subTest(path=path, method=method), self.assertRaises(JsonRpcException) as refusal:
-                self.make_jsonrpc_request(
-                    path, {"model": model._name, "method": method, "args": ["department_id"], "kwargs": {}}
-                )
+                self.make_jsonrpc_request(path, {"model": model._name, "method": method, "args": ["department_id"], "kwargs": {}})
             self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
 
     def test_real_http_apps_range_refuses_before_outbound_lookup(self) -> None:
@@ -714,9 +718,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
 
             def write_sql() -> None:
                 hooks.append(partners.env.cr.readonly)
-                partners.env.cr.execute(
-                    "UPDATE res_partner SET name=%s WHERE id=%s", ("Unsafe precommit write", partner.id)
-                )
+                partners.env.cr.execute("UPDATE res_partner SET name=%s WHERE id=%s", ("Unsafe precommit write", partner.id))
 
             partners.env.cr.precommit.add(write_sql)
             return True
@@ -804,9 +806,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.url.endswith("/odoo"))
         document = html.fromstring(response.content)
-        urls = [
-            url for url in document.xpath("//script[@src]/@src | //link[@href]/@href") if url.startswith("/web/assets/")
-        ]
+        urls = [url for url in document.xpath("//script[@src]/@src | //link[@href]/@href") if url.startswith("/web/assets/")]
         self.assertTrue(urls)
         for url in urls:
             self.assertEqual(self.url_open(url).status_code, 200)

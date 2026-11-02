@@ -4,13 +4,27 @@ from functools import partial
 from typing import Any
 
 from odoo import models, sql_db
+from odoo.addons.web.controllers.dataset import DataSet
 from odoo.addons.web.controllers.export import Export, ExportFormat
 from odoo.addons.web.controllers.home import Home
 from odoo.addons.web.controllers.report import ReportController
+from odoo.addons.web.models.models import Base as WebBase
 from odoo.exceptions import AccessError
 from odoo.http import request
 from odoo.http.session import SessionExpiredException, logout
 from psycopg2.errors import ReadOnlySqlTransaction
+
+from ..policy import matches_native_read
+
+NATIVE_CALL_KW = DataSet.call_kw
+NATIVE_RANGE_READ = WebBase.search_panel_select_range
+NATIVE_RANGE_HELPERS = (
+    WebBase._search_panel_field_image,
+    WebBase._search_panel_domain_image,
+    WebBase._search_panel_sanitized_parent_hierarchy,
+    WebBase._search_panel_global_counters,
+    WebBase._search_panel_selection_range,
+)
 
 
 class IrHttp(models.AbstractModel):
@@ -35,6 +49,12 @@ class IrHttp(models.AbstractModel):
             readonly = rule.endpoint.routing.get("readonly", False)
             if callable(readonly):
                 readonly = readonly(rule.endpoint.func.__self__, rule, args)
+            if isinstance(controller, DataSet):
+                params = request.get_json_data()["params"]
+                if params["method"] == NATIVE_RANGE_READ.__name__:
+                    readonly = getattr(rule.endpoint.func, "__func__", None) is NATIVE_CALL_KW and matches_native_read(
+                        request.env.registry[params["model"]], params["method"], NATIVE_RANGE_READ, NATIVE_RANGE_HELPERS
+                    )
             bootstrap = rule.endpoint.func.__name__ == "web_client" and isinstance(controller, Home)
             if not (readonly or bootstrap):
                 raise AccessError(request.env._("This test identity cannot use this action."))

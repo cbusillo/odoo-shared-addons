@@ -42,8 +42,9 @@ for the account's language, in the caller's transaction. It disables optional
 OdooBot onboarding so first bootstrap cannot create chats or messages. Failed
 preparation propagates to the native consumer; this addon never commits.
 
-For the QA actor, HTTP requests require native readonly classification, with
-the native web-client bootstrap admitted separately. Reports, printing, server
+For the QA actor, HTTP requests require native readonly classification or the
+qualified native single-range read below, with the native web-client bootstrap
+admitted separately. Reports, printing, server
 actions, imports, exports and non-readonly button execution refuse before dispatch. Admitted
 requests execute through PostgreSQL's read-only connection pool without Odoo's
 writable fallback, including after a commit. ORM create/write/delete also refuse
@@ -56,6 +57,20 @@ Ordinary users retain native behavior. This trusts image-owned readonly methods
 to avoid external effects; readonly classification is not permission to add an
 external call to a read method. Copied production data must pass the product's
 credential sanitizer before serving, independently of this addon.
+
+The native single-range search-panel read is admitted through the native
+dataset `call_kw` controller when the resolved entrypoint and its private
+search-panel helpers match the native function objects captured at import.
+Qualification runs before dispatch on every request, including for inherited
+registry classes and later helper replacements. An unqualified override refuses
+even if Odoo finds an ancestor's readonly marker. The method name selects this
+check; admission requires function identity. No native method is annotated or
+registry class patched. The actual native implementation serves every readable
+model that satisfies this contract; record permissions still apply.
+Multi-range and the Apps search-panel network override remain refused. Existing
+public readonly methods retain their native trust boundary, including calls
+they make internally; this check does not qualify every Apps or outbound path.
+Ordinary-user classification and routing are unchanged.
 
 The request-local dispatcher runs under the same read-only backstop through
 response serialization, including lazy JSON values. Model-converter arguments
@@ -98,4 +113,9 @@ fallback used when a registry returns a writable cursor. A dedicated native
 cursor-context test covers the real pool's exit hooks. The web-client check
 waits for the default action's search panel or an error dialog instead of
 passing as soon as the navigation bar appears; product QA still owns the
-installed app's complete read surface.
+installed app's complete read surface. The complete shared-addon CI database
+supplies HR for the retained Employee browser control. New Employee HTTP tests
+require that installed addon and compare company/department ranges and counters
+with the native read. Refusal tests replace entrypoints and private helpers on
+registry classes, inherited registry classes and definition classes, including
+under an inherited readonly marker, and check that no effect sentinel runs.

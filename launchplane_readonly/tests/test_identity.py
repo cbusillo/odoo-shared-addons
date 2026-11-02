@@ -9,8 +9,10 @@ from unittest.mock import Mock, patch
 import odoo
 from odoo import SUPERUSER_ID, Command, api, sql_db
 from odoo.addons.base.models.ir_http import IrHttp as NativeIrHttp
+from odoo.addons.web.controllers.dataset import DataSet
 from odoo.addons.web.controllers.export import Export, ExportFormat
 from odoo.addons.web.controllers.report import ReportController
+from odoo.addons.web.models.models import Base as WebBase
 from odoo.exceptions import AccessDenied, AccessError
 from odoo.http import request, request_var
 from odoo.http.session import Session, SessionExpiredException, get_default_session, session_store
@@ -20,6 +22,7 @@ from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, TEST_CURSOR_COOKIE_NAME, J
 from odoo.tools import lazy
 from psycopg2.errors import ReadOnlySqlTransaction
 
+from ..models.ir_http import NATIVE_RANGE_READ
 from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, product_login
 
 
@@ -442,10 +445,147 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             cookies={"session_id": sid},
         )
 
-    def _rpc(self, model: str, method: str, args: list) -> Any:
+    def _rpc(self, model: str, method: str, args: list, kwargs: dict | None = None) -> Any:
         return self.make_jsonrpc_request(
-            "/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": {}}
+            "/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": kwargs or {}}
         )
+
+    def test_real_http_employee_ranges_match_native_reads_with_counters(self) -> None:
+        if "hr.employee.public" not in self.registry:
+            self.skipTest("The Employee read requires the installed hr addon.")
+        department = self.env["hr.department"].create({"name": "Synthetic QA department"})
+        employee = self.env["hr.employee"].create(
+            {"name": "Synthetic QA employee", "department_id": department.id, "company_id": self.env.company.id}
+        )
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        employees = self.env["hr.employee.public"].with_user(self.user)
+        for field, hierarchize, value in (
+            ("company_id", False, employee.company_id.id),
+            ("department_id", True, department.id),
+        ):
+            kwargs = {"enable_counters": True, "hierarchize": hierarchize, "search_domain": [("id", "=", employee.id)]}
+            expected = NATIVE_RANGE_READ(employees, field, **kwargs)
+            with self.subTest(field=field), self._initial_writable_rpc_cursor():
+                result = self._rpc(employees._name, NATIVE_RANGE_READ.__name__, [field], kwargs)
+            self.assertEqual(result, expected)
+            self.assertIn(value, [item["id"] for item in result["values"]])
+            self.assertTrue(all(item["__count"] for item in result["values"]))
+
+    def test_real_http_range_refuses_changed_entrypoint_and_helpers_before_effects(self) -> None:
+        if "hr.employee.public" not in self.registry:
+            self.skipTest("The Employee read requires the installed hr addon.")
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        model = self.registry["hr.employee.public"]
+        effects = []
+
+        @api.model
+        def unqualified(records: "odoo.model.hr_employee_public", *args: Any, **kwargs: Any) -> dict:
+            effects.append(records._name)
+            return {"values": []}
+
+        for implementation in (
+            NATIVE_RANGE_READ,
+            WebBase._search_panel_field_image,
+            WebBase._search_panel_domain_image,
+            WebBase._search_panel_sanitized_parent_hierarchy,
+            WebBase._search_panel_global_counters,
+            WebBase._search_panel_selection_range,
+        ):
+            for location in ("registry", "inherited_registry", "definition"):
+                if location == "inherited_registry":
+                    inherited = type(
+                        "UnqualifiedEmployeeRegistry",
+                        (model,),
+                        {"_register": False, implementation.__name__: unqualified},
+                    )
+                    manager = patch.dict(self.registry.models, {model._name: inherited})
+                else:
+                    target = model if location == "registry" else WebBase
+                    manager = patch.object(target, implementation.__name__, unqualified)
+                with (
+                    self.subTest(implementation=implementation, location=location),
+                    manager,
+                    patch.object(NATIVE_RANGE_READ, "_readonly", True, create=True),
+                    self._initial_writable_rpc_cursor(),
+                    self.assertRaises(JsonRpcException) as refusal,
+                ):
+                    self._rpc(model._name, NATIVE_RANGE_READ.__name__, ["department_id"], {"enable_counters": True})
+                self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+                self.assertEqual(effects, [])
+
+    def test_real_http_range_keeps_ordinary_overrides_and_refuses_other_qa_paths(self) -> None:
+        if "hr.employee.public" not in self.registry:
+            self.skipTest("The Employee read requires the installed hr addon.")
+        model = self.registry["hr.employee.public"]
+        effects = []
+
+        @api.model
+        def ordinary_override(records: "odoo.model.hr_employee_public", *args: Any, **kwargs: Any) -> dict:
+            effects.append(records.env.uid)
+            return {"values": []}
+
+        admin = self.env.ref("base.user_admin")
+        self.authenticate(admin.login, "unused-native-test-password")
+        with patch.object(model, NATIVE_RANGE_READ.__name__, ordinary_override):
+            self.assertEqual(self._rpc(model._name, NATIVE_RANGE_READ.__name__, ["department_id"]), {"values": []})
+        self.assertEqual(effects, [admin.id])
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        for path, method in (
+            ("/web/dataset/call_button", NATIVE_RANGE_READ.__name__),
+            ("/web/dataset/call_kw", WebBase.search_panel_select_multi_range.__name__),
+        ):
+            with self.subTest(path=path, method=method), self.assertRaises(JsonRpcException) as refusal:
+                self.make_jsonrpc_request(
+                    path, {"model": model._name, "method": method, "args": ["department_id"], "kwargs": {}}
+                )
+            self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+
+    def test_real_http_apps_range_refuses_before_outbound_lookup(self) -> None:
+        modules = self.env["ir.module.module"]
+        if not hasattr(type(modules), "_get_industry_categories_from_apps"):
+            self.skipTest("The Apps override requires the installed base_import_module addon.")
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        with patch.object(type(modules), "_get_industry_categories_from_apps", return_value=[]) as outbound:
+            with self.assertRaises(JsonRpcException) as refusal:
+                self._rpc(
+                    modules._name,
+                    NATIVE_RANGE_READ.__name__,
+                    ["category_id"],
+                    {"category_domain": [("module_type", "=", "industries")]},
+                )
+            self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+            outbound.assert_not_called()
+
+    def test_range_qualification_refuses_an_overridden_dataset_controller(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        effects = []
+
+        class UnqualifiedDataSet(DataSet):
+            def call_kw(self, *args: Any, **kwargs: Any) -> None:
+                effects.append("controller override ran")
+
+        controller = UnqualifiedDataSet()
+        fake = SimpleNamespace(
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id),
+            httprequest=SimpleNamespace(path="/web/dataset/call_kw"),
+            get_json_data=lambda: {"params": {"model": "res.partner", "method": NATIVE_RANGE_READ.__name__}},
+        )
+        token = request_var.set(fake)
+        self.addCleanup(request_var.reset, token)
+        rule = SimpleNamespace(endpoint=SimpleNamespace(func=controller.call_kw, routing={"readonly": True}))
+        with self.assertRaises(AccessError):
+            self.registry["ir.http"]._pre_dispatch(rule, {})
+        self.assertEqual(effects, [])
 
     @contextmanager
     def _initial_writable_rpc_cursor(self) -> Iterator[None]:

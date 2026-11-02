@@ -530,14 +530,12 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
 
     def test_real_mail_store_keeps_inaccessible_threads_private(self) -> None:
         partner, message, notifications = self._chatter_fixture()
-        self.env["ir.rule"].create(
+        self.env["ir.access"].create(
             {
                 "name": "Synthetic inaccessible chatter thread",
                 "model_id": self.env["ir.model"]._get_id(partner._name),
-                "domain_force": repr([("id", "!=", partner.id)]),
-                "perm_write": False,
-                "perm_create": False,
-                "perm_unlink": False,
+                "domain": repr([("id", "!=", partner.id)]),
+                "operation": "r",
             }
         )
         self.env.flush_all()

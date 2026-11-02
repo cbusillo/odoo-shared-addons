@@ -108,6 +108,15 @@ the QA identity; ordinary users retain native cache-generation fallback.
 Native JSON/QWeb and resolved asset responses are covered; arbitrary streaming
 responses that defer database reads beyond dispatch are not qualified by this boundary.
 
+The mail dependency supplies native chatter reads. For the QA actor only,
+the native `/mail/thread/messages` store handler retains native thread access,
+message filtering and projection without marking notifications read. Its resolved
+handler must be this addon's read-only implementation on every request. Other
+store handlers retain native readonly classification; a batch containing a
+mutating handler refuses before any handler runs. Ordinary users retain the
+native message-read bookkeeping. The existing cursor guard covers the complete
+store response, including lazy serialization. No new record permissions are supplied.
+
 Run this addon's complete native tests through the repository's focused
 `qualityGate.test.local` selection. `test_policy.py` also runs without Odoo via
 `uv run --no-project python -m unittest discover -s launchplane_readonly/tests -p test_policy.py`.
@@ -125,8 +134,8 @@ asset variant, and generated error CSS is not a successful frontend check.
 The service browser refuses websockets; live updates are outside this read-only
 surface. Missing assets do not grant QA a cache-write exception.
 Source tests do not establish actual CM preview activation or authenticated QA.
-The synthetic lazy JSON tests exercise the serializer used by mail-store
-responses; they do not call `/mail/store` directly. HttpCase uses native
+Native mail-store HTTP tests cover unread notifications, thread privacy, mixed
+write batches, handler replacement and lazy SQL refusal. HttpCase uses native
 TestCursors so its uncommitted account/record fixtures remain visible. It does
 not establish a complete HTTP request through the separate PostgreSQL pool
 fallback used when a registry returns a writable cursor. A dedicated native

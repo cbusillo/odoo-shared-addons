@@ -9,6 +9,8 @@ from unittest.mock import Mock, patch
 import odoo
 from odoo import SUPERUSER_ID, Command, api, sql_db
 from odoo.addons.base.models.ir_http import IrHttp as NativeIrHttp
+from odoo.addons.mail.controllers.webclient import WebclientController
+from odoo.addons.mail.tools.discuss import Store
 from odoo.addons.web.controllers.dataset import DataSet
 from odoo.addons.web.controllers.export import Export, ExportFormat
 from odoo.addons.web.controllers.report import ReportController
@@ -22,6 +24,7 @@ from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, TEST_CURSOR_COOKIE_NAME, J
 from odoo.tools import lazy
 from psycopg2.errors import ReadOnlySqlTransaction
 
+from ..controllers.mail import ReadOnlyWebclientController
 from ..models.ir_http import NATIVE_RANGE_READ
 from ..policy import COPY_PARAMETER, GROUP, IMPLIED_GROUP, RUNTIME_ENV, product_login
 
@@ -476,6 +479,116 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         return self.make_jsonrpc_request(
             "/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": kwargs or {}}
         )
+
+    def _chatter_fixture(self) -> tuple[Any, Any, Any]:
+        partner = self.env["res.partner"].create({"name": "Synthetic chatter thread"})
+        message = partner.with_context(mail_create_nosubscribe=True).message_post(
+            body="Synthetic chatter message", message_type="comment", subtype_xmlid="mail.mt_comment"
+        )
+        notifications = self.env["mail.notification"].create(
+            [
+                {"mail_message_id": message.id, "res_partner_id": user.partner_id.id, "notification_type": "inbox"}
+                for user in self.user | self.env.ref("base.user_admin")
+            ]
+        )
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        return partner, message, notifications
+
+    @staticmethod
+    def _chatter_fetch(partner: "odoo.model.res_partner") -> list:
+        return [
+            "/mail/thread/messages",
+            {"thread_model": partner._name, "thread_id": partner.id, "fetch_params": {"limit": 30}},
+            1,
+        ]
+
+    def test_real_mail_store_reads_without_marking_notifications_and_keeps_native_users(self) -> None:
+        partner, message, notifications = self._chatter_fixture()
+        before = notifications.read(["is_read", "read_date"])
+        self._login_browser()
+        native_materialize = Store.as_dict
+        cursors = []
+
+        def materialize(store: Store) -> dict:
+            cursors.append(request.env.cr.readonly)
+            return native_materialize(store)
+
+        with patch.object(Store, "as_dict", materialize):
+            result = self.make_jsonrpc_request("/mail/store", {"fetch_params": [self._chatter_fetch(partner)]})
+        self.assertTrue(cursors)
+        self.assertTrue(all(cursors))
+        returned = next(value for value in result["mail.message"] if value["id"] == message.id)
+        self.assertEqual(returned["body"], message.body)
+        notifications.invalidate_recordset()
+        self.assertEqual(notifications.read(["is_read", "read_date"]), before)
+        self.authenticate("admin", "admin")
+        ordinary = self.make_jsonrpc_request("/mail/store", {"fetch_params": [self._chatter_fetch(partner)]})
+        self.assertEqual(next(value for value in ordinary["mail.message"] if value["id"] == message.id)["body"], message.body)
+        notifications.invalidate_recordset()
+        self.assertTrue(notifications.filtered(lambda row: row.res_partner_id == self.env.ref("base.user_admin").partner_id).is_read)
+        self.assertFalse(notifications.filtered(lambda row: row.res_partner_id == self.user.partner_id).is_read)
+
+    def test_real_mail_store_keeps_inaccessible_threads_private(self) -> None:
+        partner, message, notifications = self._chatter_fixture()
+        self.env["ir.rule"].create(
+            {
+                "name": "Synthetic inaccessible chatter thread",
+                "model_id": self.env["ir.model"]._get_id(partner._name),
+                "domain_force": repr([("id", "!=", partner.id)]),
+                "perm_write": False,
+                "perm_create": False,
+                "perm_unlink": False,
+            }
+        )
+        self.env.flush_all()
+        self.assertFalse(partner.with_user(self.user).has_access("read"))
+        self._login_browser()
+        result = self.make_jsonrpc_request("/mail/store", {"fetch_params": [self._chatter_fetch(partner)]})
+        self.assertNotIn(message.id, [value["id"] for value in result.get("mail.message", [])])
+        notifications.invalidate_recordset()
+        self.assertFalse(any(notifications.mapped("is_read")))
+
+    def test_real_mail_store_lazy_sql_write_refuses_without_retry(self) -> None:
+        partner, _, _ = self._chatter_fixture()
+        expected_name = partner.name
+        self._login_browser()
+        calls = []
+
+        def materialize(store: Store) -> dict:
+            calls.append(request.env.cr.readonly)
+            request.env.cr.commit()
+            request.env.cr.execute("UPDATE res_partner SET name=%s WHERE id=%s", ("Unsafe chatter write", partner.id))
+            return {}
+
+        with patch.object(Store, "as_dict", materialize), self.assertRaises(JsonRpcException) as refusal:
+            self.make_jsonrpc_request("/mail/store", {"fetch_params": [self._chatter_fetch(partner)]})
+        self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+        self.assertEqual(calls, [True])
+        partner.invalidate_recordset(["name"])
+        self.assertEqual(partner.name, expected_name)
+
+    def test_real_mail_store_refuses_mixed_writes_and_changed_handlers_before_execution(self) -> None:
+        partner, message, notifications = self._chatter_fixture()
+        self._login_browser()
+        fetch = self._chatter_fetch(partner)
+        mutation = ["add_bookmark", {"message_id": message.id}]
+        native_resolve = WebclientController._resolve_messages
+        with patch.object(WebclientController, "_resolve_messages", wraps=native_resolve) as resolve:
+            for batch in ([mutation], [fetch, mutation], [mutation, fetch]):
+                with self.subTest(batch=batch), self.assertRaises(JsonRpcException) as refusal:
+                    self.make_jsonrpc_request("/mail/store", {"fetch_params": batch})
+                self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+            resolve.assert_not_called()
+        changed = Mock()
+        with patch.object(ReadOnlyWebclientController, "store_get_thread_messages", changed):
+            with self.assertRaises(JsonRpcException):
+                self.make_jsonrpc_request("/mail/store", {"fetch_params": [fetch]})
+        changed.assert_not_called()
+        message.invalidate_recordset()
+        notifications.invalidate_recordset()
+        self.assertNotIn(self.user.partner_id, message.bookmarked_partner_ids)
+        self.assertFalse(any(notifications.mapped("is_read")))
 
     def test_real_http_employee_ranges_match_native_reads_with_counters(self) -> None:
         if "hr.employee.public" not in self.registry:

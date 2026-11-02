@@ -1,12 +1,18 @@
 import hashlib
 import json
 import re
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 RUNTIME_ENV = "LAUNCHPLANE_RUNTIME_IDENTITY_JSON"
 COPY_PARAMETER = "launchplane.testing_copy.restore_complete"
 GROUP = "launchplane_readonly.group_user"
+
+
+def matches_native_read(model: type, method: str, implementation: Callable, helpers: tuple[Callable, ...]) -> bool:
+    return getattr(model, method, None) is implementation and all(
+        getattr(model, helper.__name__, None) is helper for helper in helpers
+    )
 
 
 def canonical_identity(identity: Mapping[str, Any]) -> dict[str, Any]:

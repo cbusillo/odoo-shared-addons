@@ -2,10 +2,47 @@ import importlib.util
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 spec = importlib.util.spec_from_file_location("readonly_policy", Path(__file__).parents[1] / "policy.py")
 policy = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(policy)
+
+
+class TestNativeReadQualification(unittest.TestCase):
+    def test_only_the_qualified_entrypoint_and_current_helpers_are_admitted(self) -> None:
+        effects = []
+
+        class NativeRead:
+            def read_range(self) -> list:
+                return self.read_values()
+
+            def read_values(self) -> list:
+                return []
+
+        class RegistryRead(NativeRead):
+            pass
+
+        def changed(self: NativeRead) -> list:
+            effects.append("unqualified implementation ran")
+            return []
+
+        native = NativeRead.read_range
+        helpers = (NativeRead.read_values,)
+
+        def admitted(model: type, method: str = native.__name__) -> bool:
+            return policy.matches_native_read(model, method, native, helpers)
+
+        self.assertTrue(admitted(RegistryRead))
+        self.assertFalse(admitted(RegistryRead, "read_values"))
+        for target in (RegistryRead, NativeRead):
+            for method in (native.__name__, helpers[0].__name__):
+                with self.subTest(target=target, method=method), patch.object(target, method, changed):
+                    self.assertFalse(admitted(RegistryRead))
+                    subclass = type("InheritedRegistryRead", (RegistryRead,), {})
+                    self.assertFalse(admitted(subclass))
+                self.assertTrue(admitted(RegistryRead))
+        self.assertEqual(effects, [])
 
 
 class TestRuntimeQualification(unittest.TestCase):

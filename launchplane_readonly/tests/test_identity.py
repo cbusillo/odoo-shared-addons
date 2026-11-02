@@ -1,20 +1,28 @@
 import json
 import os
-from types import SimpleNamespace
+from collections.abc import Iterator
+from contextlib import contextmanager, nullcontext
+from types import MethodType, SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
 
-from odoo import SUPERUSER_ID, Command
+import odoo
+from odoo import SUPERUSER_ID, Command, api, sql_db
+from odoo.addons.base.models.ir_http import IrHttp as NativeIrHttp
+from odoo.addons.web.controllers.dataset import DataSet
 from odoo.addons.web.controllers.export import Export, ExportFormat
 from odoo.addons.web.controllers.report import ReportController
+from odoo.addons.web.models.models import Base as WebBase
 from odoo.exceptions import AccessDenied, AccessError
-from odoo.http import request_var
+from odoo.http import request, request_var
 from odoo.http.session import Session, SessionExpiredException, get_default_session, session_store
 from odoo.service.model import call_kw
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, TEST_CURSOR_COOKIE_NAME, JsonRpcException
+from odoo.tools import lazy
 from psycopg2.errors import ReadOnlySqlTransaction
 
+from ..models.ir_http import NATIVE_RANGE_READ
 from ..policy import COPY_PARAMETER, GROUP, RUNTIME_ENV, product_login
 
 
@@ -55,7 +63,9 @@ class TestReadOnlyIdentity(HttpCase):
         self.assertFalse(self.user.email)
         self.env.cr.execute("SELECT password FROM res_users WHERE id=%s", (self.user.id,))
         self.assertFalse(self.env.cr.fetchone()[0])
-        self.assertEqual(self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login, create=True))
+        self.assertEqual(
+            self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login, create=True)
+        )
         self.user.write({"active": True, "password": "synthetic-test-password"})
         self.assertEqual(self.user, self.users._launchplane_readonly_test_identity(self.identity, self.login))
         self.user.write({"active": False, "password": "synthetic-revocation-password"})
@@ -106,7 +116,9 @@ class TestReadOnlyIdentity(HttpCase):
             with patch.dict(os.environ, {RUNTIME_ENV: json.dumps(self.identity)}):
                 with self.assertRaises(AccessError):
                     self.users._launchplane_readonly_test_identity(old, self.login)
-                self.assertEqual(preview_user, self.users._launchplane_readonly_test_identity(self.identity, self.login))
+                self.assertEqual(
+                    preview_user, self.users._launchplane_readonly_test_identity(self.identity, self.login)
+                )
                 with self.assertRaises(AccessDenied):
                     preview_user.with_user(preview_user)._check_credentials(
                         {"type": "password", "password": "synthetic-password"}, {"interactive": True}
@@ -135,8 +147,12 @@ class TestReadOnlyIdentity(HttpCase):
             lambda: self.env["ir.actions.server"].with_user(self.user).sudo().run(),
             lambda: self.env["ir.actions.report"].with_user(self.user).sudo().report_action([partner.id]),
             lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_pdf(report_ref),
-            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_html(report_ref, [partner.id]),
-            lambda: self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_text(report_ref, [partner.id]),
+            lambda: (
+                self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_html(report_ref, [partner.id])
+            ),
+            lambda: (
+                self.env["ir.actions.report"].with_user(self.user).sudo()._render_qweb_text(report_ref, [partner.id])
+            ),
         ):
             with self.subTest(operation=operation), self.assertRaises(AccessError):
                 operation()
@@ -228,7 +244,7 @@ class TestReadOnlyIdentity(HttpCase):
     def test_native_read_pre_dispatch_allows_superuser_configuration_reads(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})
         self.env.flush_all()
-        dispatcher = SimpleNamespace(pre_dispatch=Mock())
+        dispatcher = SimpleNamespace(pre_dispatch=Mock(), dispatch=Mock())
         fake = SimpleNamespace(
             env=self.env(user=self.user),
             session=SimpleNamespace(uid=self.user.id, debug=False),
@@ -255,20 +271,127 @@ class TestReadOnlyIdentity(HttpCase):
         self.user.write({"active": True, "password": "synthetic-password"})
         self.env.flush_all()
         session = Session(dict(get_default_session(), uid=self.user.id, db=self.env.cr.dbname), "synthetic-session")
-        fake = SimpleNamespace(env=self.env(user=self.user), session=session, default_lang=lambda: "en_US", future_response=Mock())
+        fake = SimpleNamespace(
+            env=self.env(user=self.user), session=session, default_lang=lambda: "en_US", future_response=Mock()
+        )
         token = request_var.set(fake)
         self.addCleanup(request_var.reset, token)
         self.identity["deployment_record_id"] = "refreshed"
-        with patch.dict(os.environ, {RUNTIME_ENV: json.dumps(self.identity)}), self.assertRaises(SessionExpiredException):
+        with (
+            patch.dict(os.environ, {RUNTIME_ENV: json.dumps(self.identity)}),
+            self.assertRaises(SessionExpiredException),
+        ):
             self.env.registry["ir.http"]._pre_dispatch(None, {})
         self.assertFalse(session.uid)
+
+    def test_model_converter_arguments_use_the_guarded_cursor(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        partner = self.env["res.partner"].create({"name": "Synthetic converter record"})
+        self.env.flush_all()
+        calls = []
+
+        def endpoint(record: "odoo.model.res_partner") -> None:
+            calls.append(record.env.cr.readonly)
+            record.env.cr.execute("UPDATE res_partner SET name=name WHERE id=%s", (record.id,))
+
+        def dispatch(function: Any, arguments: dict) -> Any:
+            fake.params = dict(arguments)
+            return function(**fake.params)
+
+        fake = SimpleNamespace(
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id, debug=False),
+            params=None,
+            httprequest=SimpleNamespace(
+                path="/synthetic/converter",
+                max_content_length=None,
+                args={},
+                cookies={TEST_CURSOR_COOKIE_NAME: self.http_request_key},
+            ),
+            is_frontend=False,
+            is_frontend_multilang=False,
+            dispatcher=SimpleNamespace(pre_dispatch=Mock(), dispatch=dispatch),
+        )
+
+        def update_context(**values: str) -> None:
+            fake.env = fake.env(context=dict(fake.env.context, **values))
+
+        fake.update_context = update_context
+        token = request_var.set(fake)
+        self.addCleanup(request_var.reset, token)
+        function = SimpleNamespace(__name__="converter_read", __self__=None)
+        rule = SimpleNamespace(endpoint=SimpleNamespace(func=function, routing={"readonly": True}))
+        arguments = {"record": partner}
+        self.env.registry["ir.http"]._pre_dispatch(rule, arguments)
+        with self.assertRaises(AccessError):
+            fake.dispatcher.dispatch(endpoint, arguments)
+        self.assertEqual(calls, [True])
+        self.assertIs(fake.env.cr, self.env.cr)
+
+    def test_cursor_exit_keeps_the_readonly_environment_and_converts_refusal(self) -> None:
+        self.env.flush_all()
+        fake = SimpleNamespace(env=self.env(user=self.user), session=SimpleNamespace(uid=self.user.id))
+        token = request_var.set(fake)
+        self.addCleanup(request_var.reset, token)
+        original = fake.env
+        cursor = sql_db.db_connect(self.env.cr.dbname, readonly=True).cursor()
+        self.addCleanup(cursor.close)
+        calls = []
+
+        def postcommit() -> None:
+            calls.append(fake.env.cr is cursor)
+            with sql_db.db_connect(self.env.cr.dbname, readonly=True).cursor() as checking:
+                checking.execute("UPDATE res_partner SET name=name WHERE id=1")
+
+        cursor.postcommit.add(postcommit)
+        http = self.env.registry["ir.http"]
+        with patch.object(http, "_launchplane_readonly_cursor", return_value=cursor), self.assertRaises(AccessError):
+            http._launchplane_readonly_call(lambda: None)
+        self.assertEqual(calls, [True])
+        self.assertTrue(cursor.closed)
+        self.assertIs(fake.env, original)
+
+    def test_fallback_refuses_before_native_work_and_error_rendering_is_readonly(self) -> None:
+        self.env.flush_all()
+        fake = SimpleNamespace(
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id),
+            httprequest=SimpleNamespace(cookies={TEST_CURSOR_COOKIE_NAME: self.http_request_key}),
+        )
+        token = request_var.set(fake)
+        self.addCleanup(request_var.reset, token)
+        http = self.env.registry["ir.http"]
+        with patch.object(NativeIrHttp, "_serve_fallback", return_value="ordinary fallback") as fallback:
+            with self.assertRaises(AccessError):
+                http._serve_fallback()
+            fallback.assert_not_called()
+            fake.env = self.env(user=SUPERUSER_ID)
+            fake.session.uid = SUPERUSER_ID
+            self.assertEqual(http._serve_fallback(), "ordinary fallback")
+            fallback.assert_called_once()
+        fake.env = self.env(user=self.user)
+        fake.session.uid = self.user.id
+        calls = []
+
+        def render_error(error: Exception) -> None:
+            calls.append((error, fake.env.cr.readonly))
+            fake.env.cr.execute("UPDATE res_partner SET name=name WHERE id=1")
+
+        fake.dispatcher = SimpleNamespace(handle_error=render_error)
+        error = ValueError("synthetic route error")
+        with self.assertRaises(AccessError):
+            http._handle_error(error)
+        self.assertEqual(calls, [(error, True)])
+        self.assertIs(fake.env.cr, self.env.cr)
 
     def test_request_guard_refuses_business_routes_before_dispatch(self) -> None:
         self.user.write({"active": True, "password": "synthetic-password"})
         self.user._launchplane_readonly_check_session()
         self.env.flush_all()
         fake = SimpleNamespace(
-            env=self.env(user=self.user), session=SimpleNamespace(uid=self.user.id), httprequest=SimpleNamespace(path="")
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id),
+            httprequest=SimpleNamespace(path=""),
         )
         token = request_var.set(fake)
         self.addCleanup(request_var.reset, token)
@@ -283,7 +406,7 @@ class TestReadOnlyIdentity(HttpCase):
             ("/web/export/formats", ExportFormat(), True),
             ("/web/action/run", None, True),
             ("/base_import/import", None, True),
-            ("/web/dataset/call_button", None, True),
+            ("/web/dataset/call_button", None, False),
         ):
             fake.httprequest.path = path
             function.__self__ = controller
@@ -309,7 +432,9 @@ class TestReadOnlyIdentity(HttpCase):
         self.assertEqual(decoded["result"]["uid"], self.user.id)
 
     def test_real_webclient_starts_as_the_qa_identity(self) -> None:
+        employee = self._create_employee_with_department()
         self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
         self._login_browser()
         sid = self.opener.cookies.get_dict()["session_id"]
         self.addCleanup(session_store().delete, session_store().get(sid))
@@ -317,13 +442,319 @@ class TestReadOnlyIdentity(HttpCase):
         self.browser_js(
             "/odoo",
             f"""if (document.querySelector('.o_error_dialog')) throw new Error('QA bootstrap failed');
+const cards = [...document.querySelectorAll('.o_action_manager .o_kanban_record')];
+if (!cards.some(card => card.textContent.includes({json.dumps(employee.name)}))) {{
+    throw new Error('The QA employee was not rendered');
+}}
+const values = [...document.querySelectorAll('.o_action_manager .o_search_panel_category_value_header')];
+for (const name of {json.dumps([employee.company_id.display_name, employee.department_id.display_name])}) {{
+    const value = values.find(row => row.querySelector('.o_search_panel_label_title')?.textContent.trim() === name);
+    if (!(Number(value?.querySelector('.o_search_panel_counter')?.textContent.trim()) > 0)) {{
+        throw new Error('The QA company or department range was not rendered with a counter');
+    }}
+}}
 console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
-            ready="Boolean(document.querySelector('.o_web_client .o_main_navbar'))",
+            ready="Boolean(document.querySelector('.o_error_dialog') || "
+            "(document.querySelector('.o_action_manager .o_search_panel') && "
+            "document.querySelector('.o_action_manager .o_kanban_record')))",
             cookies={"session_id": sid},
         )
 
-    def _rpc(self, model: str, method: str, args: list) -> Any:
-        return self.make_jsonrpc_request("/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": {}})
+    def _create_employee_with_department(self) -> "odoo.model.hr_employee":
+        department = self.env["hr.department"].create({"name": "Synthetic QA department"})
+        return self.env["hr.employee"].create(
+            {"name": "Synthetic QA employee", "department_id": department.id, "company_id": self.env.company.id}
+        )
+
+    def _rpc(self, model: str, method: str, args: list, kwargs: dict | None = None) -> Any:
+        return self.make_jsonrpc_request(
+            "/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": kwargs or {}}
+        )
+
+    def test_real_http_employee_ranges_match_native_reads_with_counters(self) -> None:
+        if "hr.employee.public" not in self.registry:
+            self.skipTest("The Employee read requires the installed hr addon.")
+        employee = self._create_employee_with_department()
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        employees = self.env["hr.employee.public"].with_user(self.user)
+        for field, hierarchize, value in (
+            ("company_id", False, employee.company_id.id),
+            ("department_id", True, employee.department_id.id),
+        ):
+            kwargs = {"enable_counters": True, "hierarchize": hierarchize, "search_domain": [("id", "=", employee.id)]}
+            expected = NATIVE_RANGE_READ(employees, field, **kwargs)
+            with self.subTest(field=field), self._initial_writable_rpc_cursor():
+                result = self._rpc(employees._name, NATIVE_RANGE_READ.__name__, [field], kwargs)
+            self.assertEqual(result, expected)
+            self.assertIn(value, [item["id"] for item in result["values"]])
+            self.assertTrue(all(item["__count"] for item in result["values"]))
+
+    def test_real_http_range_refuses_changed_entrypoint_and_helpers_before_effects(self) -> None:
+        if "hr.employee.public" not in self.registry:
+            self.skipTest("The Employee read requires the installed hr addon.")
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        model = self.registry["hr.employee.public"]
+        effects = []
+
+        @api.model
+        def unqualified(records: "odoo.model.hr_employee_public", *args: Any, **kwargs: Any) -> dict:
+            effects.append(records._name)
+            return {"values": []}
+
+        for implementation in (
+            NATIVE_RANGE_READ,
+            WebBase._search_panel_field_image,
+            WebBase._search_panel_domain_image,
+            WebBase._search_panel_sanitized_parent_hierarchy,
+            WebBase._search_panel_global_counters,
+            WebBase._search_panel_selection_range,
+        ):
+            for location in ("registry", "inherited_registry", "definition"):
+                if location == "inherited_registry":
+                    inherited = type(
+                        "UnqualifiedEmployeeRegistry",
+                        (model,),
+                        {"_register": False, implementation.__name__: unqualified},
+                    )
+                    manager = patch.dict(self.registry.models, {model._name: inherited})
+                else:
+                    target = model if location == "registry" else WebBase
+                    manager = patch.object(target, implementation.__name__, unqualified)
+                with (
+                    self.subTest(implementation=implementation, location=location),
+                    manager,
+                    patch.object(NATIVE_RANGE_READ, "_readonly", True, create=True),
+                    self._initial_writable_rpc_cursor(),
+                    self.assertRaises(JsonRpcException) as refusal,
+                ):
+                    self._rpc(model._name, NATIVE_RANGE_READ.__name__, ["department_id"], {"enable_counters": True})
+                self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+                self.assertEqual(effects, [])
+
+    def test_real_http_range_keeps_ordinary_overrides_and_refuses_other_qa_paths(self) -> None:
+        if "hr.employee.public" not in self.registry:
+            self.skipTest("The Employee read requires the installed hr addon.")
+        model = self.registry["hr.employee.public"]
+        effects = []
+
+        @api.model
+        def ordinary_override(records: "odoo.model.hr_employee_public", *args: Any, **kwargs: Any) -> dict:
+            effects.append(records.env.uid)
+            return {"values": []}
+
+        admin = self.env.ref("base.user_admin")
+        self.authenticate(admin.login, "unused-native-test-password")
+        with patch.object(model, NATIVE_RANGE_READ.__name__, ordinary_override):
+            self.assertEqual(self._rpc(model._name, NATIVE_RANGE_READ.__name__, ["department_id"]), {"values": []})
+        self.assertEqual(effects, [admin.id])
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        for path, method in (
+            ("/web/dataset/call_button", NATIVE_RANGE_READ.__name__),
+            ("/web/dataset/call_kw", WebBase.search_panel_select_multi_range.__name__),
+        ):
+            with self.subTest(path=path, method=method), self.assertRaises(JsonRpcException) as refusal:
+                self.make_jsonrpc_request(
+                    path, {"model": model._name, "method": method, "args": ["department_id"], "kwargs": {}}
+                )
+            self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+
+    def test_real_http_apps_range_refuses_before_outbound_lookup(self) -> None:
+        modules = self.env["ir.module.module"]
+        if not hasattr(type(modules), "_get_industry_categories_from_apps"):
+            self.skipTest("The Apps override requires the installed base_import_module addon.")
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        with patch.object(type(modules), "_get_industry_categories_from_apps", return_value=[]) as outbound:
+            with self.assertRaises(JsonRpcException) as refusal:
+                self._rpc(
+                    modules._name,
+                    NATIVE_RANGE_READ.__name__,
+                    ["category_id"],
+                    {"category_domain": [("module_type", "=", "industries")]},
+                )
+            self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+            outbound.assert_not_called()
+
+    def test_range_qualification_refuses_an_overridden_dataset_controller(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        effects = []
+
+        def unqualified(controller: DataSet, *args: Any, **kwargs: Any) -> None:
+            effects.append("controller override ran")
+
+        endpoint = MethodType(unqualified, DataSet())
+        fake = SimpleNamespace(
+            env=self.env(user=self.user),
+            session=SimpleNamespace(uid=self.user.id),
+            httprequest=SimpleNamespace(path="/web/dataset/call_kw"),
+            get_json_data=lambda: {"params": {"model": "res.partner", "method": NATIVE_RANGE_READ.__name__}},
+        )
+        token = request_var.set(fake)
+        self.addCleanup(request_var.reset, token)
+        rule = SimpleNamespace(endpoint=SimpleNamespace(func=endpoint, routing={"readonly": True}))
+        with self.assertRaises(AccessError):
+            self.registry["ir.http"]._pre_dispatch(rule, {})
+        self.assertEqual(effects, [])
+
+    @contextmanager
+    def _initial_writable_rpc_cursor(self) -> Iterator[None]:
+        native_cursor = self.registry.cursor
+        native_mode = self._registry_readonly_enabled
+        self.set_registry_readonly_mode(True)
+        first = True
+
+        def cursor(readonly: bool = False) -> Any:
+            nonlocal first
+            if first and request and request.httprequest.path.startswith("/web/dataset/call_kw"):
+                first = False
+                return native_cursor(readonly=False)
+            return native_cursor(readonly=readonly)
+
+        try:
+            with patch.object(self.registry, "cursor", cursor):
+                yield
+        finally:
+            self.set_registry_readonly_mode(native_mode)
+
+    def test_real_http_materializes_lazy_reads_before_closing_readonly_cursor(
+        self,
+    ) -> None:
+        partner = self.env["res.partner"].create({"name": "Synthetic lazy HTTP record"})
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+
+        @api.model
+        @api.readonly
+        def read_lazy(partners: "odoo.model.res_partner") -> dict:
+            def read_name() -> str:
+                partners.env.cr.execute("SELECT name FROM res_partner WHERE id=%s", (partner.id,))
+                return partners.env.cr.fetchone()[0]
+
+            return {"name": lazy(read_name)}
+
+        with (
+            self._initial_writable_rpc_cursor(),
+            patch.object(type(partner), "launchplane_test_lazy_read", read_lazy, create=True),
+        ):
+            self.assertEqual(
+                self._rpc(partner._name, "launchplane_test_lazy_read", []),
+                {"name": partner.name},
+            )
+
+    def test_real_http_lazy_sql_write_refuses_without_writable_retry(self) -> None:
+        partner = self.env["res.partner"].create({"name": "Synthetic immutable HTTP record"})
+        expected_name = partner.name
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        calls = []
+
+        @api.model
+        @api.readonly
+        def lazy_write(partners: "odoo.model.res_partner") -> dict:
+            def write_sql() -> None:
+                calls.append(partners.env.cr.readonly)
+                partners.env.cr.commit()
+                partners.env.cr.execute(
+                    "UPDATE res_partner SET name=%s WHERE id=%s",
+                    ("Unsafe lazy HTTP write", partner.id),
+                )
+
+            return {"value": lazy(write_sql)}
+
+        with (
+            self._initial_writable_rpc_cursor(),
+            patch.object(type(partner), "launchplane_test_lazy_write", lazy_write, create=True),
+        ):
+            with self.assertRaises(JsonRpcException) as refusal:
+                self._rpc(partner._name, "launchplane_test_lazy_write", [])
+            self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+        self.assertEqual(calls, [True])
+        partner.invalidate_recordset(["name"])
+        self.assertEqual(partner.name, expected_name)
+
+    def test_real_http_readonly_button_matches_native_rpc_read(self) -> None:
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        expected = self._rpc("res.users", "action_get", [])
+        actual = self.make_jsonrpc_request(
+            "/web/dataset/call_button",
+            {"model": "res.users", "method": "action_get", "args": [], "kwargs": {}},
+        )
+        self.assertEqual(actual["res_model"], expected["res_model"])
+        with self.assertRaises(JsonRpcException):
+            self.make_jsonrpc_request(
+                "/web/dataset/call_button",
+                {"model": "res.users", "method": "write", "args": [[self.user.id], {"tz": "UTC"}], "kwargs": {}},
+            )
+
+    def test_real_http_precommit_sql_write_refuses_without_endpoint_retry(self) -> None:
+        partner = self.env["res.partner"].create({"name": "Synthetic immutable precommit record"})
+        expected = partner.name
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        self._login_browser()
+        calls = []
+        hooks = []
+
+        @api.model
+        @api.readonly
+        def queue_write(partners: "odoo.model.res_partner") -> bool:
+            calls.append(partners.env.cr.readonly)
+
+            def write_sql() -> None:
+                hooks.append(partners.env.cr.readonly)
+                partners.env.cr.execute(
+                    "UPDATE res_partner SET name=%s WHERE id=%s", ("Unsafe precommit write", partner.id)
+                )
+
+            partners.env.cr.precommit.add(write_sql)
+            return True
+
+        native_mode = self._registry_readonly_enabled
+        try:
+            self.set_registry_readonly_mode(True)
+            for writable_first in (False, True):
+                calls.clear()
+                hooks.clear()
+                manager = self._initial_writable_rpc_cursor() if writable_first else nullcontext()
+                with (
+                    self.subTest(writable_first=writable_first),
+                    manager,
+                    patch.object(type(partner), "launchplane_test_precommit_write", queue_write, create=True),
+                ):
+                    with self.assertRaises(JsonRpcException) as refusal:
+                        self._rpc(partner._name, "launchplane_test_precommit_write", [])
+                    self.assertEqual(str(refusal.exception), f"{AccessError.__module__}.{AccessError.__qualname__}")
+                self.assertEqual(calls, [True])
+                self.assertEqual(hooks, [True])
+                partner.invalidate_recordset(["name"])
+                self.assertEqual(partner.name, expected)
+        finally:
+            self.set_registry_readonly_mode(native_mode)
+
+    def test_real_http_prepared_worker_bundle_is_readable_without_asset_writes(self) -> None:
+        self.env["ir.attachment"].sudo().search([("url", "=like", "/web/assets/%")]).unlink()
+        self.user.write({"active": True, "password": "synthetic-password"})
+        self.env.flush_all()
+        attachments = self.env["ir.attachment"].sudo()
+        before = attachments.search_count([])
+        self._login_browser()
+        response = self.url_open("/bus/websocket_worker_bundle")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("javascript", response.headers["Content-Type"])
+        self.assertTrue(response.content)
+        self.assertEqual(attachments.search_count([]), before)
 
     def test_real_login_read_preferences_and_write_refusal(self) -> None:
         partner = self.env["res.partner"].create({"name": "Synthetic HTTP record"})
@@ -358,7 +789,12 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         from lxml import html
 
         assets = self.env["ir.attachment"].sudo()
-        domain = [("res_model", "=", "ir.ui.view"), ("res_id", "=", False), ("public", "=", True), ("url", "=like", "/web/assets/%")]
+        domain = [
+            ("res_model", "=", "ir.ui.view"),
+            ("res_id", "=", False),
+            ("public", "=", True),
+            ("url", "=like", "/web/assets/%"),
+        ]
         assets.search(domain).unlink()
         self.user.write({"active": True, "password": "synthetic-password"})
         prepared_count = assets.search_count(domain)
@@ -368,7 +804,9 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.url.endswith("/odoo"))
         document = html.fromstring(response.content)
-        urls = [url for url in document.xpath("//script[@src]/@src | //link[@href]/@href") if url.startswith("/web/assets/")]
+        urls = [
+            url for url in document.xpath("//script[@src]/@src | //link[@href]/@href") if url.startswith("/web/assets/")
+        ]
         self.assertTrue(urls)
         for url in urls:
             self.assertEqual(self.url_open(url).status_code, 200)

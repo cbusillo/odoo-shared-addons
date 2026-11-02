@@ -42,9 +42,10 @@ for the account's language, in the caller's transaction. It disables optional
 OdooBot onboarding so first bootstrap cannot create chats or messages. Failed
 preparation propagates to the native consumer; this addon never commits.
 
-For the QA actor, HTTP requests require native readonly classification, with
-the native web-client bootstrap admitted separately. Reports, printing, server
-actions, imports, exports and button execution refuse before dispatch. Admitted
+For the QA actor, HTTP requests require native readonly classification or the
+qualified native single-range read below, with the native web-client bootstrap
+admitted separately. Reports, printing, server
+actions, imports, exports and non-readonly button execution refuse before dispatch. Admitted
 requests execute through PostgreSQL's read-only connection pool without Odoo's
 writable fallback, including after a commit. ORM create/write/delete also refuse
 for the QA actor, including sudo and user switches inside its HTTP request. Reports and server actions
@@ -56,6 +57,36 @@ Ordinary users retain native behavior. This trusts image-owned readonly methods
 to avoid external effects; readonly classification is not permission to add an
 external call to a read method. Copied production data must pass the product's
 credential sanitizer before serving, independently of this addon.
+
+The native single-range search-panel read is admitted through the native
+dataset `call_kw` controller when the resolved entrypoint and its private
+search-panel helpers match the native function objects captured at import.
+Qualification runs before dispatch on every request, including for inherited
+registry classes and later helper replacements. An unqualified override refuses
+even if Odoo finds an ancestor's readonly marker. The method name selects this
+check; admission requires function identity. No native method is annotated or
+registry class patched. The actual native implementation serves every readable
+model that satisfies this contract; record permissions still apply.
+Multi-range and the Apps search-panel network override remain refused. Existing
+public readonly methods retain their native trust boundary, including calls
+they make internally; this check does not qualify every Apps or outbound path.
+Ordinary-user classification and routing are unchanged.
+
+The request-local dispatcher runs under the same read-only backstop through
+response serialization, including lazy JSON values. Model-converter arguments
+and request parameters use that guarded environment. Cursor flush/precommit work,
+error rendering and cursor-context exit remain inside the refusal boundary;
+the original environment is restored only afterward. The base attachment
+fallback refuses for the QA identity. An installed addon's earlier MRO override
+may run before that hook and requires its own source qualification; this is not
+a blanket guarantee for website fallback handlers. Native readonly
+button methods use the same routing predicate as ordinary model reads; opening
+an action does not authorize executing its business operation. The native bus
+worker-bundle controller is classified readonly for QA actors and uses the assets already
+pregenerated during service preparation. Cold cache writes still refuse for
+the QA identity; ordinary users retain native cache-generation fallback.
+Native JSON/QWeb and resolved asset responses are covered; arbitrary streaming
+responses that defer database reads beyond dispatch are not qualified by this boundary.
 
 Run this addon's complete native tests through the repository's focused
 `qualityGate.test.local` selection. `test_policy.py` also runs without Odoo via
@@ -74,3 +105,17 @@ asset variant, and generated error CSS is not a successful frontend check.
 The service browser refuses websockets; live updates are outside this read-only
 surface. Missing assets do not grant QA a cache-write exception.
 Source tests do not establish actual CM preview activation or authenticated QA.
+The synthetic lazy JSON tests exercise the serializer used by mail-store
+responses; they do not call `/mail/store` directly. HttpCase uses native
+TestCursors so its uncommitted account/record fixtures remain visible. It does
+not establish a complete HTTP request through the separate PostgreSQL pool
+fallback used when a registry returns a writable cursor. A dedicated native
+cursor-context test covers the real pool's exit hooks. The web-client check
+waits for the default action's search panel or an error dialog instead of
+passing as soon as the navigation bar appears; product QA still owns the
+installed app's complete read surface. The complete shared-addon CI database
+supplies HR for the retained Employee browser control. New Employee HTTP tests
+require that installed addon and compare company/department ranges and counters
+with the native read. Refusal tests replace entrypoints and private helpers on
+registry classes, inherited registry classes and definition classes, including
+under an inherited readonly marker, and check that no effect sentinel runs.

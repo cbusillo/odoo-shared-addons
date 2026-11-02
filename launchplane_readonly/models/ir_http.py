@@ -1,14 +1,30 @@
+from collections.abc import Callable
 from contextlib import nullcontext
+from functools import partial
 from typing import Any
 
 from odoo import models, sql_db
+from odoo.addons.web.controllers.dataset import DataSet
 from odoo.addons.web.controllers.export import Export, ExportFormat
 from odoo.addons.web.controllers.home import Home
 from odoo.addons.web.controllers.report import ReportController
+from odoo.addons.web.models.models import Base as WebBase
 from odoo.exceptions import AccessError
 from odoo.http import request
 from odoo.http.session import SessionExpiredException, logout
 from psycopg2.errors import ReadOnlySqlTransaction
+
+from ..policy import matches_native_read
+
+NATIVE_CALL_KW = DataSet.call_kw
+NATIVE_RANGE_READ = WebBase.search_panel_select_range
+NATIVE_RANGE_HELPERS = (
+    WebBase._search_panel_field_image,
+    WebBase._search_panel_domain_image,
+    WebBase._search_panel_sanitized_parent_hierarchy,
+    WebBase._search_panel_global_counters,
+    WebBase._search_panel_selection_range,
+)
 
 
 class IrHttp(models.AbstractModel):
@@ -27,15 +43,22 @@ class IrHttp(models.AbstractModel):
             path = request.httprequest.path
             controller = rule.endpoint.func.__self__
             if isinstance(controller, (ReportController, Export, ExportFormat)) or path.startswith(
-                ("/web/action/run", "/base_import", "/web/dataset/call_button")
+                ("/web/action/run", "/base_import")
             ):
                 raise AccessError(request.env._("This test identity can only read records."))
             readonly = rule.endpoint.routing.get("readonly", False)
             if callable(readonly):
                 readonly = readonly(rule.endpoint.func.__self__, rule, args)
+            if isinstance(controller, DataSet):
+                params = request.get_json_data()["params"]
+                if params["method"] == NATIVE_RANGE_READ.__name__:
+                    readonly = getattr(rule.endpoint.func, "__func__", None) is NATIVE_CALL_KW and matches_native_read(
+                        request.env.registry[params["model"]], params["method"], NATIVE_RANGE_READ, NATIVE_RANGE_HELPERS
+                    )
             bootstrap = rule.endpoint.func.__name__ == "web_client" and isinstance(controller, Home)
             if not (readonly or bootstrap):
                 raise AccessError(request.env._("This test identity cannot use this action."))
+            request.dispatcher.dispatch = partial(cls._launchplane_readonly_dispatch, request.dispatcher.dispatch)
         return super()._pre_dispatch(rule, args)
 
     @classmethod
@@ -48,19 +71,49 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _dispatch(cls, endpoint: Any) -> Any:
+        return cls._launchplane_readonly_call(super()._dispatch, endpoint)
+
+    @classmethod
+    def _post_dispatch(cls, response: Any) -> Any:
+        return cls._launchplane_readonly_call(super()._post_dispatch, response)
+
+    @classmethod
+    def _serve_fallback(cls) -> Any:
+        if request.env["base"]._launchplane_readonly_actor():
+            raise AccessError(request.env._("This test identity cannot use this action."))
+        return super()._serve_fallback()
+
+    @classmethod
+    def _handle_error(cls, exception: Exception) -> Any:
+        return cls._launchplane_readonly_call(super()._handle_error, exception)
+
+    @classmethod
+    def _launchplane_readonly_dispatch(cls, operation: Callable[..., Any], endpoint: Any, args: dict) -> Any:
+        def dispatch() -> Any:
+            values = {
+                key: value.with_env(request.env) if isinstance(value, models.BaseModel) else value
+                for key, value in args.items()
+            }
+            return operation(endpoint, values)
+
+        return cls._launchplane_readonly_call(dispatch)
+
+    @classmethod
+    def _launchplane_readonly_call(cls, operation: Callable[..., Any], *args: Any) -> Any:
         if not request.env["base"]._launchplane_readonly_actor():
-            return super()._dispatch(endpoint)
+            return operation(*args)
         original = request.env
         manager = nullcontext(original.cr) if original.cr.readonly else cls._launchplane_readonly_cursor()
-        with manager as cursor:
-            request.env = original(cr=cursor)
-            try:
-                try:
-                    result = super()._dispatch(endpoint)
-                    request.env.flush_all()
-                    return result
-                except ReadOnlySqlTransaction as error:
-                    cursor.rollback()
-                    raise AccessError(original._("This test identity cannot change database records.")) from error
-            finally:
-                request.env = original
+        cursor = None
+        try:
+            with manager as cursor:
+                request.env = original(cr=cursor)
+                result = operation(*args)
+                cursor.flush()
+                return result
+        except ReadOnlySqlTransaction as error:
+            if cursor is not None and not cursor.closed:
+                cursor.rollback()
+            raise AccessError(original._("This test identity cannot change database records.")) from error
+        finally:
+            request.env = original

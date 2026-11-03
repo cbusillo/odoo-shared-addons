@@ -1,11 +1,10 @@
 from unittest.mock import patch
 
-from odoo.tools import convert_file
-
 from odoo.addons.authentik_sso import post_init_hook
 from odoo.addons.authentik_sso.models.authentik_config import (
     AUTHENTIK_ADMIN_GROUP_PARAM,
 )
+from odoo.tools import convert_file
 
 from ..common_imports import common
 from ..fixtures.base import UnitTestCase
@@ -58,12 +57,8 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
 
-        self.assertEqual(
-            self.ConfigParameter.get_str("authentik_sso.admin_group"), "Odoo Admins"
-        )
-        self.assertEqual(
-            self.ConfigParameter.get_str("authentik_sso.group_claim"), "roles"
-        )
+        self.assertEqual(self.ConfigParameter.get_str("authentik_sso.admin_group"), "Odoo Admins")
+        self.assertEqual(self.ConfigParameter.get_str("authentik_sso.group_claim"), "roles")
         self.assertEqual(
             self.ConfigParameter.get_str("authentik_sso.login_claims"),
             "preferred_username,email",
@@ -76,9 +71,7 @@ class TestAuthentikSso(UnitTestCase):
             self.ConfigParameter.get_str("authentik_sso.provider_name"),
             "Internal SSO",
         )
-        self.assertEqual(
-            self.ConfigParameter.get_str("authentik_sso.user_id_claims"), "sub,email"
-        )
+        self.assertEqual(self.ConfigParameter.get_str("authentik_sso.user_id_claims"), "sub,email")
 
     def test_apply_from_values_creates_provider(self) -> None:
         self.env["authentik.sso.config"].apply_from_values(
@@ -89,14 +82,10 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
 
-        provider = self.env["auth.oauth.provider"].search(
-            [("name", "=", "Authentik")], limit=1
-        )
+        provider = self.env["auth.oauth.provider"].search([("name", "=", "Authentik")], limit=1)
         self.assertTrue(provider)
         self.assertEqual(provider.client_id, "client-123")
-        self.assertEqual(
-            provider.auth_endpoint, "https://auth.example.com/application/o/authorize/"
-        )
+        self.assertEqual(provider.auth_endpoint, "https://auth.example.com/application/o/authorize/")
         self.assertEqual(
             provider.validation_endpoint,
             "https://auth.example.com/application/o/userinfo/",
@@ -139,9 +128,7 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
 
-        self.Users._sync_authentik_groups(
-            user, {"groups": ["Engineering"]}, provider.id
-        )
+        self.Users._sync_authentik_groups(user, {"groups": ["Engineering"]}, provider.id)
 
         self.assertIn(user, engineering_group.user_ids)
         self.assertTrue(user.has_group("base.group_user"))
@@ -157,9 +144,7 @@ class TestAuthentikSso(UnitTestCase):
             }
         )
         fallback_group = self.env["res.groups"].create({"name": "Fallback Team"})
-        fallback_mapping = self.AuthentikMapping.search(
-            [("is_fallback", "=", True)], limit=1
-        )
+        fallback_mapping = self.AuthentikMapping.search([("is_fallback", "=", True)], limit=1)
         if not fallback_mapping:
             fallback_mapping = self.AuthentikMapping.create({"is_fallback": True})
         fallback_mapping.write({"odoo_groups": [(4, fallback_group.id)]})
@@ -193,12 +178,8 @@ class TestAuthentikSso(UnitTestCase):
         )
 
         existing_groups = user.group_ids
-        with self.assertLogs(
-            "odoo.addons.authentik_sso.models.res_users", level="WARNING"
-        ):
-            self.Users._sync_authentik_groups(
-                user, {"groups": ["Engineering"]}, provider.id
-            )
+        with self.assertLogs("odoo.addons.authentik_sso.models.res_users", level="WARNING"):
+            self.Users._sync_authentik_groups(user, {"groups": ["Engineering"]}, provider.id)
 
         self.assertEqual(user.group_ids, existing_groups)
 
@@ -214,13 +195,9 @@ class TestAuthentikSso(UnitTestCase):
 
     def test_module_upgrade_keeps_edited_default_mappings(self) -> None:
         admin_mapping = self.env.ref("authentik_sso.authentik_group_mapping_admins")
-        fallback_mapping = self.env.ref(
-            "authentik_sso.authentik_group_mapping_fallback"
-        )
+        fallback_mapping = self.env.ref("authentik_sso.authentik_group_mapping_fallback")
         admin_custom_group = self.env["res.groups"].create({"name": "Custom Admin"})
-        fallback_custom_group = self.env["res.groups"].create(
-            {"name": "Custom Fallback"}
-        )
+        fallback_custom_group = self.env["res.groups"].create({"name": "Custom Fallback"})
         admin_mapping.write({"odoo_groups": [(6, 0, [admin_custom_group.id])]})
         fallback_mapping.write({"odoo_groups": [(6, 0, [fallback_custom_group.id])]})
         # Databases installed before the data became noupdate store the
@@ -269,7 +246,5 @@ class TestAuthentikSso(UnitTestCase):
             post_init_hook(self.env(su=True))
 
         mapping = self.env.ref("authentik_sso.authentik_group_mapping_admins")
-        self.assertEqual(
-            set(mapping.odoo_groups.ids), set(admin_user.group_ids.ids)
-        )
+        self.assertEqual(set(mapping.odoo_groups.ids), set(admin_user.group_ids.ids))
         self.assertIn(extra_group, mapping.odoo_groups)

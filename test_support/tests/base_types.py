@@ -1,11 +1,11 @@
 from datetime import datetime
-from typing import Any, Union
+from typing import Any
 from unittest.mock import MagicMock, Mock
 
-OdooValue = Union[str, int, float, bool, None, list, tuple, datetime, bytes]
+OdooValue = str | int | float | bool | None | list | tuple | datetime | bytes
 
 
-MockType = Union[MagicMock, Mock]
+MockType = MagicMock | Mock
 
 AssertionDict = dict[str, Any]
 

@@ -579,9 +579,12 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             resolve.assert_not_called()
         for controller in (ReadOnlyWebclientController, WebclientController):
             changed = Mock()
-            with patch.object(controller, "store_get_thread_messages", changed):
-                with self.subTest(controller=controller), self.assertRaises(JsonRpcException):
-                    self.make_jsonrpc_request("/mail/store", {"fetch_params": [fetch]})
+            with (
+                patch.object(controller, "store_get_thread_messages", changed),
+                self.subTest(controller=controller),
+                self.assertRaises(JsonRpcException),
+            ):
+                self.make_jsonrpc_request("/mail/store", {"fetch_params": [fetch]})
             changed.assert_not_called()
         message.invalidate_recordset()
         notifications.invalidate_recordset()

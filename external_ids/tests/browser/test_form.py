@@ -8,12 +8,8 @@ from ..fixtures.base import UnitTestCase
 @tagged("post_install", "-at_install")
 class TestExternalIdFormBrowser(UnitTestCase, HttpCase):
     def test_inherited_form_and_external_ids_open(self) -> None:
-        record = self.FixtureRecord.create(
-            {"name": "Synthetic identity browser record"}
-        )
-        system = self.ExternalSystem.create(
-            {"name": "Browser fixture", "code": "browser_fixture"}
-        )
+        record = self.FixtureRecord.create({"name": "Synthetic identity browser record"})
+        system = self.ExternalSystem.create({"name": "Browser fixture", "code": "browser_fixture"})
         identity = "fixture-731"
         record.set_external_id(system.code, identity)
         form = self.env["ir.ui.view"].create(

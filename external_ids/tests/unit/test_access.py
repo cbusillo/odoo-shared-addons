@@ -35,18 +35,12 @@ class TestExternalIdentityAccess(UnitTestCase):
                 model = self.env[model_name].with_user(user)
                 self.assertFalse(model.env.su)
                 for operation in ("create", "read", "write", "unlink"):
-                    with self.subTest(
-                        group=group, model=model_name, operation=operation
-                    ):
-                        allowed = group == "base.group_system" or (
-                            group == "base.group_user" and operation == "read"
-                        )
+                    with self.subTest(group=group, model=model_name, operation=operation):
+                        allowed = group == "base.group_system" or (group == "base.group_user" and operation == "read")
                         self.assertEqual(model.has_access(operation), allowed)
 
     def test_rename_wizard_keeps_creator_and_target_permissions(self) -> None:
-        system = self.ExternalSystem.create(
-            {"name": "Access fixture", "code": "access_fixture"}
-        )
+        system = self.ExternalSystem.create({"name": "Access fixture", "code": "access_fixture"})
         template = self.env["external.system.url"].create(
             {
                 "name": "Fixture URL",

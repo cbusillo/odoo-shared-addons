@@ -34,9 +34,11 @@ class TestOverridePayloadIntegration(UnitTestCase):
         malformed = "not-base64"
         with self.assertRaises(override_payload.OverridePayloadError) as expected:
             override_payload.decode_payload(malformed)
-        with patch.dict(os.environ, {override_payload.ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: malformed}):
-            with self.assertRaises(ValidationError) as actual:
-                adapter._load_override_payload()
+        with (
+            patch.dict(os.environ, {override_payload.ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: malformed}),
+            self.assertRaises(ValidationError) as actual,
+        ):
+            adapter._load_override_payload()
         self.assertEqual(str(actual.exception), str(expected.exception))
         for payload in ({"config_parameters": {}}, {"config_parameters": [{"key": "test.invalid"}]}):
             with self.subTest(payload=payload):

@@ -32,14 +32,10 @@ class TestExternalSystem(UnitTestCase):
         ExternalSystemFactory.create(self.env, name="Unique System")
 
         with self.assertRaises(common.ValidationError):
-            ExternalSystemFactory.create(
-                self.env, name="Unique System", code="different_code"
-            )
+            ExternalSystemFactory.create(self.env, name="Unique System", code="different_code")
 
     def test_external_id_count(self) -> None:
-        system = ExternalSystemFactory.create(
-            self.env, name="Catalog", code="catalog", reuse_existing=True
-        )
+        system = ExternalSystemFactory.create(self.env, name="Catalog", code="catalog", reuse_existing=True)
         self.assertEqual(system.external_id_count, 0)
 
         partner = self.Partner.create({"name": "Test Customer"})
@@ -65,9 +61,7 @@ class TestExternalSystem(UnitTestCase):
         self.assertNotIn(system, active_systems)
 
     def test_system_with_external_ids_restriction(self) -> None:
-        system = ExternalSystemFactory.create(
-            self.env, name="Service", code="service", reuse_existing=True
-        )
+        system = ExternalSystemFactory.create(self.env, name="Service", code="service", reuse_existing=True)
         partner = self.Partner.create({"name": "Test Partner"})
 
         ExternalIdFactory.create(
@@ -94,9 +88,7 @@ class TestExternalSystem(UnitTestCase):
         self.assertEqual(system.code, "inventory")
         self.assertEqual(system.name, "Inventory")
         self.assertTrue(system.active)
-        self.assertIn(
-            self.env.ref("base.model_res_partner"), system.applicable_model_ids
-        )
+        self.assertIn(self.env.ref("base.model_res_partner"), system.applicable_model_ids)
 
         system.active = False
         system.invalidate_model()

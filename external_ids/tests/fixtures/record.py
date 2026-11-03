@@ -1,5 +1,4 @@
 from odoo import fields, models
-
 from odoo.addons.external_ids.models.external_reference import ExternalIdBinding
 
 

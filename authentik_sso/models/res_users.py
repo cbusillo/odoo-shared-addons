@@ -167,8 +167,7 @@ class ResUsers(models.Model):
             candidates = [str(item) for item in raw_groups]
         else:
             return set()
-        cleaned = {item.strip() for item in candidates if item and item.strip()}
-        return cleaned
+        return {item.strip() for item in candidates if item and item.strip()}
 
     def _sync_authentik_groups(
         self,
@@ -227,10 +226,7 @@ class ResUsers(models.Model):
     ) -> str | None:
         provider_record = self.env["auth.oauth.provider"].sudo().browse(provider)
         is_authentik_provider = bool(provider_record.exists()) and provider_record.name == self._authentik_provider_name()
-        if is_authentik_provider:
-            normalized_validation = self._normalize_authentik_validation(validation)
-        else:
-            normalized_validation = validation
+        normalized_validation = self._normalize_authentik_validation(validation) if is_authentik_provider else validation
 
         oauth_uid = normalized_validation.get("user_id")
         if not oauth_uid:

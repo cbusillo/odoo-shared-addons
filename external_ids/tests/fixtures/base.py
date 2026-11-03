@@ -1,9 +1,8 @@
 from odoo.orm import model_classes
 from odoo.tests import TransactionCase
 
-from .record import ExternalIdFixture
-
 from ..common_imports import common
+from .record import ExternalIdFixture
 
 
 @common.tagged(*common.UNIT_TAGS)

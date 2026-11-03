@@ -1,11 +1,12 @@
 from odoo import fields, http
+from odoo.api import Environment
 from odoo.exceptions import AccessError
 from odoo.http import request
 
 from ..models.config_util import ModelCfg, extract_template_fields, load_config, parse_prefix, render_template
 
 
-def _ensure_internal_user(env) -> None:
+def _ensure_internal_user(env: Environment) -> None:
     # Record-link search and labels exist for the backend Discuss/Chatter UI.
     # Portal and public users never need them.
     if not env.user._is_internal():
@@ -31,7 +32,7 @@ class DiscussRecordLinks(http.Controller):
     """
 
     @http.route("/discuss_record_links/search", type="jsonrpc", auth="user", methods=["POST"], readonly=True)
-    def search(self, term: str = ""):
+    def search(self, term: str = "") -> dict[str, list[dict[str, object]]]:
         env = request.env
         _ensure_internal_user(env)
         cfg = load_config(env)
@@ -78,7 +79,7 @@ class DiscussRecordLinks(http.Controller):
         return {"suggestions": suggestions}
 
     @http.route("/discuss_record_links/labels", type="jsonrpc", auth="user", methods=["POST"], readonly=True)
-    def labels(self, targets: list[dict] | None = None):
+    def labels(self, targets: list[dict] | None = None) -> list[dict[str, object]]:
         """Return rendered labels for a list of {model, id} using configured templates.
 
         Only models configured for record links are labelled.

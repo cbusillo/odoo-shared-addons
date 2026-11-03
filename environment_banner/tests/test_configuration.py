@@ -23,6 +23,4 @@ class TestBannerConfiguration(TransactionCase):
             "EXAMPLE.TEST, other.test\nthird.test",
         )
         config = self.env["ir.http"]._get_environment_banner_config()
-        self.assertEqual(
-            config["production_hostnames"], ["example.test", "other.test", "third.test"]
-        )
+        self.assertEqual(config["production_hostnames"], ["example.test", "other.test", "third.test"])

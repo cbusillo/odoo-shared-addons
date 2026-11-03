@@ -7,22 +7,20 @@ import werkzeug.urls
 import werkzeug.utils
 from odoo import http
 from odoo.addons.auth_oauth.controllers.main import OAuthLogin as BaseOAuthLogin
-from odoo.addons.web.controllers.utils import ensure_db
-from odoo.http import request
-from werkzeug.exceptions import BadRequest
-
 from odoo.addons.authentik_sso.models.authentik_config import (
     AUTHENTIK_PROVIDER_NAME_PARAM,
     DEFAULT_PROVIDER_NAME,
 )
+from odoo.addons.web.controllers.utils import ensure_db
+from odoo.api import Environment
+from odoo.http import request
+from werkzeug.exceptions import BadRequest
 
 _logger = logging.getLogger(__name__)
 
 
-def _authentik_provider_name(env) -> str:
-    raw_value = (
-        env["ir.config_parameter"].sudo().get_str(AUTHENTIK_PROVIDER_NAME_PARAM) or ""
-    )
+def _authentik_provider_name(env: Environment) -> str:
+    raw_value = env["ir.config_parameter"].sudo().get_str(AUTHENTIK_PROVIDER_NAME_PARAM) or ""
     cleaned = raw_value.strip()
     return cleaned or DEFAULT_PROVIDER_NAME
 
@@ -81,9 +79,7 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
                 continue
             redirect_url = request.httprequest.url_root + "auth_oauth/signin"
             state = self.get_state(provider)
-            provider["auth_link"] = _build_authentik_auth_link(
-                provider, state, redirect_url
-            )
+            provider["auth_link"] = _build_authentik_auth_link(provider, state, redirect_url)
         return providers
 
     @http.route()

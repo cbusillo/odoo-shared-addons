@@ -1,4 +1,5 @@
 from typing import Any
+
 from odoo.api import Environment
 
 

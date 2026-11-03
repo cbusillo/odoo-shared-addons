@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Any
 from urllib.parse import urlsplit
@@ -5,6 +6,8 @@ from urllib.parse import urlsplit
 from ..base_types import DEFAULT_TEST_CONTEXT
 from ..shared.browser_test_cases import SharedTourTestCaseBase
 from .unit_case import AdminContextUnitTestCase
+
+_logger = logging.getLogger(__name__)
 
 
 def browser_http_url(test_case: Any, path_or_url: str) -> str:
@@ -44,7 +47,8 @@ def preflight_get(path_or_url: str, timeout_seconds: int = 10) -> tuple[int, flo
     start_time = time.perf_counter()
     try:
         response = requests.get(path_or_url, timeout=timeout_seconds, allow_redirects=True)
-    except Exception as request_error:  # pragma: no cover - diagnostics only
+    except Exception as request_error:
+        _logger.debug("Browser preflight failed: %s", request_error, exc_info=True)
         return 0, -1.0, 0, f"error: {request_error}"
 
     elapsed_seconds = time.perf_counter() - start_time

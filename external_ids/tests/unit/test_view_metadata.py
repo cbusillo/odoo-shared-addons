@@ -25,8 +25,7 @@ class TestViewMetadata(UnitTestCase):
                 "name": "Inherited fixture page",
                 "model": self.FixtureRecord._name,
                 "inherit_id": self.form.id,
-                "arch": '<notebook position="inside"><page name="fixture_inherited">'
-                '<field name="active"/></page></notebook>',
+                "arch": '<notebook position="inside"><page name="fixture_inherited"><field name="active"/></page></notebook>',
             }
         )
 
@@ -47,9 +46,7 @@ class TestViewMetadata(UnitTestCase):
             )
             self.assertEqual(len(arch.xpath(".//page[@name='fixture_inherited']")), 1)
             self.assertEqual(len(arch.xpath(".//page[@name='external_ids']")), 1)
-            self.assertEqual(
-                len(arch.xpath(".//button[@name='action_view_external_ids']")), 1
-            )
+            self.assertEqual(len(arch.xpath(".//button[@name='action_view_external_ids']")), 1)
 
     def test_opt_out_keeps_inherited_pages_without_external_ui(self) -> None:
         with patch.object(type(self.FixtureRecord), "_external_ids_auto_ui", False):
@@ -57,11 +54,7 @@ class TestViewMetadata(UnitTestCase):
             result = self.FixtureRecord.get_views([(self.form.id, "form")])
             arch = etree.fromstring(result["views"]["form"]["arch"].encode())
             self.assertEqual(len(arch.xpath(".//page[@name='fixture_inherited']")), 1)
-            self.assertFalse(
-                arch.xpath(
-                    ".//field[@name='external_ids' or @name='external_ids_count']"
-                )
-            )
+            self.assertFalse(arch.xpath(".//field[@name='external_ids' or @name='external_ids_count']"))
         self.env.transaction.invalidate_ormcache("templates")
 
     def test_non_form_view_is_unchanged(self) -> None:
@@ -75,6 +68,4 @@ class TestViewMetadata(UnitTestCase):
         )
         result = self.FixtureRecord.get_views([(view.id, "list")])
         arch = etree.fromstring(result["views"]["list"]["arch"].encode())
-        self.assertFalse(
-            arch.xpath(".//field[@name='external_ids' or @name='external_ids_count']")
-        )
+        self.assertFalse(arch.xpath(".//field[@name='external_ids' or @name='external_ids_count']"))

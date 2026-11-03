@@ -1,3 +1,1 @@
-from . import authentik_config
-from . import authentik_group_mapping
-from . import res_users
+from . import authentik_config, authentik_group_mapping, res_users

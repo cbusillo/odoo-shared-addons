@@ -47,15 +47,11 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
             database_name = cls.env.cr.dbname
             if database_name in cls.assets_reset_db_names:
                 return
-            cls.env["ir.attachment"].sudo().search(
-                [("url", "ilike", "/web/assets/")]
-            ).unlink()
+            cls.env["ir.attachment"].sudo().search([("url", "ilike", "/web/assets/")]).unlink()
             cls.assets_reset_db_names.add(database_name)
             return
 
-        cls.env["ir.attachment"].sudo().search(
-            [("url", "ilike", "/web/assets/")]
-        ).unlink()
+        cls.env["ir.attachment"].sudo().search([("url", "ilike", "/web/assets/")]).unlink()
 
     @classmethod
     def _ensure_required_domain_data(cls) -> None:
@@ -70,8 +66,8 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
             subprocess.run(["pkill", "-f", "chromium"], capture_output=True, timeout=5)
             subprocess.run(["pkill", "-f", "chrome"], capture_output=True, timeout=5)
             _logger.info("Cleaned up existing browser processes")
-        except Exception as cleanup_error:  # pragma: no cover - defensive logging
-            _logger.warning(f"Failed to cleanup browser processes: {cleanup_error}")
+        except Exception as cleanup_error:
+            _logger.warning("Failed to cleanup browser processes: %s", cleanup_error, exc_info=True)
 
     @classmethod
     def _resolve_optional_group_ids(cls) -> list[int]:
@@ -80,9 +76,7 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
             try:
                 group_record = cls.env.ref(group_xmlid)
             except ValueError:
-                _logger.debug(
-                    "Skipping optional group xmlid %s (not installed)", group_xmlid
-                )
+                _logger.debug("Skipping optional group xmlid %s (not installed)", group_xmlid)
                 continue
             group_ids.append(group_record.id)
         return group_ids
@@ -91,16 +85,10 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
     def _setup_test_user(cls) -> None:
         """Create or configure a secure test user with dynamically generated password."""
         password_characters = string.ascii_letters + string.digits
-        cls.test_password = "".join(
-            secrets.choice(password_characters) for _ in range(20)
-        )
+        cls.test_password = "".join(secrets.choice(password_characters) for _ in range(20))
 
-        test_user = cls.env["res.users"].search(
-            [("login", "=", "tour_test_user")], limit=1
-        )
-        required_group_ids = [
-            cls.env.ref("base.group_system").id
-        ] + cls._resolve_optional_group_ids()
+        test_user = cls.env["res.users"].search([("login", "=", "tour_test_user")], limit=1)
+        required_group_ids = [cls.env.ref("base.group_system").id] + cls._resolve_optional_group_ids()
 
         if not test_user:
             test_user = cls.env["res.users"].create(
@@ -121,11 +109,7 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
                     "active": True,
                 }
             )
-            missing_group_commands = [
-                (4, group_id)
-                for group_id in required_group_ids
-                if group_id not in test_user.group_ids.ids
-            ]
+            missing_group_commands = [(4, group_id) for group_id in required_group_ids if group_id not in test_user.group_ids.ids]
             if missing_group_commands:
                 test_user.sudo().write({"group_ids": missing_group_commands})
             _logger.info("Updated existing tour test user with new secure password")
@@ -163,17 +147,13 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
 
         return browser_http_url(self, path_or_url)
 
-    def wait_for_browser_endpoint(
-        self, path_or_url: str, timeout_seconds: int = 60
-    ) -> None:
+    def wait_for_browser_endpoint(self, path_or_url: str, timeout_seconds: int = 60) -> None:
         from ..fixtures.base_cases import wait_for_browser_endpoint
 
         wait_for_browser_endpoint(self, path_or_url, timeout_seconds)
 
     @staticmethod
-    def preflight_get(
-        path_or_url: str, timeout_seconds: int = 10
-    ) -> tuple[int, float, int, str]:
+    def preflight_get(path_or_url: str, timeout_seconds: int = 10) -> tuple[int, float, int, str]:
         from ..fixtures.base_cases import preflight_get
 
         return preflight_get(path_or_url, timeout_seconds)
@@ -205,9 +185,7 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
         import os as os_module
 
         self.tour_timeout = int(os_module.environ.get("TOUR_TIMEOUT", "120"))
-        self.tour_step_delay_seconds = float(
-            os_module.environ.get("TOUR_STEP_DELAY_SECONDS", "0")
-        )
+        self.tour_step_delay_seconds = float(os_module.environ.get("TOUR_STEP_DELAY_SECONDS", "0"))
         self._setup_browser_environment()
 
     @staticmethod
@@ -228,9 +206,7 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
             extra_flags = "--enable-logging=stderr --v=1"
             current_flags = os.environ.get("CHROMIUM_FLAGS", "").strip()
             if extra_flags not in current_flags:
-                os.environ["CHROMIUM_FLAGS"] = (
-                    current_flags + " " + extra_flags
-                ).strip()
+                os.environ["CHROMIUM_FLAGS"] = (current_flags + " " + extra_flags).strip()
 
         _logger.info(
             "Browser environment configured: CHROMIUM_FLAGS=%s",

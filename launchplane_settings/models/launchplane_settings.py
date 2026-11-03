@@ -331,10 +331,7 @@ class LaunchplaneSettings(models.AbstractModel):
         )
         for url_template in url_templates:
             url_code = url_template["code"] if "code" in url_template._fields else ""
-            if url_code in {"customer_admin", "product_admin"}:
-                base_url = admin_base
-            else:
-                base_url = storefront_base
+            base_url = admin_base if url_code in {"customer_admin", "product_admin"} else storefront_base
             if not base_url:
                 continue
             template_base_url = url_template["base_url"] if "base_url" in url_template._fields else ""

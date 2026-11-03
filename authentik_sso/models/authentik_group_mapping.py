@@ -32,32 +32,21 @@ class AuthentikSsoGroupMapping(models.Model):
                 continue
             fallback_count = self.search_count([("is_fallback", "=", True)])
             if fallback_count > 1:
-                raise ValidationError(
-                    self.env._("Only one fallback mapping is allowed.")
-                )
+                raise ValidationError(self.env._("Only one fallback mapping is allowed."))
 
     @api.constrains("authentik_group", "is_fallback")
     def _check_authentik_group(self) -> None:
         for record in self:
             if record.is_fallback:
                 if record.authentik_group:
-                    raise ValidationError(
-                        self.env._("Fallback mapping must not set an Authentik group.")
-                    )
+                    raise ValidationError(self.env._("Fallback mapping must not set an Authentik group."))
                 continue
             if not record.authentik_group:
-                raise ValidationError(
-                    self.env._("Authentik group is required unless this is a fallback.")
-                )
+                raise ValidationError(self.env._("Authentik group is required unless this is a fallback."))
 
     @api.model
     def _resolve_admin_group_name(self) -> str:
-        raw_value = (
-            self.env["ir.config_parameter"]
-            .sudo()
-            .get_str(AUTHENTIK_ADMIN_GROUP_PARAM)
-            or ""
-        )
+        raw_value = self.env["ir.config_parameter"].sudo().get_str(AUTHENTIK_ADMIN_GROUP_PARAM) or ""
         cleaned = raw_value.strip()
         return cleaned or DEFAULT_ADMIN_GROUP
 
@@ -91,8 +80,7 @@ class AuthentikSsoGroupMapping(models.Model):
         if system_group:
             admin_groups |= system_group
 
-        group_ids = sorted({group.id for group in admin_groups})
-        return group_ids
+        return sorted({group.id for group in admin_groups})
 
     @api.model
     def ensure_default_mappings(self, *, seed_admin_mapping: bool = False) -> None:
@@ -106,15 +94,11 @@ class AuthentikSsoGroupMapping(models.Model):
         fallback_mapping = mapping_model.search([("is_fallback", "=", True)], limit=1)
         if not fallback_mapping:
             base_user_group = self.env.ref("base.group_user", raise_if_not_found=False)
-            base_user_group = (
-                base_user_group.exists() if base_user_group else self.env["res.groups"]
-            )
+            base_user_group = base_user_group.exists() if base_user_group else self.env["res.groups"]
             mapping_model.create(
                 {
                     "is_fallback": True,
-                    "odoo_groups": [(6, 0, [base_user_group.id])]
-                    if base_user_group
-                    else [],
+                    "odoo_groups": [(6, 0, [base_user_group.id])] if base_user_group else [],
                     "sequence": 10,
                 }
             )

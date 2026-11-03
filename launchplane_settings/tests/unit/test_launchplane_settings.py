@@ -168,9 +168,8 @@ class TestLaunchplaneSettings(UnitTestCase):
             ],
         }
 
-        with _set_env(self._payload_env(payload)):
-            with self.assertRaises(ValidationError):
-                self.Settings.apply_from_env()
+        with _set_env(self._payload_env(payload)), self.assertRaises(ValidationError):
+            self.Settings.apply_from_env()
         self.assertEqual(self.ConfigParameter.get_str("shopify.shop_url_key"), "existing-store")
 
     def test_apply_shopify_clear_action_from_payload(self) -> None:
@@ -200,9 +199,8 @@ class TestLaunchplaneSettings(UnitTestCase):
         self.assertFalse(self.ConfigParameter.get_str("shopify.api_version"))
 
     def test_apply_from_env_rejects_invalid_payload(self) -> None:
-        with _set_env({ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: "not-base64"}):
-            with self.assertRaises(ValidationError):
-                self.Settings.apply_from_env()
+        with _set_env({ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: "not-base64"}), self.assertRaises(ValidationError):
+            self.Settings.apply_from_env()
 
     def test_non_production_without_payload_clears_shopify_credentials(self) -> None:
         for platform_instance in ("testing", "", None):
@@ -308,9 +306,11 @@ class TestLaunchplaneSettings(UnitTestCase):
 
     def _handed_off_state(self, payload: Mapping[str, object] | None, platform_instance: str) -> MagicMock:
         payload_env = self._payload_env(payload) if payload is not None else {ODOO_INSTANCE_OVERRIDES_PAYLOAD_ENV_KEY: None}
-        with self._recorded_store_state() as adapter:
-            with _set_env({**payload_env, PLATFORM_INSTANCE_ENV_KEY: platform_instance}):
-                self.Settings.apply_from_env()
+        with (
+            self._recorded_store_state() as adapter,
+            _set_env({**payload_env, PLATFORM_INSTANCE_ENV_KEY: platform_instance}),
+        ):
+            self.Settings.apply_from_env()
         return adapter
 
     def test_verified_development_store_is_handed_to_shopify_sync_as_verified(self) -> None:
@@ -365,8 +365,10 @@ class TestLaunchplaneSettings(UnitTestCase):
                 adapter.assert_not_called()
 
     def test_missing_shopify_sync_adapter_is_a_no_op(self) -> None:
-        with patch.object(type(self.Settings), "_shopify_store_state_adapter", return_value=None):
-            with _set_env({**self._payload_env(self._shopify_apply_payload()), PLATFORM_INSTANCE_ENV_KEY: "testing"}):
-                self.Settings.apply_from_env()
+        with (
+            patch.object(type(self.Settings), "_shopify_store_state_adapter", return_value=None),
+            _set_env({**self._payload_env(self._shopify_apply_payload()), PLATFORM_INSTANCE_ENV_KEY: "testing"}),
+        ):
+            self.Settings.apply_from_env()
 
         self.assertEqual(self.ConfigParameter.get_str("shopify.test_store"), "True")

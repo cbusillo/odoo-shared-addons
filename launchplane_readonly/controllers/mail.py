@@ -48,6 +48,7 @@ class ReadOnlyWebclientController(WebclientController):
                     & ~request.env["mail.message"]._get_empty_domain()
                 )
             self._resolve_messages(store, domain=domain, thread=thread, fetch_params=fetch_params, sudo=thread.env.su)
+        return None
 
 
 READONLY_THREAD_MESSAGES = ReadOnlyWebclientController.store_get_thread_messages

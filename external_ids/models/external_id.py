@@ -304,12 +304,11 @@ class ExternalId(models.Model):
         for record in self:
             if record._skip_id_format_validation():
                 continue
-            if record.system_id.id_format:
-                if not re.match(record.system_id.id_format, record.external_id):
-                    raise ValidationError(
-                        f"External ID '{record.external_id}' does not match the expected format "
-                        f"for {record.system_id.name}: {record.system_id.id_format}"
-                    )
+            if record.system_id.id_format and not re.match(record.system_id.id_format, record.external_id):
+                raise ValidationError(
+                    f"External ID '{record.external_id}' does not match the expected format "
+                    f"for {record.system_id.name}: {record.system_id.id_format}"
+                )
 
     def action_open_reference(self) -> "odoo.values.ir_actions_act_window":
         self.ensure_one()
@@ -326,9 +325,7 @@ class ExternalId(models.Model):
         }
 
     @api.model
-    def get_record_by_external_id(
-        self, system_code: str, external_id: str, resource: str = "default"
-    ) -> models.Model | None:
+    def get_record_by_external_id(self, system_code: str, external_id: str, resource: str = "default") -> models.Model | None:
         System = self.env["external.system"]
         system = System.search([("code", "=", system_code)], limit=1)
 

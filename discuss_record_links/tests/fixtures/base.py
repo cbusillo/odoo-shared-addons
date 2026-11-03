@@ -19,22 +19,14 @@ class TourTestCase(SharedTourTestCase):
         name: str,
     ) -> "odoo.model.product_product":
         product_model = cls.env["product.product"].with_context(skip_sku_check=True)
-        product_record = product_model.search(
-            [("default_code", "=", default_code)], limit=1
-        )
+        product_record = product_model.search([("default_code", "=", default_code)], limit=1)
         if not product_record:
-            product_record = product_model.create(
-                {"name": name, "default_code": default_code}
-            )
+            product_record = product_model.create({"name": name, "default_code": default_code})
         return product_record
 
     @classmethod
-    def ensure_discuss_channel(
-        cls, channel_name: str = "DRL Tour"
-    ) -> "odoo.model.discuss_channel":
-        channel_record = cls.env["discuss.channel"].search(
-            [("name", "=", channel_name)], limit=1
-        )
+    def ensure_discuss_channel(cls, channel_name: str = "DRL Tour") -> "odoo.model.discuss_channel":
+        channel_record = cls.env["discuss.channel"].search([("name", "=", channel_name)], limit=1)
         if not channel_record:
             channel_record = cls.env["discuss.channel"].create({"name": channel_name})
 

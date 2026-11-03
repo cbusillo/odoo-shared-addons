@@ -1,4 +1,5 @@
 from odoo import models
+
 from ..tools.name import NameFormatter
 
 

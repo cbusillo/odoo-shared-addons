@@ -473,10 +473,9 @@ class TestRouting(TransactionCase):
             service = env["printnode.routing"]
             service._prepare_print(b"raw", paper, content_type="raw", title="Kept")
             for flush in (False, True):
-                with self.assertRaises(ValueError):
-                    with cursor.savepoint(flush=flush):
-                        service._prepare_print(b"raw", paper, content_type="raw", title="Discarded")
-                        raise ValueError("fixture rollback")
+                with self.assertRaises(ValueError), cursor.savepoint(flush=flush):
+                    service._prepare_print(b"raw", paper, content_type="raw", title="Discarded")
+                    raise ValueError("fixture rollback")
             with patch.object(routing, "notify_results"):
                 cursor.commit()
             self.assertEqual([call.args[0].title for call in self.client.submit.call_args_list], ["Kept"])
@@ -486,8 +485,7 @@ class TestRouting(TransactionCase):
             cursor.commit()
 
     def test_onchange_requests_cannot_prepare_a_print(self) -> None:
-        with patch.object(routing, "request", Mock(params={"method": "onchange"})):
-            with self.assertRaises(UserError):
-                self._prepare()
+        with patch.object(routing, "request", Mock(params={"method": "onchange"})), self.assertRaises(UserError):
+            self._prepare()
         self.client.printer.assert_not_called()
         self.client.submit.assert_not_called()

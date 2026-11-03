@@ -53,12 +53,8 @@ class TestNameSettings(common.TransactionCase):
             with self.subTest(initial_format=initial_format):
                 self.ICP.set_str("user_name_extended.format", initial_format)
                 saved_default = self.Employee.create({"first_name": "Wei", "last_name": "Zhang"})
-                explicit = self.Employee.create(
-                    {"first_name": "Wei", "last_name": "Zhang", "name_format": initial_format}
-                )
-                system_default = self.Employee.create(
-                    {"first_name": "Wei", "last_name": "Zhang", "name_format": ""}
-                )
+                explicit = self.Employee.create({"first_name": "Wei", "last_name": "Zhang", "name_format": initial_format})
+                system_default = self.Employee.create({"first_name": "Wei", "last_name": "Zhang", "name_format": ""})
                 initial_name = "Wei Zhang" if initial_format == "western" else "Zhang Wei"
                 changed_name = "Wei Zhang" if changed_format == "western" else "Zhang Wei"
                 self.assertEqual(saved_default.name_format, initial_format)

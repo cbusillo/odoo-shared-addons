@@ -1,5 +1,6 @@
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
+
 from ..tools.name import NameFormatter
 
 
@@ -54,8 +55,7 @@ class HrEmployee(models.Model):
                 vals["name"] = NameFormatter.compose_legal_name(
                     self.env, first, last, vals.get("nick_name"), fmt_override=vals.get("name_format") or None
                 )
-        recs = super().create(vals_list)
-        return recs
+        return super().create(vals_list)
 
     @api.model
     def default_get(self, fields_list: list[str]) -> "odoo.values.hr_employee":

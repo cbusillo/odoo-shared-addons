@@ -91,8 +91,7 @@ class IrHttp(models.AbstractModel):
     def _launchplane_readonly_dispatch(cls, operation: Callable[..., Any], endpoint: Any, args: dict) -> Any:
         def dispatch() -> Any:
             values = {
-                key: value.with_env(request.env) if isinstance(value, models.BaseModel) else value
-                for key, value in args.items()
+                key: value.with_env(request.env) if isinstance(value, models.BaseModel) else value for key, value in args.items()
             }
             return operation(endpoint, values)
 

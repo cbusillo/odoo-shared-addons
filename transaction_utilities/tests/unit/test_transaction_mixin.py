@@ -37,20 +37,24 @@ class TestTransactionMixin(UnitTestCase):
     def test_safe_commit_outside_test_mode(self) -> None:
         from odoo.tools import config
 
-        with common.patch.object(odoo_module, "current_test", False):
-            with common.patch.object(config, "get", return_value=False):
-                with common.patch.object(self.test_model.env.cr, "commit") as mock_commit:
-                    self.test_model._safe_commit()
-                    mock_commit.assert_called_once()
+        with (
+            common.patch.object(odoo_module, "current_test", False),
+            common.patch.object(config, "get", return_value=False),
+            common.patch.object(self.test_model.env.cr, "commit") as mock_commit,
+        ):
+            self.test_model._safe_commit()
+            mock_commit.assert_called_once()
 
     def test_safe_rollback_outside_test_mode(self) -> None:
         from odoo.tools import config
 
-        with common.patch.object(odoo_module, "current_test", False):
-            with common.patch.object(config, "get", return_value=False):
-                with common.patch.object(self.test_model.env.cr, "rollback") as mock_rollback:
-                    self.test_model._safe_rollback()
-                    mock_rollback.assert_called_once()
+        with (
+            common.patch.object(odoo_module, "current_test", False),
+            common.patch.object(config, "get", return_value=False),
+            common.patch.object(self.test_model.env.cr, "rollback") as mock_rollback,
+        ):
+            self.test_model._safe_rollback()
+            mock_rollback.assert_called_once()
 
     def test_new_cursor_context_in_test_mode(self) -> None:
         with self.test_model._new_cursor_context() as new_env:
@@ -78,9 +82,11 @@ class TestTransactionMixin(UnitTestCase):
             observer = open_owned_cursor()
             caller_cr = open_owned_cursor()
             caller = api.Environment(caller_cr, self.env.uid, self.env.context)["transaction.mixin"]
-            with common.patch.object(sql_db, "db_connect", return_value=database):
-                with common.patch.object(database, "cursor", side_effect=open_owned_cursor):
-                    yield LockSessions(caller, observer, open_owned_cursor)
+            with (
+                common.patch.object(sql_db, "db_connect", return_value=database),
+                common.patch.object(database, "cursor", side_effect=open_owned_cursor),
+            ):
+                yield LockSessions(caller, observer, open_owned_cursor)
 
     @staticmethod
     def _try_lock(observer: sql_db.Cursor, lock_id: int) -> bool:
@@ -114,11 +120,10 @@ class TestTransactionMixin(UnitTestCase):
             caller_cr = sessions.caller.env.cr
             caller_cr.execute("CREATE TEMP TABLE advisory_lock_sentinel (value integer) ON COMMIT DROP")
             caller_cr.execute("INSERT INTO advisory_lock_sentinel VALUES (1)")
-            with self.assertRaises(ValueError) as raised:
-                with sessions.caller._advisory_lock(lock_id) as acquired:
-                    self.assertTrue(acquired)
-                    self.assertFalse(self._try_lock(sessions.observer, lock_id))
-                    raise body_error
+            with self.assertRaises(ValueError) as raised, sessions.caller._advisory_lock(lock_id) as acquired:
+                self.assertTrue(acquired)
+                self.assertFalse(self._try_lock(sessions.observer, lock_id))
+                raise body_error
             self.assertIs(raised.exception, body_error)
             caller_cr.execute("SELECT value FROM advisory_lock_sentinel")
             self.assertEqual(caller_cr.fetchone(), (1,))
@@ -136,12 +141,11 @@ class TestTransactionMixin(UnitTestCase):
         with self._lock_sessions() as sessions:
             caller_cr = sessions.caller.env.cr
             caller_connection = caller_cr.connection
-            with self.assertRaises(DivisionByZero):
-                with sessions.caller._advisory_lock(lock_id) as acquired:
-                    self.assertTrue(acquired)
-                    self.assertFalse(self._try_lock(sessions.observer, lock_id))
-                    owner_pid = self._lock_owner(sessions.observer, lock_id)
-                    caller_cr.execute("SELECT 1 / 0", log_exceptions=False)
+            with self.assertRaises(DivisionByZero), sessions.caller._advisory_lock(lock_id) as acquired:
+                self.assertTrue(acquired)
+                self.assertFalse(self._try_lock(sessions.observer, lock_id))
+                owner_pid = self._lock_owner(sessions.observer, lock_id)
+                caller_cr.execute("SELECT 1 / 0", log_exceptions=False)
             with self.assertRaises(InFailedSqlTransaction):
                 caller_cr.execute("SELECT 1", log_exceptions=False)
             with closing(sessions.borrow_cursor()) as returned:
@@ -209,14 +213,16 @@ class TestTransactionMixin(UnitTestCase):
                 return original(cursor, *args, **kwargs)
 
             expected_error = body_error if body_fails else cleanup_error
-            with self.assertLogs("odoo.addons.transaction_utilities.models.transaction_mixin", level="ERROR"):
-                with common.patch.object(sql_db.Cursor, method, autospec=True, side_effect=fail_cleanup):
-                    with self.assertRaises(type(expected_error)) as raised:
-                        with sessions.caller._advisory_lock(lock_id) as acquired:
-                            self.assertTrue(acquired)
-                            self.assertFalse(self._try_lock(sessions.observer, lock_id))
-                            if body_fails:
-                                raise body_error
+            with (
+                self.assertLogs("odoo.addons.transaction_utilities.models.transaction_mixin", level="ERROR"),
+                common.patch.object(sql_db.Cursor, method, autospec=True, side_effect=fail_cleanup),
+                self.assertRaises(type(expected_error)) as raised,
+                sessions.caller._advisory_lock(lock_id) as acquired,
+            ):
+                self.assertTrue(acquired)
+                self.assertFalse(self._try_lock(sessions.observer, lock_id))
+                if body_fails:
+                    raise body_error
             self.assertIs(raised.exception, expected_error)
             if operation == "returned_close":
                 next_borrower = next_borrowers[0]

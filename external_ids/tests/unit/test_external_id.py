@@ -170,19 +170,13 @@ class TestExternalId(UnitTestCase):
             external_id="666666666666666666",
         )
 
-        found_record = self.ExternalId.get_record_by_external_id(
-            "sample", "666666666666666666"
-        )
+        found_record = self.ExternalId.get_record_by_external_id("sample", "666666666666666666")
         self.assertEqual(found_record, fixture_record)
 
-        not_found = self.ExternalId.get_record_by_external_id(
-            "sample", "999999999999999999"
-        )
+        not_found = self.ExternalId.get_record_by_external_id("sample", "999999999999999999")
         self.assertIsNone(not_found)
 
-        not_found_system = self.ExternalId.get_record_by_external_id(
-            "invalid_system", "123"
-        )
+        not_found_system = self.ExternalId.get_record_by_external_id("invalid_system", "123")
         self.assertIsNone(not_found_system)
 
     def test_action_open_reference(self) -> None:

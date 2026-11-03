@@ -8,9 +8,7 @@ from ...migrations.preserve_seed_records import preserve_seed_records
 @tagged("post_install", "-at_install", "unit_test", "external_ids")
 class TestSeedPreservation(TransactionCase):
     def test_upgrade_cleanup_keeps_seeded_system_and_existing_identity(self) -> None:
-        system = self.env["external.system"].create(
-            {"name": "Legacy test system", "code": "legacy-test"}
-        )
+        system = self.env["external.system"].create({"name": "Legacy test system", "code": "legacy-test"})
         template = self.env["external.system.url"].create(
             {
                 "name": "Legacy link",

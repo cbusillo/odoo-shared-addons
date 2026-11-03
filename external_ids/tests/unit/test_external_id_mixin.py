@@ -1,3 +1,9 @@
+from __future__ import annotations
+
+from contextlib import AbstractContextManager
+from typing import Any
+
+from odoo import fields
 from odoo.exceptions import ValidationError
 
 from ...models.external_id_mixin import ExternalIdMixin
@@ -63,9 +69,7 @@ class TestExternalIdMixin(UnitTestCase):
         record.external.sample.default.id = "123456789012345678"
 
         self.assertEqual(record.external.sample.default.id, "123456789012345678")
-        self.assertEqual(
-            record.external.sample.default.record.external_id, "123456789012345678"
-        )
+        self.assertEqual(record.external.sample.default.record.external_id, "123456789012345678")
 
     def test_fluent_resource_exposes_external_id_fields(self) -> None:
         record = self._create_fixture("Field Proxy Record")
@@ -75,9 +79,7 @@ class TestExternalIdMixin(UnitTestCase):
 
         self.assertEqual(record.external.sample.default.notes, "Needs review")
         self.assertTrue(record.external.sample.default.active)
-        self.assertEqual(
-            record.external.sample.default.external_id, "222222222222222222"
-        )
+        self.assertEqual(record.external.sample.default.external_id, "222222222222222222")
 
     def test_fluent_resource_hides_archived_mapping_by_default(self) -> None:
         record = self._create_fixture("Archived Fluent Record")
@@ -92,12 +94,8 @@ class TestExternalIdMixin(UnitTestCase):
         self.assertFalse(record.external.sample.default.notes)
         self.assertFalse(record.external.sample.default.active)
         self.assertEqual(record.external.sample.default.id_any, "222222222222222222")
-        self.assertEqual(
-            record.external.sample.default.record_any.external_id, "222222222222222222"
-        )
-        self.assertEqual(
-            record.external.sample.default.record_any.notes, "Needs review"
-        )
+        self.assertEqual(record.external.sample.default.record_any.external_id, "222222222222222222")
+        self.assertEqual(record.external.sample.default.record_any.notes, "Needs review")
         self.assertFalse(record.external.sample.default.record_any.active)
 
     def test_fluent_resource_can_clear_id_with_none(self) -> None:
@@ -113,9 +111,7 @@ class TestExternalIdMixin(UnitTestCase):
         record = self._create_fixture("Lookup Record")
         record.external.sample.default.id = "333333333333333333"
 
-        found_record = self.FixtureRecord.external.sample.default.get(
-            "333333333333333333"
-        )
+        found_record = self.FixtureRecord.external.sample.default.get("333333333333333333")
 
         self.assertEqual(found_record, record)
 
@@ -123,9 +119,7 @@ class TestExternalIdMixin(UnitTestCase):
         record = self._create_fixture("Bracket Lookup Record")
         record.external.sample.default.id = "343434343434343434"
 
-        found_record = self.FixtureRecord.external_lookup.sample.default[
-            "343434343434343434"
-        ]
+        found_record = self.FixtureRecord.external_lookup.sample.default["343434343434343434"]
 
         self.assertEqual(found_record, record)
 
@@ -159,9 +153,7 @@ class TestExternalIdMixin(UnitTestCase):
         record = self._create_fixture("Record Lookup")
         record.external.sample.default.id = "444444444444444444"
 
-        external_id_record = self.FixtureRecord.external.sample.default.record(
-            "444444444444444444"
-        )
+        external_id_record = self.FixtureRecord.external.sample.default.record("444444444444444444")
 
         self.assertEqual(external_id_record.res_model, "external.id.fixture")
         self.assertEqual(external_id_record.res_id, record.id)
@@ -192,9 +184,7 @@ class TestExternalIdMixin(UnitTestCase):
         record = self._create_fixture("Stable Name")
         record.external.sample.default.id = "101010101010101010"
 
-        with common.patch.object(
-            type(record), "write", wraps=type(record).write
-        ) as mock_write:
+        with common.patch.object(type(record), "write", wraps=type(record).write) as mock_write:
             found_record = self.FixtureRecord.get_or_create_by_external_id(
                 "sample",
                 "101010101010101010",
@@ -378,9 +368,7 @@ class TestExternalIdMixin(UnitTestCase):
     def test_fluent_resource_accepts_enum_resource_keys(self) -> None:
         record = self._create_fixture("Enum Record")
 
-        record.external.system(TestSystemCode.CATALOG).resource(
-            TestResourceName.PRODUCT
-        ).id = "999999"
+        record.external.system(TestSystemCode.CATALOG).resource(TestResourceName.PRODUCT).id = "999999"
 
         self.assertEqual(record.external.catalog.product.id, "999999")
 
@@ -397,14 +385,16 @@ class TestExternalIdMixin(UnitTestCase):
         self.assertEqual(action["context"]["default_res_model"], "external.id.fixture")
         self.assertEqual(action["context"]["default_res_id"], record.id)
 
-    def _racing_external_id_search(self):
+    def _racing_external_id_search(self) -> AbstractContextManager[object]:
         # Hide existing mappings from set_external_id's pre-checks, as if
         # another transaction committed them in between.
         external_id_class = type(self.ExternalId)
         original_search = external_id_class.search
         hidden_calls = {"remaining": 2}
 
-        def racing_search(model, domain, *args, **kwargs):
+        def racing_search(
+            model: "odoo.model.external_id", domain: fields.Domain | list, *args: Any, **kwargs: Any
+        ) -> "odoo.model.external_id":
             if hidden_calls["remaining"]:
                 hidden_calls["remaining"] -= 1
                 return model.browse()
@@ -439,13 +429,9 @@ class TestExternalIdMixin(UnitTestCase):
         record.external.sample.default.active = False
 
         with self.assertRaises(ValueError):
-            self.FixtureRecord.get_or_create_by_external_id(
-                "sample", "archived-live-id", {"name": "Duplicate"}
-            )
+            self.FixtureRecord.get_or_create_by_external_id("sample", "archived-live-id", {"name": "Duplicate"})
 
-        self.assertEqual(
-            self.FixtureRecord.search_count([("name", "=", "Duplicate")]), 0
-        )
+        self.assertEqual(self.FixtureRecord.search_count([("name", "=", "Duplicate")]), 0)
 
     def test_set_external_id_skips_id_owned_by_another_model(self) -> None:
         partner = self.Partner.create({"name": "Owner Partner"})
@@ -467,9 +453,7 @@ class TestExternalIdMixin(UnitTestCase):
                 ("system_id", "=", self.sample_system.id),
             ]
         )
-        self.assertEqual(
-            (mapping.res_model, mapping.res_id), ("res.partner", partner.id)
-        )
+        self.assertEqual((mapping.res_model, mapping.res_id), ("res.partner", partner.id))
 
     def test_set_external_id_moves_id_between_records_of_one_model(self) -> None:
         first_record = self._create_fixture("First Owner")
@@ -484,11 +468,7 @@ class TestExternalIdMixin(UnitTestCase):
             second_record,
         )
         self.assertFalse(first_record.get_external_id_record("sample"))
-        self.assertFalse(
-            self.ExternalId.with_context(active_test=False).search(
-                [("external_id", "=", "old-second-id")]
-            )
-        )
+        self.assertFalse(self.ExternalId.with_context(active_test=False).search([("external_id", "=", "old-second-id")]))
 
     def test_set_external_id_recovers_when_same_mapping_appears_concurrently(
         self,
@@ -513,9 +493,7 @@ class TestExternalIdMixin(UnitTestCase):
         with self._racing_external_id_search():
             self.assertTrue(record.set_external_id("sample", "contested-id"))
 
-        self.assertEqual(
-            self.FixtureRecord.search_by_external_id("sample", "contested-id"), record
-        )
+        self.assertEqual(self.FixtureRecord.search_by_external_id("sample", "contested-id"), record)
 
     def test_set_external_id_still_raises_format_errors(self) -> None:
         self.sample_system.id_format = r"^\d+$"

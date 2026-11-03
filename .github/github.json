@@ -71,7 +71,9 @@
   ],
   "prWorkflow": {
     "requiredStatusChecks": [
-      "Analyze (python)"
+      "Analyze (python)",
+      "tls-lint",
+      "addon-tests"
     ],
     "branchProtectionNotes": [
       "Re-read live branch protection and rulesets before landing; this metadata describes routing, not authority to change those settings.",

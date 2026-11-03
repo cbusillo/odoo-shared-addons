@@ -99,9 +99,8 @@ selection.
 The lint/format commands in [`.github/github.json`](.github/github.json) use
 [Ruff and the inspection profile from devkit](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/style-checks.md).
 `ruff.toml` inherits that configuration; the existing `ODOO_DEVKIT_REPO`
-override selects a task checkout. The Addon tests lane runs both style checks
-alongside Odoo tests, using its one pinned devkit checkout. Native PyCharm stays
-the local pre-push gate; use its `--profile` option when the consumer checkout
+override selects a task checkout. The pinned addon-test action owns CI execution.
+Use the native inspection helper's `--profile` option when the consumer checkout
 is outside the normal sibling layout.
 
 ## TLS lint

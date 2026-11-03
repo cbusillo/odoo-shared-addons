@@ -20,12 +20,27 @@ jobs:
         with:
           path: source
           persist-credentials: false
-      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@4dd31e60da59cb6bedd83681ac0aa12084c2ddb4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: cbusillo/odoo-devkit
+          ref: bc4694405e1e67d6c68c8c75b12c6945e0d9f450
+          path: devkit
+          persist-credentials: false
+      - uses: ./devkit/.github/actions/addon-tests
         with:
           command-metadata: source/.github/github.json
           addons-root: source
           image: ghcr.io/cbusillo/odoo-docker@sha256:52c8c52f73695fbb8af335433b6ef2f69467058a3f67cc4652b957127cadaaad
           output: ${{ runner.temp }}/addon-tests
+      - name: Check shared Python style
+        working-directory: source
+        env:
+          ODOO_DEVKIT_REPO: ${{ github.workspace }}/devkit
+        run: |
+          lint_command=$(jq -er '.qualityGate.lint.ruff' .github/github.json)
+          format_command=$(jq -er '.qualityGate.format.default' .github/github.json)
+          bash -euo pipefail -c "$lint_command"
+          bash -euo pipefail -c "$format_command"
       - name: Upload addon test evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

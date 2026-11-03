@@ -1,0 +1,1 @@
+extend = "${ODOO_DEVKIT_REPO:-../odoo-devkit}/quality/ruff.toml"

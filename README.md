@@ -94,6 +94,16 @@ The support root supplies dependencies from the current worktree. CI selects
 the full repository root. [Test rules](AGENTS.md#tests) own safety-module
 selection.
 
+## Shared style checks
+
+The lint/format commands in [`.github/github.json`](.github/github.json) use
+[Ruff and the inspection profile from devkit](https://github.com/cbusillo/odoo-devkit/blob/main/docs/tooling/style-checks.md).
+`ruff.toml` inherits that configuration; the existing `ODOO_DEVKIT_REPO`
+override selects a task checkout. The Addon tests lane runs both style checks
+alongside Odoo tests, using its one pinned devkit checkout. Native PyCharm stays
+the local pre-push gate; use its `--profile` option for a task checkout whose
+devkit is outside the normal sibling location.
+
 ## TLS lint
 
 Run the `qualityGate.lint.tls` command in `.github/github.json` before a PR.

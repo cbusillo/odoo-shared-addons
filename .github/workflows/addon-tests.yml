@@ -20,7 +20,7 @@ jobs:
         with:
           path: source
           persist-credentials: false
-      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@a473644f04795e02bd23bb948c47d3517f535289
+      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@4199720d5f78c3678371463d760f8c6119109ccf
         with:
           command-metadata: source/.github/github.json
           addons-root: source

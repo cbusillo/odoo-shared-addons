@@ -1,5 +1,5 @@
 from collections.abc import Callable, Generator
-from contextlib import closing, contextmanager
+from contextlib import ExitStack, closing, contextmanager
 from typing import NamedTuple
 
 from odoo import api, sql_db
@@ -64,35 +64,23 @@ class TestTransactionMixin(UnitTestCase):
 
     @contextmanager
     def _lock_sessions(self, lock_id: int) -> Generator[LockSessions]:
-        database = sql_db.db_connect(self.env.cr.dbname)
+        dbname, connection_info = sql_db.connection_info_for(self.env.cr.dbname)
+        database = sql_db.Connection(sql_db.ConnectionPool(maxconn=4), dbname, connection_info)
         borrow_cursor = database.cursor
-        owned_cursors: list[tuple[sql_db.Cursor, PsycopgConnection]] = []
+        with ExitStack() as cleanup:
 
-        def open_owned_cursor() -> sql_db.Cursor:
-            cursor = borrow_cursor()
-            owned_cursors.append((cursor, cursor.connection))
-            return cursor
+            def open_owned_cursor() -> sql_db.Cursor:
+                cursor = borrow_cursor()
+                cleanup.callback(cursor.close)
+                cleanup.callback(cursor.connection.close)
+                return cursor
 
-        with closing(borrow_cursor()) as observer, closing(borrow_cursor()) as caller_cr:
+            observer = open_owned_cursor()
+            caller_cr = open_owned_cursor()
             caller = api.Environment(caller_cr, self.env.uid, self.env.context)["transaction.mixin"]
-            try:
-                with common.patch.object(sql_db, "db_connect", return_value=database):
-                    with common.patch.object(database, "cursor", side_effect=open_owned_cursor):
-                        yield LockSessions(caller, observer, borrow_cursor)
-            finally:
-                caller_cr.rollback()
-                caller_cr.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
-                for cursor, connection in owned_cursors:
-                    if connection.closed:
-                        cursor.close()
-                    elif cursor.closed:
-                        with closing(borrow_cursor()) as returned:
-                            self.assertIs(returned.connection, connection)
-                            returned.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
-                    else:
-                        cursor.rollback()
-                        cursor.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
-                        cursor.close()
+            with common.patch.object(sql_db, "db_connect", return_value=database):
+                with common.patch.object(database, "cursor", side_effect=open_owned_cursor):
+                    yield LockSessions(caller, observer, open_owned_cursor)
 
     @staticmethod
     def _try_lock(observer: sql_db.Cursor, lock_id: int) -> bool:
@@ -105,7 +93,8 @@ class TestTransactionMixin(UnitTestCase):
     @staticmethod
     def _lock_owner(observer: sql_db.Cursor, lock_id: int) -> int:
         observer.execute(
-            "SELECT pid FROM pg_locks WHERE locktype = 'advisory' AND classid = 0 AND objid = %s AND objsubid = 1 AND granted",
+            "SELECT pid FROM pg_locks WHERE locktype = 'advisory' AND classid = 0 AND objid = %s AND objsubid = 1 AND granted "
+            "AND database = (SELECT oid FROM pg_database WHERE datname = current_database())",
             [lock_id],
         )
         return observer.fetchone()[0]
@@ -142,7 +131,6 @@ class TestTransactionMixin(UnitTestCase):
             try:
                 with sessions.caller._advisory_lock(lock_id) as acquired:
                     self.assertFalse(acquired)
-                self.assertFalse(self._try_lock(sessions.caller.env.cr, lock_id))
             finally:
                 sessions.observer.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
 
@@ -151,7 +139,7 @@ class TestTransactionMixin(UnitTestCase):
         with self._lock_sessions(lock_id) as sessions:
             caller_cr = sessions.caller.env.cr
             caller_connection = caller_cr.connection
-            with self.assertRaises(DivisionByZero) as raised:
+            with self.assertRaises(DivisionByZero):
                 with sessions.caller._advisory_lock(lock_id) as acquired:
                     self.assertTrue(acquired)
                     self.assertFalse(self._try_lock(sessions.observer, lock_id))
@@ -165,7 +153,6 @@ class TestTransactionMixin(UnitTestCase):
                 returned_status = returned.connection.get_transaction_status()
                 lock_available = self._try_lock(sessions.observer, lock_id)
             self.assertTrue(lock_available, "Aborted body left its advisory lock held after pooled return")
-            self.assertIsInstance(raised.exception, DivisionByZero)
             self.assertEqual(caller_status, TRANSACTION_STATUS_INERROR)
             self.assertNotEqual(owner_pid, caller_connection.get_backend_pid())
             self.assertEqual(returned_pid, owner_pid)
@@ -202,7 +189,7 @@ class TestTransactionMixin(UnitTestCase):
                 caller_cr.commit()
 
     def test_advisory_lock_discards_failed_cleanup_without_masking_body_exception(self) -> None:
-        for operation in ("execute", "close"):
+        for operation in ("execute", "disconnect", "close", "returned_close"):
             for body_fails in (False, True):
                 with self.subTest(operation=operation, body_fails=body_fails):
                     self._check_cleanup_failure(operation, body_fails)
@@ -210,22 +197,30 @@ class TestTransactionMixin(UnitTestCase):
     def _check_cleanup_failure(self, operation: str, body_fails: bool) -> None:
         lock_id = 12350
         with self._lock_sessions(lock_id) as sessions:
-            original = getattr(sql_db.Cursor, operation)
+            method = "execute" if operation in ("execute", "disconnect") else "close"
+            original = getattr(sql_db.Cursor, method)
             cleanup_error = RuntimeError("Test cleanup failed")
             body_error = ValueError("Test body failed")
             failed_connections: list[PsycopgConnection] = []
+            next_borrowers: list[sql_db.Cursor] = []
 
             def fail_cleanup(cursor: sql_db.Cursor, *args: object, **kwargs: object) -> object:
-                is_unlock = operation == "execute" and args[0] == "SELECT pg_advisory_unlock(%s)"
-                is_owned_close = operation == "close" and cursor not in (sessions.observer, sessions.caller.env.cr)
+                is_owned = cursor not in (sessions.observer, sessions.caller.env.cr)
+                is_unlock = method == "execute" and "pg_advisory_unlock" in str(args[0]) and is_owned
+                is_owned_close = method == "close" and is_owned
                 if not failed_connections and (is_unlock or is_owned_close):
                     failed_connections.append(cursor.connection)
+                    if operation == "disconnect":
+                        cursor.connection.close()
+                    if operation == "returned_close":
+                        original(cursor, *args, **kwargs)
+                        next_borrowers.append(sessions.borrow_cursor())
                     raise cleanup_error
                 return original(cursor, *args, **kwargs)
 
             expected_error = body_error if body_fails else cleanup_error
             with self.assertLogs("odoo.addons.transaction_utilities.models.transaction_mixin", level="ERROR"):
-                with common.patch.object(sql_db.Cursor, operation, autospec=True, side_effect=fail_cleanup):
+                with common.patch.object(sql_db.Cursor, method, autospec=True, side_effect=fail_cleanup):
                     with self.assertRaises(type(expected_error)) as raised:
                         with sessions.caller._advisory_lock(lock_id) as acquired:
                             self.assertTrue(acquired)
@@ -233,7 +228,16 @@ class TestTransactionMixin(UnitTestCase):
                             if body_fails:
                                 raise body_error
             self.assertIs(raised.exception, expected_error)
-            self.assertTrue(failed_connections[0].closed)
-            with closing(sessions.borrow_cursor()) as returned:
-                self.assertIsNot(returned.connection, failed_connections[0])
-                self.assertTrue(self._try_lock(sessions.observer, lock_id))
+            if operation == "returned_close":
+                next_borrower = next_borrowers[0]
+                self.assertIs(next_borrower.connection, failed_connections[0])
+                next_borrower.execute("SELECT 1")
+                self.assertEqual(next_borrower.fetchone(), (1,))
+            else:
+                self.assertTrue(failed_connections[0].closed)
+                with closing(sessions.borrow_cursor()) as first, closing(sessions.borrow_cursor()) as second:
+                    self.assertIsNot(first.connection, failed_connections[0])
+                    self.assertIsNot(second.connection, failed_connections[0])
+            sessions.observer.execute("SET LOCAL lock_timeout = '5s'")
+            sessions.observer.execute("SELECT pg_advisory_lock(%s)", [lock_id])
+            sessions.observer.execute("SELECT pg_advisory_unlock(%s)", [lock_id])

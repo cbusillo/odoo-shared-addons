@@ -60,10 +60,11 @@ class TransactionMixin(models.AbstractModel):
             except BaseException:
                 _logger.exception("Could not clean up advisory lock %s", lock_id)
                 try:
-                    try:
-                        connection.close()
-                    finally:
-                        cr.close()
+                    if connection.closed or not cr.closed:
+                        try:
+                            connection.close()
+                        finally:
+                            cr.close()
                 except BaseException:
                     _logger.exception("Could not discard advisory lock session")
                 if not body_failed:

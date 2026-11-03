@@ -1,4 +1,5 @@
 import importlib
+import os
 import sys
 import tempfile
 import uuid
@@ -29,6 +30,7 @@ class TestDiscovery(common.TransactionCase):
         path = self.root / self.package_name / relative_path
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(source, encoding="utf-8")
+        importlib.invalidate_caches()
 
     def _expose(self) -> set[str]:
         package = importlib.import_module(self.package_name)
@@ -67,6 +69,9 @@ class TestDiscovery(common.TransactionCase):
 
         self.assertFalse(expose_module_alias(self.package_name, "absent", "test_absent", warn_on_missing=False))
 
+        package_path = self.root / self.package_name
+        directory_stat = package_path.stat()
         self._write("present.py", "import discovery_probe_missing_dependency\n")
+        os.utime(package_path, ns=(directory_stat.st_atime_ns, directory_stat.st_mtime_ns))
         with self.assertRaises(ImportError):
             expose_module_alias(self.package_name, "present", "test_present", warn_on_missing=False)

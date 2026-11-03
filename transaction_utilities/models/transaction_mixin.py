@@ -2,10 +2,9 @@ import logging
 from collections.abc import Generator
 from contextlib import contextmanager
 
-from odoo import api, models
+from odoo import api, models, sql_db
 from odoo.modules import module as odoo_module
 from odoo.tools import config
-from psycopg2.errors import InFailedSqlTransaction
 
 _logger = logging.getLogger(__name__)
 
@@ -41,15 +40,32 @@ class TransactionMixin(models.AbstractModel):
 
     @contextmanager
     def _advisory_lock(self, lock_id: int) -> Generator[bool]:
-        cr = self.env.cr
-        cr.execute("SELECT pg_try_advisory_lock(%s)", [lock_id])
-        if not cr.fetchone()[0]:
-            yield False
-            return
+        cr = sql_db.db_connect(self.env.cr.dbname).cursor()
+        connection = cr.connection
+        acquired = False
+        body_failed = False
         try:
-            yield True
+            cr.execute("SELECT pg_try_advisory_lock(%s)", [lock_id])
+            acquired = cr.fetchone()[0]
+            cr.rollback()
+            yield acquired
+        except BaseException:
+            body_failed = True
+            raise
         finally:
             try:
-                cr.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
-            except InFailedSqlTransaction:
-                _logger.debug(f"Advisory lock {lock_id} will be released on session end due to aborted transaction")
+                if acquired:
+                    cr.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
+                cr.close()
+            except BaseException:
+                _logger.exception("Could not clean up advisory lock %s", lock_id)
+                try:
+                    if connection.closed or not cr.closed:
+                        try:
+                            connection.close()
+                        finally:
+                            cr.close()
+                except BaseException:
+                    _logger.exception("Could not discard advisory lock session")
+                if not body_failed:
+                    raise

@@ -1,6 +1,8 @@
+from collections.abc import Iterator
 from contextlib import contextmanager
 from unittest.mock import patch
 
+from odoo.api import Environment
 from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, TransactionCase, new_test_user
 from odoo.tests.common import JsonRpcException
@@ -11,7 +13,7 @@ from ..common_imports import common
 REQUEST_PATH = "odoo.addons.discuss_record_links.controllers.main.request"
 
 
-def _create_config(env, *, prefix: str, model_name: str, search_field_names: tuple[str, ...], template: str) -> None:
+def _create_config(env: Environment, *, prefix: str, model_name: str, search_field_names: tuple[str, ...], template: str) -> None:
     ir_model = env["ir.model"]._get(model_name)
     # Only this test's config may label the model.
     env["discuss.record.link.config"].search([("model_id", "=", ir_model.id)]).active = False
@@ -60,7 +62,7 @@ class TestRouteAccess(TransactionCase):
         cls.portal_user = new_test_user(cls.env, login="drl_portal", groups="base.group_portal")
 
     @contextmanager
-    def _as(self, user):
+    def _as(self, user: "odoo.model.res_users") -> Iterator[DiscussRecordLinks]:
         fake_request = type("_Req", (), {})()
         fake_request.env = self.env(user=user)
         with patch(REQUEST_PATH, fake_request):
@@ -145,9 +147,7 @@ class TestRouteAccessHttp(HttpCase):
             template="{{ name }} / {{ default_code }}",
         )
         cls.product = (
-            cls.env["product.product"]
-            .with_context(skip_sku_check=True)
-            .create({"name": "Drlhttp Widget", "default_code": "DRLW"})
+            cls.env["product.product"].with_context(skip_sku_check=True).create({"name": "Drlhttp Widget", "default_code": "DRLW"})
         )
         new_test_user(cls.env, login="drl_http_internal", password="drl_http_internal", groups="base.group_user")
         new_test_user(cls.env, login="drl_http_portal", password="drl_http_portal", groups="base.group_portal")

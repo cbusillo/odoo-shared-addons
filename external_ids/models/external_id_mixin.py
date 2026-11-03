@@ -170,11 +170,15 @@ class ExternalIdMixin(models.AbstractModel):
     def _compute_external_ids_count(self) -> None:
         count_by_res_id: Counter[int] = Counter()
         if self.ids:
-            external_id_records = self.env["external.id"].with_context(active_test=False).search(
-                [
-                    ("res_model", "=", self._name),
-                    ("res_id", "in", self.ids),
-                ]
+            external_id_records = (
+                self.env["external.id"]
+                .with_context(active_test=False)
+                .search(
+                    [
+                        ("res_model", "=", self._name),
+                        ("res_id", "in", self.ids),
+                    ]
+                )
             )
             count_by_res_id.update(int(res_id) for res_id in external_id_records.mapped("res_id") if res_id)
         for record in self:
@@ -349,6 +353,26 @@ class ExternalIdMixin(models.AbstractModel):
             active_only=active_only,
         )
 
+    def _external_id_records_domain(
+        self,
+        system_id: int,
+        resource: ExternalOptionalKeyLike,
+        external_id_values: list[str],
+        *,
+        active_only: bool,
+    ) -> fields.Domain:
+        domain = fields.Domain(
+            [
+                ("res_model", "=", self._name),
+                ("system_id", "=", system_id),
+                ("resource", "=", self._normalize_external_key(resource, default="default")),
+                ("external_id", "in", external_id_values),
+            ]
+        )
+        if active_only:
+            domain &= fields.Domain([("active", "=", True)])
+        return domain
+
     @api.model
     def domain_by_external_ids(
         self,
@@ -360,22 +384,13 @@ class ExternalIdMixin(models.AbstractModel):
     ) -> fields.Domain:
         system_code, resource = self._resolve_external_binding(system_code, resource)
         normalized_external_ids = [
-            str(external_id_value).strip()
-            for external_id_value in external_id_values
-            if str(external_id_value).strip()
+            str(external_id_value).strip() for external_id_value in external_id_values if str(external_id_value).strip()
         ]
         system = self._get_external_system(system_code)
         if not system or not normalized_external_ids:
             return fields.Domain([("id", "=", False)])
 
-        external_id_domain = fields.Domain([
-            ("res_model", "=", self._name),
-            ("system_id", "=", system.id),
-            ("resource", "=", self._normalize_external_key(resource, default="default")),
-            ("external_id", "in", normalized_external_ids),
-        ])
-        if active_only:
-            external_id_domain &= fields.Domain([("active", "=", True)])
+        external_id_domain = self._external_id_records_domain(system.id, resource, normalized_external_ids, active_only=active_only)
         external_id_records = self.env["external.id"].with_context(active_test=False).search(external_id_domain)
         if not external_id_records:
             return fields.Domain([("id", "=", False)])
@@ -393,22 +408,13 @@ class ExternalIdMixin(models.AbstractModel):
         system_code, resource = self._resolve_external_binding(system_code, resource)
         system = self._get_external_system(system_code)
         normalized_external_ids = [
-            str(external_id_value).strip()
-            for external_id_value in external_id_values
-            if str(external_id_value).strip()
+            str(external_id_value).strip() for external_id_value in external_id_values if str(external_id_value).strip()
         ]
         if not system or not normalized_external_ids:
             return {}
 
         external_id_model = self.env["external.id"].with_context(active_test=False)
-        domain = fields.Domain([
-            ("res_model", "=", self._name),
-            ("system_id", "=", system.id),
-            ("resource", "=", self._normalize_external_key(resource, default="default")),
-            ("external_id", "in", normalized_external_ids),
-        ])
-        if active_only:
-            domain &= fields.Domain([("active", "=", True)])
+        domain = self._external_id_records_domain(system.id, resource, normalized_external_ids, active_only=active_only)
         external_id_records = external_id_model.search(domain)
         return {
             str(external_id_record.external_id): self.browse(external_id_record.res_id)
@@ -816,7 +822,7 @@ class ExternalIdMixin(models.AbstractModel):
         resource = (self.env.context or {}).get("external_resource")
         url = self.get_external_url(system_code, kind, resource)
         if not url:
-            notification_action = {
+            return {
                 "type": "ir.actions.client",
                 "tag": "display_notification",
                 "params": {
@@ -825,5 +831,4 @@ class ExternalIdMixin(models.AbstractModel):
                     "type": "warning",
                 },
             }
-            return notification_action
         return {"type": "ir.actions.act_url", "url": url, "target": "new"}

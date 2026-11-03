@@ -58,39 +58,27 @@ class AuthentikSsoConfig(models.AbstractModel):
         parameter_model = self.env["ir.config_parameter"].sudo()
         parameter_model.set_str(
             AUTHENTIK_ADMIN_GROUP_PARAM,
-            _clean_setting_value(
-                overrides.get("admin_group"), default=DEFAULT_ADMIN_GROUP
-            ),
+            _clean_setting_value(overrides.get("admin_group"), default=DEFAULT_ADMIN_GROUP),
         )
         parameter_model.set_str(
             AUTHENTIK_GROUP_CLAIM_PARAM,
-            _clean_setting_value(
-                overrides.get("group_claim"), default=DEFAULT_GROUP_CLAIM
-            ),
+            _clean_setting_value(overrides.get("group_claim"), default=DEFAULT_GROUP_CLAIM),
         )
         parameter_model.set_str(
             AUTHENTIK_LOGIN_CLAIMS_PARAM,
-            _clean_setting_value(
-                overrides.get("login_claims"), default=DEFAULT_LOGIN_CLAIMS
-            ),
+            _clean_setting_value(overrides.get("login_claims"), default=DEFAULT_LOGIN_CLAIMS),
         )
         parameter_model.set_str(
             AUTHENTIK_NAME_CLAIMS_PARAM,
-            _clean_setting_value(
-                overrides.get("name_claims"), default=DEFAULT_NAME_CLAIMS
-            ),
+            _clean_setting_value(overrides.get("name_claims"), default=DEFAULT_NAME_CLAIMS),
         )
         parameter_model.set_str(
             AUTHENTIK_PROVIDER_NAME_PARAM,
-            _clean_setting_value(
-                overrides.get("provider_name"), default=DEFAULT_PROVIDER_NAME
-            ),
+            _clean_setting_value(overrides.get("provider_name"), default=DEFAULT_PROVIDER_NAME),
         )
         parameter_model.set_str(
             AUTHENTIK_USER_ID_CLAIMS_PARAM,
-            _clean_setting_value(
-                overrides.get("user_id_claims"), default=DEFAULT_USER_ID_CLAIMS
-            ),
+            _clean_setting_value(overrides.get("user_id_claims"), default=DEFAULT_USER_ID_CLAIMS),
         )
 
     def _disable_oauth_providers(self, overrides: Mapping[str, str | None]) -> None:
@@ -116,14 +104,10 @@ class AuthentikSsoConfig(models.AbstractModel):
         if not to_disable:
             return
         to_disable.write({"enabled": False})
-        _logger.info(
-            "Disabled OAuth providers: %s", ", ".join(sorted(to_disable.mapped("name")))
-        )
+        _logger.info("Disabled OAuth providers: %s", ", ".join(sorted(to_disable.mapped("name"))))
 
     def _apply_authentik_provider(self, overrides: Mapping[str, str | None]) -> None:
-        provider_name = (
-            overrides.get("provider_name") or DEFAULT_PROVIDER_NAME
-        ).strip()
+        provider_name = (overrides.get("provider_name") or DEFAULT_PROVIDER_NAME).strip()
         if not provider_name:
             provider_name = DEFAULT_PROVIDER_NAME
         client_id = (overrides.get("client_id") or "").strip()
@@ -146,12 +130,7 @@ class AuthentikSsoConfig(models.AbstractModel):
         provider_model = self.env["auth.oauth.provider"].sudo()
         provider = provider_model.search([("name", "=", provider_name)], limit=1)
 
-        required_missing = (
-            not client_id
-            or not base_url
-            or not authorization_endpoint
-            or not userinfo_endpoint
-        )
+        required_missing = not client_id or not base_url or not authorization_endpoint or not userinfo_endpoint
         if required_missing:
             if provider:
                 provider.write(
@@ -201,9 +180,7 @@ class AuthentikSsoConfig(models.AbstractModel):
             ValidationError,
             ValueError,
         ):  # pragma: no cover - defensive logging
-            _logger.exception(
-                "Failed to apply Authentik overrides; disabling provider if present."
-            )
+            _logger.exception("Failed to apply Authentik overrides; disabling provider if present.")
             if provider:
                 try:
                     provider.write({"enabled": False})
@@ -213,6 +190,4 @@ class AuthentikSsoConfig(models.AbstractModel):
                     ValidationError,
                     ValueError,
                 ):  # pragma: no cover - best-effort disable
-                    _logger.exception(
-                        "Failed to disable Authentik provider after error."
-                    )
+                    _logger.exception("Failed to disable Authentik provider after error.")

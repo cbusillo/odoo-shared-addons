@@ -1,3 +1,5 @@
+from typing import Literal
+
 from odoo import api, fields, models
 
 
@@ -44,8 +46,7 @@ class ExternalSystemUrl(models.Model):
 
         v = (value or "").lower()
         v = re.sub(r"[^a-z0-9_\s-]", "", v)
-        v = re.sub(r"[\s-]+", "_", v).strip("_")
-        return v
+        return re.sub(r"[\s-]+", "_", v).strip("_")
 
     @api.onchange("name")
     def _onchange_name_autofill_code(self) -> None:
@@ -53,7 +54,7 @@ class ExternalSystemUrl(models.Model):
             if not rec.code:
                 rec.code = self._sanitize_code(rec.name)
 
-    def write(self, vals: "odoo.values.external_system_url"):
+    def write(self, vals: "odoo.values.external_system_url") -> Literal[True]:
         if "code" in vals and self and not self.env.context.get("allow_url_code_write"):
             # Disallow changing code outside of the rename wizard
             vals = dict(vals)
@@ -87,5 +88,7 @@ class ExternalSystemUrl(models.Model):
         for rec in self:
             try:
                 (rec.template or "").format(**allowed)
-            except KeyError as e:  # unknown token
-                raise ValueError(f"Unknown token {e} in URL template. Allowed: {', '.join(sorted(allowed))}.")
+            except KeyError as unknown_token:
+                raise ValueError(
+                    f"Unknown token {unknown_token} in URL template. Allowed: {', '.join(sorted(allowed))}."
+                ) from unknown_token

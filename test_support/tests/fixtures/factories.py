@@ -11,9 +11,7 @@ from ..test_helpers import generate_unique_name, generate_unique_sku
 def _get_root_product_category(
     environment: Environment,
 ) -> "odoo.model.product_category":
-    root_category = environment["product.category"].search(
-        [("parent_id", "=", False)], limit=1
-    )
+    root_category = environment["product.category"].search([("parent_id", "=", False)], limit=1)
     if not root_category:
         root_category = environment["product.category"].create({"name": "All"})
     return root_category
@@ -46,12 +44,8 @@ def _ensure_product_variant(
 
 class ProductFactory:
     @classmethod
-    def create(
-        cls, environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.product_template":
-        category_id = (
-            kwargs.get("categ_id") or _get_root_product_category(environment).id
-        )
+    def create(cls, environment: Environment, **kwargs: OdooValue) -> "odoo.model.product_template":
+        category_id = kwargs.get("categ_id") or _get_root_product_category(environment).id
         defaults = {
             "name": generate_unique_name("Test Product"),
             "default_code": generate_unique_sku(),
@@ -69,9 +63,7 @@ class ProductFactory:
         return product_template
 
     @classmethod
-    def create_batch(
-        cls, environment: Environment, count: int = 5, **kwargs: OdooValue
-    ) -> "odoo.model.product_template":
+    def create_batch(cls, environment: Environment, count: int = 5, **kwargs: OdooValue) -> "odoo.model.product_template":
         product_ids: list[int] = []
         for _ in range(count):
             product_ids.append(cls.create(environment, **kwargs).id)
@@ -118,9 +110,7 @@ class ProductFactory:
 
 class PartnerFactory:
     @classmethod
-    def create(
-        cls, environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.res_partner":
+    def create(cls, environment: Environment, **kwargs: OdooValue) -> "odoo.model.res_partner":
         timestamp = datetime.now().timestamp()
         defaults = {
             "name": generate_unique_name("Test Partner"),
@@ -138,9 +128,7 @@ class PartnerFactory:
         return environment["res.partner"].create(defaults)
 
     @classmethod
-    def create_company(
-        cls, environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.res_partner":
+    def create_company(cls, environment: Environment, **kwargs: OdooValue) -> "odoo.model.res_partner":
         kwargs["is_company"] = True
         if "name" not in kwargs:
             kwargs["name"] = generate_unique_name("Test Company")
@@ -170,9 +158,7 @@ class PartnerFactory:
 
 class SaleOrderFactory:
     @staticmethod
-    def create(
-        environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.sale_order":
+    def create(environment: Environment, **kwargs: OdooValue) -> "odoo.model.sale_order":
         partner = kwargs.get("partner_id")
         if not partner:
             partner = PartnerFactory.create(environment)
@@ -180,20 +166,16 @@ class SaleOrderFactory:
         elif isinstance(partner, int):
             kwargs["partner_id"] = partner
         elif hasattr(partner, "id"):
-            kwargs["partner_id"] = getattr(partner, "id")
+            kwargs["partner_id"] = partner.id
         else:
-            raise TypeError(
-                f"Unsupported partner_id type for SaleOrderFactory: {type(partner)!r}"
-            )
+            raise TypeError(f"Unsupported partner_id type for SaleOrderFactory: {type(partner)!r}")
 
         defaults = {
             "partner_id": kwargs["partner_id"],
             "date_order": datetime.now(),
             "validity_date": datetime.now() + timedelta(days=30),
             "pricelist_id": environment["product.pricelist"].search([], limit=1).id,
-            "payment_term_id": environment.ref(
-                "account.account_payment_term_immediate"
-            ).id,
+            "payment_term_id": environment.ref("account.account_payment_term_immediate").id,
             "user_id": environment.user.id,
             "team_id": environment["crm.team"].search([], limit=1).id,
         }
@@ -203,9 +185,7 @@ class SaleOrderFactory:
         sale_order = environment["sale.order"].create(defaults)
 
         if not order_lines:
-            order_lines = SaleOrderFactory._create_default_lines(
-                environment, sale_order
-            )
+            order_lines = SaleOrderFactory._create_default_lines(environment, sale_order)
 
         for order_line_values in order_lines:
             if isinstance(order_line_values, dict):
@@ -237,14 +217,11 @@ class SaleOrderFactory:
 
 class DeliveryCarrierFactory:
     @staticmethod
-    def create(
-        environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.delivery_carrier":
+    def create(environment: Environment, **kwargs: OdooValue) -> "odoo.model.delivery_carrier":
         defaults = {
             "name": kwargs.get("name", generate_unique_name("Test Carrier")),
             "delivery_type": kwargs.get("delivery_type", "fixed"),
-            "product_id": kwargs.get("product_id")
-            or environment.ref("delivery.product_product_delivery").id,
+            "product_id": kwargs.get("product_id") or environment.ref("delivery.product_product_delivery").id,
             "fixed_price": kwargs.get("fixed_price", 10.0),
         }
         defaults.update(kwargs)
@@ -253,9 +230,7 @@ class DeliveryCarrierFactory:
 
 class ProductTagFactory:
     @staticmethod
-    def create(
-        environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.product_tag":
+    def create(environment: Environment, **kwargs: OdooValue) -> "odoo.model.product_tag":
         defaults = {
             "name": generate_unique_name("Test Tag"),
             "sequence": kwargs.get("sequence", 10),
@@ -278,9 +253,7 @@ class CrmTagFactory:
 
 class SaleOrderLineFactory:
     @staticmethod
-    def create(
-        environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.sale_order_line":
+    def create(environment: Environment, **kwargs: OdooValue) -> "odoo.model.sale_order_line":
         order_id = kwargs.get("order_id")
         if not order_id:
             sale_order = SaleOrderFactory.create(environment)
@@ -303,9 +276,7 @@ class SaleOrderLineFactory:
 
 class ProductAttributeFactory:
     @staticmethod
-    def create(
-        environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.product_attribute":
+    def create(environment: Environment, **kwargs: OdooValue) -> "odoo.model.product_attribute":
         defaults = {
             "name": generate_unique_name("Test Attribute"),
             "create_variant": kwargs.get("create_variant", "always"),
@@ -354,9 +325,7 @@ class ResUsersFactory:
 
 class CurrencyFactory:
     @staticmethod
-    def create(
-        environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.res_currency":
+    def create(environment: Environment, **kwargs: OdooValue) -> "odoo.model.res_currency":
         defaults = {
             "name": kwargs.get("name", f"TST{random.randint(100, 999)}"),
             "symbol": kwargs.get("symbol", "$"),
@@ -370,9 +339,7 @@ class CurrencyFactory:
 
 class FiscalPositionFactory:
     @staticmethod
-    def create(
-        environment: Environment, **kwargs: OdooValue
-    ) -> "odoo.model.account_fiscal_position":
+    def create(environment: Environment, **kwargs: OdooValue) -> "odoo.model.account_fiscal_position":
         defaults = {
             "name": generate_unique_name("Test Fiscal Position"),
             "sequence": kwargs.get("sequence", 10),

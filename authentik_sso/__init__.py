@@ -1,15 +1,18 @@
+from __future__ import annotations
+
+from typing import cast
+
 from odoo import SUPERUSER_ID, api
+from odoo.modules.registry import Registry
+from odoo.sql_db import Cursor
 
 from . import controllers, models
 
 TEMPLATE_LOGIN = "authentik_template_user"
 
 
-def pre_init_hook(cr_or_env) -> None:
-    if hasattr(cr_or_env, "registry"):
-        env = cr_or_env
-    else:
-        env = api.Environment(cr_or_env, SUPERUSER_ID, {})
+def pre_init_hook(cr_or_env: api.Environment | Cursor) -> None:
+    env = cr_or_env if hasattr(cr_or_env, "registry") else api.Environment(cast(Cursor, cr_or_env), SUPERUSER_ID, {})
     existing_user = (
         env["res.users"]
         .sudo()
@@ -44,21 +47,17 @@ def pre_init_hook(cr_or_env) -> None:
     )
 
 
-def post_init_hook(cr_or_env, registry=None) -> None:
+def post_init_hook(cr_or_env: api.Environment | Cursor, registry: Registry | None = None) -> None:
     if registry is None:
         env = cr_or_env
         if not hasattr(env, "registry"):
             return
         if "authentik.sso.group.mapping" in env.registry:
-            env["authentik.sso.group.mapping"].sudo().ensure_default_mappings(
-                seed_admin_mapping=True
-            )
+            env["authentik.sso.group.mapping"].sudo().ensure_default_mappings(seed_admin_mapping=True)
         env.cr.commit()
         return
 
-    env = api.Environment(cr_or_env, SUPERUSER_ID, {})
+    env = api.Environment(cast(Cursor, cr_or_env), SUPERUSER_ID, {})
     if "authentik.sso.group.mapping" in env.registry:
-        env["authentik.sso.group.mapping"].sudo().ensure_default_mappings(
-            seed_admin_mapping=True
-        )
+        env["authentik.sso.group.mapping"].sudo().ensure_default_mappings(seed_admin_mapping=True)
     cr_or_env.commit()

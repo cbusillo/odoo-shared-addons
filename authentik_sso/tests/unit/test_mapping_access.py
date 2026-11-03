@@ -19,6 +19,4 @@ class TestMappingAccess(UnitTestCase):
             self.assertFalse(mappings.env.su)
             for operation in ("create", "read", "write", "unlink"):
                 with self.subTest(group=group, operation=operation):
-                    self.assertEqual(
-                        mappings.has_access(operation), group == "base.group_system"
-                    )
+                    self.assertEqual(mappings.has_access(operation), group == "base.group_system")

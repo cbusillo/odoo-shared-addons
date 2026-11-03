@@ -15,7 +15,7 @@ class TestExternalIdUiCleanup(UnitTestCase):
                 "type": "form",
                 "model": "res.partner",
                 "inherit_id": self.env.ref("base.view_partner_form").id,
-                "arch": "<xpath expr=\"//sheet\" position=\"inside\"><group/></xpath>",
+                "arch": '<xpath expr="//sheet" position="inside"><group/></xpath>',
                 "active": active,
             }
         )

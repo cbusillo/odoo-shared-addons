@@ -2,8 +2,9 @@ import contextlib
 import random
 import secrets
 import time
+from collections.abc import Generator
 from datetime import datetime
-from typing import Any, Generator, Optional, Protocol
+from typing import Any, Protocol
 from unittest.mock import MagicMock, patch
 
 from odoo.models import BaseModel
@@ -32,7 +33,7 @@ def with_test_context(env: EnvironmentWithContext) -> EnvironmentWithContext:
 
 
 @contextlib.contextmanager
-def mock_datetime_now(fixed_datetime: datetime) -> Generator[None, None, None]:
+def mock_datetime_now(fixed_datetime: datetime) -> Generator[None]:
     with patch("datetime.datetime") as mock_dt:
         mock_dt.now.return_value = fixed_datetime
         mock_dt.side_effect = lambda *args, **kwargs: datetime(*args, **kwargs)
@@ -61,7 +62,7 @@ def assert_record_count(
     model: BaseModel,
     domain: list,
     expected_count: int,
-    message: Optional[str] = None,
+    message: str | None = None,
 ) -> None:
     actual_count = model.search_count(domain)
     if actual_count != expected_count:
@@ -73,12 +74,11 @@ def assert_record_count(
 def assert_in_log(
     log_records: list,
     expected_message: str,
-    level: Optional[str] = None,
+    level: str | None = None,
 ) -> None:
     for record in log_records:
-        if expected_message in record.message:
-            if level is None or record.levelname == level:
-                return
+        if expected_message in record.message and (level is None or record.levelname == level):
+            return
 
     msg = f"Expected log message not found: {expected_message!r}"
     if level:
@@ -89,8 +89,8 @@ def assert_in_log(
 @contextlib.contextmanager
 def measure_performance(
     operation_name: str,
-    max_duration: Optional[float] = None,
-) -> Generator[dict[str, Any], None, None]:
+    max_duration: float | None = None,
+) -> Generator[dict[str, Any]]:
     metrics = {
         "operation": operation_name,
         "start_time": time.perf_counter(),

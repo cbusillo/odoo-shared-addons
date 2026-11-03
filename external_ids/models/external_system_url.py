@@ -1,3 +1,5 @@
+from typing import Literal
+
 from odoo import api, fields, models
 
 
@@ -52,7 +54,7 @@ class ExternalSystemUrl(models.Model):
             if not rec.code:
                 rec.code = self._sanitize_code(rec.name)
 
-    def write(self, vals: "odoo.values.external_system_url") -> bool:
+    def write(self, vals: "odoo.values.external_system_url") -> Literal[True]:
         if "code" in vals and self and not self.env.context.get("allow_url_code_write"):
             # Disallow changing code outside of the rename wizard
             vals = dict(vals)

@@ -353,6 +353,26 @@ class ExternalIdMixin(models.AbstractModel):
             active_only=active_only,
         )
 
+    def _external_id_records_domain(
+        self,
+        system_id: int,
+        resource: ExternalOptionalKeyLike,
+        external_id_values: list[str],
+        *,
+        active_only: bool,
+    ) -> fields.Domain:
+        domain = fields.Domain(
+            [
+                ("res_model", "=", self._name),
+                ("system_id", "=", system_id),
+                ("resource", "=", self._normalize_external_key(resource, default="default")),
+                ("external_id", "in", external_id_values),
+            ]
+        )
+        if active_only:
+            domain &= fields.Domain([("active", "=", True)])
+        return domain
+
     @api.model
     def domain_by_external_ids(
         self,
@@ -370,16 +390,7 @@ class ExternalIdMixin(models.AbstractModel):
         if not system or not normalized_external_ids:
             return fields.Domain([("id", "=", False)])
 
-        external_id_domain = fields.Domain(
-            [
-                ("res_model", "=", self._name),
-                ("system_id", "=", system.id),
-                ("resource", "=", self._normalize_external_key(resource, default="default")),
-                ("external_id", "in", normalized_external_ids),
-            ]
-        )
-        if active_only:
-            external_id_domain &= fields.Domain([("active", "=", True)])
+        external_id_domain = self._external_id_records_domain(system.id, resource, normalized_external_ids, active_only=active_only)
         external_id_records = self.env["external.id"].with_context(active_test=False).search(external_id_domain)
         if not external_id_records:
             return fields.Domain([("id", "=", False)])
@@ -403,16 +414,7 @@ class ExternalIdMixin(models.AbstractModel):
             return {}
 
         external_id_model = self.env["external.id"].with_context(active_test=False)
-        domain = fields.Domain(
-            [
-                ("res_model", "=", self._name),
-                ("system_id", "=", system.id),
-                ("resource", "=", self._normalize_external_key(resource, default="default")),
-                ("external_id", "in", normalized_external_ids),
-            ]
-        )
-        if active_only:
-            domain &= fields.Domain([("active", "=", True)])
+        domain = self._external_id_records_domain(system.id, resource, normalized_external_ids, active_only=active_only)
         external_id_records = external_id_model.search(domain)
         return {
             str(external_id_record.external_id): self.browse(external_id_record.res_id)

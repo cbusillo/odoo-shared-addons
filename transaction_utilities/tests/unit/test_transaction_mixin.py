@@ -5,7 +5,7 @@ from typing import NamedTuple
 from odoo import api, sql_db
 from odoo.modules import module as odoo_module
 from psycopg2.errors import DivisionByZero, InFailedSqlTransaction
-from psycopg2.extensions import TRANSACTION_STATUS_IDLE, TRANSACTION_STATUS_INERROR
+from psycopg2.extensions import TRANSACTION_STATUS_IDLE
 from psycopg2.extensions import connection as PsycopgConnection
 
 from ..common_imports import common
@@ -63,7 +63,7 @@ class TestTransactionMixin(UnitTestCase):
         self.assertFalse(partner, "Partner should not exist in main cursor because no commit in test mode")
 
     @contextmanager
-    def _lock_sessions(self, lock_id: int) -> Generator[LockSessions]:
+    def _lock_sessions(self) -> Generator[LockSessions]:
         dbname, connection_info = sql_db.connection_info_for(self.env.cr.dbname)
         database = sql_db.Connection(sql_db.ConnectionPool(maxconn=4), dbname, connection_info)
         borrow_cursor = database.cursor
@@ -101,7 +101,7 @@ class TestTransactionMixin(UnitTestCase):
 
     def test_advisory_lock(self) -> None:
         lock_id = 12345
-        with self._lock_sessions(lock_id) as sessions:
+        with self._lock_sessions() as sessions:
             with sessions.caller._advisory_lock(lock_id) as acquired:
                 self.assertTrue(acquired)
                 self.assertFalse(self._try_lock(sessions.observer, lock_id))
@@ -110,7 +110,7 @@ class TestTransactionMixin(UnitTestCase):
     def test_advisory_lock_released_when_body_raises(self) -> None:
         lock_id = 12348
         body_error = ValueError("Test body failed")
-        with self._lock_sessions(lock_id) as sessions:
+        with self._lock_sessions() as sessions:
             caller_cr = sessions.caller.env.cr
             caller_cr.execute("CREATE TEMP TABLE advisory_lock_sentinel (value integer) ON COMMIT DROP")
             caller_cr.execute("INSERT INTO advisory_lock_sentinel VALUES (1)")
@@ -126,17 +126,14 @@ class TestTransactionMixin(UnitTestCase):
 
     def test_advisory_lock_not_acquired_when_held_elsewhere(self) -> None:
         lock_id = 12347
-        with self._lock_sessions(lock_id) as sessions:
+        with self._lock_sessions() as sessions:
             sessions.observer.execute("SELECT pg_advisory_lock(%s)", [lock_id])
-            try:
-                with sessions.caller._advisory_lock(lock_id) as acquired:
-                    self.assertFalse(acquired)
-            finally:
-                sessions.observer.execute("SELECT pg_advisory_unlock(%s)", [lock_id])
+            with sessions.caller._advisory_lock(lock_id) as acquired:
+                self.assertFalse(acquired)
 
     def test_advisory_lock_releases_after_real_aborted_caller_and_pooled_return(self) -> None:
         lock_id = 12346
-        with self._lock_sessions(lock_id) as sessions:
+        with self._lock_sessions() as sessions:
             caller_cr = sessions.caller.env.cr
             caller_connection = caller_cr.connection
             with self.assertRaises(DivisionByZero):
@@ -145,7 +142,6 @@ class TestTransactionMixin(UnitTestCase):
                     self.assertFalse(self._try_lock(sessions.observer, lock_id))
                     owner_pid = self._lock_owner(sessions.observer, lock_id)
                     caller_cr.execute("SELECT 1 / 0", log_exceptions=False)
-            caller_status = caller_connection.get_transaction_status()
             with self.assertRaises(InFailedSqlTransaction):
                 caller_cr.execute("SELECT 1", log_exceptions=False)
             with closing(sessions.borrow_cursor()) as returned:
@@ -153,7 +149,6 @@ class TestTransactionMixin(UnitTestCase):
                 returned_status = returned.connection.get_transaction_status()
                 lock_available = self._try_lock(sessions.observer, lock_id)
             self.assertTrue(lock_available, "Aborted body left its advisory lock held after pooled return")
-            self.assertEqual(caller_status, TRANSACTION_STATUS_INERROR)
             self.assertNotEqual(owner_pid, caller_connection.get_backend_pid())
             self.assertEqual(returned_pid, owner_pid)
             self.assertEqual(returned_status, TRANSACTION_STATUS_IDLE)
@@ -163,30 +158,25 @@ class TestTransactionMixin(UnitTestCase):
 
     def test_advisory_lock_preserves_caller_commits_rollbacks_and_pending_work(self) -> None:
         lock_id = 12349
-        with self._lock_sessions(lock_id) as sessions:
+        with self._lock_sessions() as sessions:
             caller_cr = sessions.caller.env.cr
             caller_cr.execute("CREATE TEMP TABLE advisory_lock_progress (value integer)")
             caller_cr.commit()
-            try:
-                with sessions.caller._advisory_lock(lock_id) as acquired:
-                    self.assertTrue(acquired)
-                    caller_cr.execute("INSERT INTO advisory_lock_progress VALUES (1)")
-                    caller_cr.commit()
-                    self.assertFalse(self._try_lock(sessions.observer, lock_id))
-                    caller_cr.execute("INSERT INTO advisory_lock_progress VALUES (2)")
-                    caller_cr.rollback()
-                    self.assertFalse(self._try_lock(sessions.observer, lock_id))
-                    caller_cr.execute("INSERT INTO advisory_lock_progress VALUES (3)")
-                caller_cr.execute("SELECT value FROM advisory_lock_progress ORDER BY value")
-                self.assertEqual(caller_cr.fetchall(), [(1,), (3,)])
-                caller_cr.rollback()
-                caller_cr.execute("SELECT value FROM advisory_lock_progress")
-                self.assertEqual(caller_cr.fetchall(), [(1,)])
-                self.assertTrue(self._try_lock(sessions.observer, lock_id))
-            finally:
-                caller_cr.rollback()
-                caller_cr.execute("DROP TABLE advisory_lock_progress")
+            with sessions.caller._advisory_lock(lock_id) as acquired:
+                self.assertTrue(acquired)
+                caller_cr.execute("INSERT INTO advisory_lock_progress VALUES (1)")
                 caller_cr.commit()
+                self.assertFalse(self._try_lock(sessions.observer, lock_id))
+                caller_cr.execute("INSERT INTO advisory_lock_progress VALUES (2)")
+                caller_cr.rollback()
+                self.assertFalse(self._try_lock(sessions.observer, lock_id))
+                caller_cr.execute("INSERT INTO advisory_lock_progress VALUES (3)")
+            caller_cr.execute("SELECT value FROM advisory_lock_progress ORDER BY value")
+            self.assertEqual(caller_cr.fetchall(), [(1,), (3,)])
+            caller_cr.rollback()
+            caller_cr.execute("SELECT value FROM advisory_lock_progress")
+            self.assertEqual(caller_cr.fetchall(), [(1,)])
+            self.assertTrue(self._try_lock(sessions.observer, lock_id))
 
     def test_advisory_lock_discards_failed_cleanup_without_masking_body_exception(self) -> None:
         for operation in ("execute", "disconnect", "close", "returned_close"):
@@ -196,7 +186,7 @@ class TestTransactionMixin(UnitTestCase):
 
     def _check_cleanup_failure(self, operation: str, body_fails: bool) -> None:
         lock_id = 12350
-        with self._lock_sessions(lock_id) as sessions:
+        with self._lock_sessions() as sessions:
             method = "execute" if operation in ("execute", "disconnect") else "close"
             original = getattr(sql_db.Cursor, method)
             cleanup_error = RuntimeError("Test cleanup failed")

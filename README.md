@@ -30,6 +30,8 @@ are in [`.github/github.json`](.github/github.json).
   mapping helpers. Internal-template signup applies only to the configured
   Authentik provider; other OAuth providers retain native signup, invitation
   and portal-template behavior.
+- [`disable_odoo_online`](disable_odoo_online/README.md): skip the publisher-warranty
+  phone-home call on self-hosted Odoo 20 Community.
 - `discuss_record_links`: Discuss/Chatter shortcuts for linking to business
   records.
 - [`device_history`](device_history/README.md): preserve historical parsed

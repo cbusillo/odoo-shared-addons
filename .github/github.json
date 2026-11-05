@@ -23,7 +23,9 @@
       "printnode_direct_print/AGENTS.md",
       "printnode_direct_print/README.md",
       "test_support/AGENTS.md",
-      "transaction_utilities/AGENTS.md"
+      "transaction_utilities/AGENTS.md",
+      "disable_odoo_online/AGENTS.md",
+      "disable_odoo_online/README.md"
     ],
     "launchplaneMergeTrain": "https://github.com/cbusillo/codex-skills/blob/main/skills/launchplane/references/merge-train.md"
   },

@@ -1,0 +1,50 @@
+$house-app-tile-size: 70px;
+$house-app-column-width: 136px;
+
+.o_house_app_grid {
+    background: linear-gradient(135deg, #ece9f3 0%, #f4f3f8 55%, #e9e7f1 100%);
+}
+
+.o_house_app_grid_apps {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, $house-app-column-width);
+    justify-content: center;
+    row-gap: 1.75rem;
+    max-width: $house-app-column-width * 6;
+    margin: 0 auto;
+    padding: 3.5rem 1rem;
+}
+
+.o_house_app {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    color: $o-gray-800;
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+        color: $o-gray-900;
+
+        .o_house_app_icon {
+            transform: translateY(-2px);
+            box-shadow: 0 0 0 1px rgba($o-black, 0.12), 0 6px 10px rgba($o-black, 0.08);
+        }
+    }
+}
+
+.o_house_app_icon {
+    width: $house-app-tile-size;
+    height: $house-app-tile-size;
+    padding: 10px;
+    border-radius: 0.5rem;
+    background-color: $o-white;
+    box-shadow: 0 0 0 1px rgba($o-black, 0.1), 0 2px 4px rgba($o-black, 0.06);
+    transition: transform 0.1s ease-in, box-shadow 0.1s ease-in;
+}
+
+.o_house_app_name {
+    font-size: 0.95rem;
+    text-align: center;
+}

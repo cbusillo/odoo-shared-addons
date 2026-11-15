@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="contacts.action_contacts_view_kanban" model="ir.actions.act_window.view">
+        <field name="sequence" eval="-1"/>
+    </record>
+</odoo>

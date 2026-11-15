@@ -75,3 +75,85 @@ class TestExternalIdentityAccess(UnitTestCase):
         with self.assertRaises(AccessError):
             wizard.action_rename()
         self.assertEqual(template.code, "fixture")
+
+    def test_internal_user_reads_external_links_without_model_access(self) -> None:
+        system = self.ExternalSystem.create(
+            {
+                "name": "Link fixture",
+                "code": "link_fixture",
+                "url": "https://links.example.test",
+            }
+        )
+        self.env["external.system.url"].create(
+            {
+                "name": "Admin link",
+                "code": "admin",
+                "system_id": system.id,
+                "res_model_id": self.env["ir.model"]._get_id("res.partner"),
+                "template": "{base}/items/{id}",
+            }
+        )
+        partner = self.Partner.create({"name": "Linked partner"})
+        external_id = self.ExternalId.create(
+            {
+                "res_model": "res.partner",
+                "res_id": partner.id,
+                "system_id": system.id,
+                "external_id": "4242",
+            }
+        )
+        user = self.env["res.users"].create(
+            {
+                "name": "Link reader",
+                "login": "link_reader",
+                "group_ids": [Command.set([self.env.ref("base.group_user").id])],
+            }
+        )
+        self.assertFalse(self.env["ir.model"].with_user(user).has_access("read"))
+
+        self.assertEqual(external_id.with_user(user).get_url("admin"), external_id.get_url("admin"))
+        self.assertTrue(external_id.get_url("admin"))
+
+    def test_internal_user_reads_inferred_resource_links_without_model_access(
+        self,
+    ) -> None:
+        system = self.ExternalSystem.create(
+            {
+                "name": "Inferred link fixture",
+                "code": "inferred_links",
+                "url": "https://links.example.test",
+            }
+        )
+        self.env["external.system.url"].create(
+            {
+                "name": "Admin link",
+                "code": "admin",
+                "system_id": system.id,
+                "resource": "item",
+                "template": "{base}/items/{id}",
+            }
+        )
+        user = self.env["res.users"].create(
+            {
+                "name": "Inferred link reader",
+                "login": "inferred_link_reader",
+                "group_ids": [Command.set([self.env.ref("base.group_user").id])],
+            }
+        )
+        self.env["ir.access"].create(
+            {
+                "name": "External identity fixture reader",
+                "model_id": self.env["ir.model"]._get("external.id.fixture").id,
+                "group_id": self.env.ref("base.group_user").id,
+                "operation": "r",
+            }
+        )
+        record = self.FixtureRecord.create({"name": "Inferred link record"})
+        record.external.inferred_links.item.id = "4242"
+        self.assertFalse(self.env["ir.model"].with_user(user).has_access("read"))
+
+        self.assertEqual(
+            record.with_user(user).get_external_url("inferred_links", "admin"),
+            record.get_external_url("inferred_links", "admin"),
+        )
+        self.assertTrue(record.get_external_url("inferred_links", "admin"))

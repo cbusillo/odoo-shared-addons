@@ -21,4 +21,6 @@ OPEN_FIRST_APP_JS = f"""(async () => {{
 @tagged("-at_install", "post_install")
 class TestAppGridBrowser(HttpCase):
     def test_web_client_lands_on_app_grid_and_opens_an_app(self) -> None:
-        self.browser_js("/odoo", OPEN_FIRST_APP_JS, ready="document.querySelector('.o_house_app_grid .o_house_app')", login="admin")
+        self.browser_js(
+            "/odoo", OPEN_FIRST_APP_JS, ready="Boolean(document.querySelector('.o_house_app_grid .o_house_app'))", login="admin"
+        )

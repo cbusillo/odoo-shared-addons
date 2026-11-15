@@ -442,14 +442,14 @@ class TestReadOnlyIdentity(HttpCase):
 
     def test_real_webclient_starts_as_the_qa_identity(self) -> None:
         employee = self._create_employee_with_department()
-        self.user.write({"active": True, "password": "synthetic-password"})
+        self.user.write({"active": True, "password": "synthetic-password", "action_id": False})
         self.env.flush_all()
         self._login_browser()
         sid = self.opener.cookies.get_dict()["session_id"]
         self.addCleanup(session_store().delete, session_store().get(sid))
         self.session = None
         self.browser_js(
-            "/odoo/employees",
+            "/odoo",
             f"""if (document.querySelector('.o_error_dialog')) throw new Error('QA bootstrap failed');
 const cards = [...document.querySelectorAll('.o_action_manager .o_kanban_record')];
 if (!cards.some(card => card.textContent.includes({json.dumps(employee.name)}))) {{

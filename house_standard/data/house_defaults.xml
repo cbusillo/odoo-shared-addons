@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo noupdate="1">
+    <record id="default_chatter_position" model="ir.default">
+        <field name="field_id" ref="muk_web_chatter.field_res_users__chatter_position"/>
+        <field name="json_value">"bottom"</field>
+    </record>
+    <record id="default_home_action" model="ir.default">
+        <field name="field_id" ref="base.field_res_users__action_id"/>
+        <field name="json_value" eval="str(ref('house_standard.action_app_grid'))"/>
+    </record>
+
+    <function model="res.users" name="write">
+        <value model="res.users" search="[('share', '=', False)]"/>
+        <value eval="{'chatter_position': 'bottom'}"/>
+    </function>
+    <function model="res.users" name="write">
+        <value model="res.users" search="[('share', '=', False), ('action_id', '=', False)]"/>
+        <value eval="{'action_id': ref('house_standard.action_app_grid')}"/>
+    </function>
+
+    <function model="muk_web_colors.color_assets_editor" name="write_colors">
+        <value>/muk_web_colors/static/src/colors/light/light.scss</value>
+        <value>web._assets_primary_variables</value>
+        <value eval="{'color_brand': '#714B67', 'color_primary': '#714B67'}"/>
+    </function>
+    <function model="muk_web_colors.color_assets_editor" name="write_colors">
+        <value>/muk_web_theme/static/src/colors/theme/theme.scss</value>
+        <value>web._assets_primary_variables</value>
+        <value eval="{
+            'color_appbar_background': '#FFFFFF',
+            'color_appbar_text': '#374151',
+            'color_appbar_active': '#714B67',
+        }"/>
+    </function>
+</odoo>

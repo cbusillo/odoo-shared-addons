@@ -1,5 +1,7 @@
 # House Standard
 
-Inherit the root AGENTS.md. This addon only declares dependencies on modules
-the shared base image ships. Keep it free of code, data and settings unless
-every product should get them.
+Inherit the root AGENTS.md. This addon turns on what every product shares from
+the base image. Prefer, in order: native Odoo 20 settings and views, OCA, MuK,
+then our own code, built only from behaviour specs and screenshots, never from
+Odoo Enterprise source. Install-time defaults stay in `noupdate` data so a
+user's or admin's later choice survives upgrades.

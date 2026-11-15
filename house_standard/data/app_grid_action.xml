@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="action_app_grid" model="ir.actions.client">
+        <field name="name">Home</field>
+        <field name="tag">house_standard.app_grid</field>
+        <field name="path">home</field>
+    </record>
+</odoo>

@@ -1,0 +1,21 @@
+.o_main_navbar {
+    box-shadow: inset 0 -1px 0 $o-border-color;
+}
+
+.o_cp_searchview.input-group > .o_searchview_dropdown_toggler.o-dropdown-no-caret {
+    display: flex;
+    align-items: center;
+    border-inline-start: 1px solid $input-border-color;
+    padding-inline: 0.5rem;
+
+    &::after {
+        content: "arrow_drop_down";
+        font-family: "Material Symbols Outlined";
+        transform: scale(1.4);
+        transition: transform 0.25s ease-in-out;
+    }
+
+    &.show::after {
+        transform: scale(1.4) rotate(180deg);
+    }
+}

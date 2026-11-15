@@ -449,7 +449,7 @@ class TestReadOnlyIdentity(HttpCase):
         self.addCleanup(session_store().delete, session_store().get(sid))
         self.session = None
         self.browser_js(
-            "/odoo",
+            "/odoo/employees",
             f"""if (document.querySelector('.o_error_dialog')) throw new Error('QA bootstrap failed');
 const cards = [...document.querySelectorAll('.o_action_manager .o_kanban_record')];
 if (!cards.some(card => card.textContent.includes({json.dumps(employee.name)}))) {{

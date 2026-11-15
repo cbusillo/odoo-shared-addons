@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="house_standard.SearchBarMenu" t-inherit="web.SearchBarMenu" t-inherit-mode="extension">
+        <xpath expr="//button[hasclass('o_searchview_dropdown_toggler')]" position="attributes">
+            <attribute name="t-att-class"/>
+        </xpath>
+    </t>
+</templates>

@@ -22,9 +22,11 @@
         ],
         "web.assets_backend": [
             "house_standard/static/src/app_grid/*",
+            "house_standard/static/src/search/*",
             "house_standard/static/src/scss/house_standard.scss",
         ],
     },
+    "post_init_hook": "apply_house_defaults_to_existing_users",
     "installable": True,
     "application": False,
 }

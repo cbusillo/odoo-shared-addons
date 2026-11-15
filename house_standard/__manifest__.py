@@ -15,8 +15,13 @@
     "assets": {
         "web._assets_primary_variables": [
             (
+                "before",
+                "muk_web_colors/static/src/colors/theme/theme.scss",
+                "house_standard/static/src/scss/colors.scss",
+            ),
+            (
                 "after",
-                "web/static/src/scss/primary_variables.scss",
+                "muk_web_theme/static/src/colors/theme/theme.scss",
                 "house_standard/static/src/scss/primary_variables.scss",
             ),
         ],

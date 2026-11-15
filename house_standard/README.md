@@ -11,10 +11,10 @@ shared Odoo 20 base image provides: MuK's LGPL-3 Community backend theme,
 - Users land on an app grid (the `Home` client action, path `/odoo/home`). At
   install it becomes the Home Action of every internal user who has none, and
   new users start with it; an admin can change a user's Home Action.
-- A lighter look: a white top bar and app sidebar and Odoo's plum accent. The
-  accent and sidebar colors are MuK color settings written once at install, so
-  an admin can change them under Settings; the white top bar is this addon's
-  stylesheet.
+- A lighter look from this addon's stylesheet: a white top bar and app
+  sidebar and Odoo's plum accent. They override MuK's colors, so MuK's color
+  settings do not change them. Writing them as MuK settings would store them
+  as asset attachments, which Odoo's own JavaScript test suite cannot read.
 - The search box shows Odoo's own dropdown arrow, which Odoo 20 otherwise shows
   only on touch screens.
 

@@ -40,6 +40,8 @@ are in [`.github/github.json`](.github/github.json).
   environments.
 - `external_ids`: generic external-system identity and URL-link management.
 - `hr_employee_name_extended`: structured employee-name fields and formatting.
+- [`house_standard`](house_standard/README.md): installs the house backend
+  standard from the base image (MuK's Community backend theme).
 - [`launchplane_settings`](launchplane_settings/README.md): adapter for applying
   Launchplane-managed instance settings inside Odoo, with a pure installed
   payload projection for verified readers.

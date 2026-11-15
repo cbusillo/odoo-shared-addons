@@ -2,7 +2,8 @@
 
 Installing this addon gives a product the house backend standard that the
 shared Odoo 20 base image provides: MuK's LGPL-3 Community backend theme,
-`muk_web_theme`, with its `muk_web_*` dependencies, plus these defaults.
+`muk_web_theme`, with its `muk_web_*` dependencies; OCA's AGPL-3
+`document_page` wiki pages, with `document_knowledge`; plus these defaults.
 
 - Contacts open as cards first.
 - The message panel sits under the form. At install every internal user is
@@ -18,7 +19,7 @@ shared Odoo 20 base image provides: MuK's LGPL-3 Community backend theme,
 - The search box shows Odoo's own dropdown arrow, which Odoo 20 otherwise shows
   only on touch screens.
 
-The theme modules ship in the base image (cbusillo/odoo-docker), not here. A
-product adopts the standard by pinning an image pair that carries them and
+The theme and wiki modules ship in the base image (cbusillo/odoo-docker), not
+here. A product adopts the standard by pinning an image pair that carries them and
 installing `house_standard`. Add a default here when every product should get
 it; keep product-specific choices in the product.

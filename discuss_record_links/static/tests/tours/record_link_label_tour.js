@@ -9,7 +9,6 @@ import {
 } from "./discuss_tour_helpers"
 
 registry.category("web_tour.tours").add("drl_record_link_label", {
-    test: true,
     url: "/web",
     steps: () => {
         const productId = getConfigParameterValue("drl_label_product_id")

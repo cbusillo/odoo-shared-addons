@@ -3,7 +3,6 @@
 import { registry } from "@web/core/registry";
 
 registry.category("web_tour.tours").add("smoke_login_tour", {
-    test: true,
     url: "/web",
     steps: () => [
         {

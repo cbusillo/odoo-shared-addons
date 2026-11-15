@@ -781,7 +781,7 @@ class ExternalIdMixin(models.AbstractModel):
                     return url
             return None
 
-        template_model = self.env["external.system.url"].with_context(active_test=False)
+        template_model = self.env["external.system.url"].sudo().with_context(active_test=False)
         template_domain = [
             ("system_id", "=", system.id),
             ("active", "=", True),

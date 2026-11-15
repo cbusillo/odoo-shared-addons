@@ -269,7 +269,7 @@ class ExternalId(models.Model):
         if not normalized_code:
             return None
 
-        url_template_model = self.env["external.system.url"]
+        url_template_model = self.env["external.system.url"].sudo()
         template_record = url_template_model.search(
             [
                 ("system_id", "=", self.system_id.id),

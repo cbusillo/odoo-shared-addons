@@ -4,7 +4,6 @@ import { useService } from "@web/core/utils/hooks";
 
 export class AppGrid extends Component {
     static template = "house_standard.AppGrid";
-    static props = ["*"];
 
     setup() {
         this.appMenuService = useService("app_menu");

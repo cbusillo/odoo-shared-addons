@@ -24,7 +24,7 @@ jobs:
         with:
           command-metadata: source/.github/github.json
           addons-root: source
-          image: ghcr.io/cbusillo/odoo-docker@sha256:1ba11446f0192d816aa82997399b2434bdd0ae427482610b607d3bec1ff5d812
+          image: ghcr.io/cbusillo/odoo-docker@sha256:ddbddb4a0ae81f679f1e4f4276611a9b3dbe86917e1207c0c5aef686867c17fa
           output: ${{ runner.temp }}/addon-tests
       - name: Upload addon test evidence
         if: always()

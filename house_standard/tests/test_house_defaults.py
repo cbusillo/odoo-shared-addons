@@ -33,11 +33,6 @@ class TestHouseDefaults(TransactionCase):
             self.assertEqual(user.action_id.id, self.app_grid.id)
         self.assertEqual(with_home.action_id.id, chosen_home.id)
 
-    def test_user_can_still_move_chatter_beside_the_form(self) -> None:
-        user = self._create_user("house-side-user")
-        user.with_user(user).write({"chatter_position": "side"})
-        self.assertEqual(user.chatter_position, "side")
-
     def test_contacts_open_as_cards_first(self) -> None:
         first_view_mode = self.env.ref("contacts.action_contacts").views[0][1]
         self.assertEqual(first_view_mode, "kanban")

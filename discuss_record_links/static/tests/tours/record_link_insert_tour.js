@@ -12,7 +12,6 @@ import {
 const messageLinkSelector = ".o-mail-Discuss .o-mail-Message a[href*='/web#']"
 
 registry.category("web_tour.tours").add("drl_record_link_insert", {
-    test: true,
     url: "/web",
     steps: () => {
         const productId = getConfigParameterValue("drl_insert_product_id")

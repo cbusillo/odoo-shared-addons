@@ -442,7 +442,7 @@ class TestReadOnlyIdentity(HttpCase):
 
     def test_real_webclient_starts_as_the_qa_identity(self) -> None:
         employee = self._create_employee_with_department()
-        self.user.write({"active": True, "password": "synthetic-password"})
+        self.user.write({"active": True, "password": "synthetic-password", "action_id": False})
         self.env.flush_all()
         self._login_browser()
         sid = self.opener.cookies.get_dict()["session_id"]

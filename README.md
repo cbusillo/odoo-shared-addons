@@ -41,7 +41,9 @@ are in [`.github/github.json`](.github/github.json).
 - `external_ids`: generic external-system identity and URL-link management.
 - `hr_employee_name_extended`: structured employee-name fields and formatting.
 - [`house_standard`](house_standard/README.md): installs the house backend
-  standard from the base image (MuK's Community backend theme).
+  standard from the base image (MuK's Community backend theme) and its
+  defaults: contacts as cards, message panel below forms, an app-grid home and
+  a lighter look.
 - [`launchplane_settings`](launchplane_settings/README.md): adapter for applying
   Launchplane-managed instance settings inside Odoo, with a pure installed
   payload projection for verified readers.

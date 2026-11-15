@@ -1,0 +1,1 @@
+from .hooks import apply_house_defaults_to_existing_users

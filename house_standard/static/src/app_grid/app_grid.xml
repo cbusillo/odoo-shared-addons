@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<templates xml:space="preserve">
+    <t t-name="house_standard.AppGrid">
+        <div class="o_house_app_grid h-100 overflow-auto">
+            <nav class="o_house_app_grid_apps" aria-label="Apps">
+                <a
+                    t-foreach="this.apps"
+                    t-as="app"
+                    t-key="app.id"
+                    class="o_house_app"
+                    t-att-href="app.href"
+                    t-att-data-menu-xmlid="app.xmlid"
+                    t-on-click.prevent="() => this.openApp(app)"
+                >
+                    <img class="o_house_app_icon" t-att-src="app.webIconData or '/base/static/description/icon.png'" alt=""/>
+                    <span class="o_house_app_name" t-out="app.label"/>
+                </a>
+            </nav>
+        </div>
+    </t>
+</templates>

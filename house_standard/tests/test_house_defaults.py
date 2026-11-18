@@ -83,7 +83,7 @@ class TestHouseDefaults(TransactionCase):
         self.assertFalse(self.env.ref("auth_oauth.provider_openerp", raise_if_not_found=False))
 
     def test_first_upgrade_defaults_existing_websites_to_invitation_only(self) -> None:
-        if "website" not in self.env:
+        if "auth_signup_uninvited" not in self.env["website"]._fields:
             self.skipTest("Requires the website addon on the disposable test database.")
         websites = self.env["website"].search([])
         self.assertTrue(websites)

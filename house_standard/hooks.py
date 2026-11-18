@@ -11,7 +11,7 @@ def apply_house_defaults(env: Environment) -> None:
 
 
 def apply_website_signup_default(env: Environment) -> None:
-    if "website" not in env:
+    if "auth_signup_uninvited" not in env["website"]._fields:
         return
 
     websites = env["website"].search([("auth_signup_uninvited", "!=", "b2b")])

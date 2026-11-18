@@ -47,7 +47,8 @@ class TestHouseLoginBrowser(HttpCase):
                 if (document.querySelector('a[href*="/web/signup"]')) {{
                     throw new Error("Public signup link is still offered");
                 }}
-                if (document.querySelector('.o_odoo_provider')) {{
+                const odooEndpoint = {json.dumps(self.env.ref("auth_oauth.provider_openerp").auth_endpoint)};
+                if ([...document.querySelectorAll('a[href]')].some((link) => link.href.startsWith(odooEndpoint))) {{
                     throw new Error("Odoo.com sign-in is still offered");
                 }}
                 if (!document.querySelector('.house_authentik_test_provider')) {{

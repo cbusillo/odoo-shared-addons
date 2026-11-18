@@ -1,4 +1,8 @@
+from unittest.mock import patch
+
 from odoo.addons.auth_signup.models.res_users import SignupError
+from odoo.modules.migration import MigrationManager
+from odoo.modules.module_graph import ModuleGraph
 from odoo.tests import TransactionCase, tagged
 from odoo.tools.convert import convert_file
 
@@ -56,4 +60,44 @@ class TestHouseDefaults(TransactionCase):
 
         user = self.env["res.users"]._signup_create_user({"name": "Chosen Signup", "login": "chosen-signup@example.test"})
         self.assertTrue(user.share)
+        self.assertTrue(provider.enabled)
+
+    def _upgrade_login_defaults(self, installed_version: str) -> None:
+        graph = ModuleGraph(self.env.cr, mode="update")
+        installed = self.env["ir.module.module"].search([("state", "=", "installed")])
+        graph.extend(installed.mapped("name"))
+        house_standard = graph["house_standard"]
+        house_standard.load_state = "to upgrade"
+        house_standard.load_version = installed_version
+        with patch.object(self.env.registry, "_force_upgrade_scripts", set(), create=True):
+            migrations = MigrationManager(self.env.cr, graph)
+        migrations.migrate_module(house_standard, "post")
+        migrations.migrate_module(house_standard, "end")
+
+    def test_login_defaults_skip_a_deleted_odoo_com_provider(self) -> None:
+        self.env.ref("auth_oauth.provider_openerp").unlink()
+
+        convert_file(self.env, "house_standard", "data/login_defaults.xml", {}, mode="init", noupdate=True)
+        self._upgrade_login_defaults("20.0.1.2.0")
+
+        self.assertFalse(self.env.ref("auth_oauth.provider_openerp", raise_if_not_found=False))
+
+    def test_first_upgrade_defaults_existing_websites_to_invitation_only(self) -> None:
+        if "website" not in self.env:
+            self.skipTest("Requires the website addon on the disposable test database.")
+        websites = self.env["website"].search([])
+        self.assertTrue(websites)
+        websites.auth_signup_uninvited = "b2c"
+
+        self._upgrade_login_defaults("20.0.1.2.0")
+
+        self.assertEqual(set(websites.mapped("auth_signup_uninvited")), {"b2b"})
+
+    def test_first_upgrade_keeps_odoo_com_enabled_for_linked_users(self) -> None:
+        provider = self.env.ref("auth_oauth.provider_openerp")
+        provider.enabled = True
+        self._create_user("house-odoo-com-user", oauth_provider_id=provider.id, oauth_uid="house-test")
+
+        self._upgrade_login_defaults("20.0.1.2.0")
+
         self.assertTrue(provider.enabled)

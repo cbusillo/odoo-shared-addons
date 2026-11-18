@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo noupdate="1">
     <function model="ir.config_parameter" name="set_str" eval="('auth_signup.invitation_scope', 'b2b')"/>
-    <record id="auth_oauth.provider_openerp" model="auth.oauth.provider">
+    <record id="auth_oauth.provider_openerp" model="auth.oauth.provider" forcecreate="0">
         <field name="enabled" eval="False"/>
     </record>
 </odoo>

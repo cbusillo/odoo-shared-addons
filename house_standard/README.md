@@ -6,12 +6,14 @@ shared Odoo 20 base image provides: MuK's LGPL-3 Community backend theme,
 `document_page` wiki pages, with `document_knowledge`; plus these defaults.
 
 - Contacts open as cards first.
-- Customer signup requires an invitation, and the built-in Odoo.com Accounts
-  sign-in provider is disabled. Authentik, other configured providers and
-  passkeys keep their existing behavior. A product can choose public signup
-  or re-enable Odoo.com Accounts in its own settings or code; later upgrades
-  preserve that choice. Existing installations receive these defaults once
-  when upgrading to this version.
+- Customer signup defaults to invitation-only at the database level and on
+  installed websites. The first upgrade that applies each default logs any
+  change from public signup. The Odoo.com Accounts button is hidden by default.
+  If the first upgrade finds users linked to that provider, it preserves the
+  provider setting and logs the number of linked users. Authentik, other
+  configured providers and passkeys keep their existing behavior. Products
+  can opt in to public signup or the Odoo.com button, and later upgrades
+  preserve those choices.
 - The message panel sits under the form. At install every internal user is
   set to Bottom, and new users start there; each person can switch to Side in
   My Preferences (MuK's Chatter Position).

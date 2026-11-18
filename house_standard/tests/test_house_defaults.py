@@ -1,4 +1,6 @@
+from odoo.addons.auth_signup.models.res_users import SignupError
 from odoo.tests import TransactionCase, tagged
+from odoo.tools.convert import convert_file
 
 from ..hooks import apply_house_defaults_to_existing_users
 
@@ -36,3 +38,22 @@ class TestHouseDefaults(TransactionCase):
     def test_contacts_open_as_cards_first(self) -> None:
         first_view_mode = self.env.ref("contacts.action_contacts").views[0][1]
         self.assertEqual(first_view_mode, "kanban")
+
+    def test_uninvited_customer_signup_is_disabled_by_default(self) -> None:
+        with self.assertRaises(SignupError):
+            self.env["res.users"]._signup_create_user({"name": "Uninvited", "login": "uninvited@example.test"})
+
+    def test_odoo_com_provider_is_disabled_by_default(self) -> None:
+        self.assertFalse(self.env.ref("auth_oauth.provider_openerp").enabled)
+
+    def test_upgrades_preserve_explicit_login_choices(self) -> None:
+        parameters = self.env["ir.config_parameter"].sudo()
+        parameters.set_str("auth_signup.invitation_scope", "b2c")
+        provider = self.env.ref("auth_oauth.provider_openerp")
+        provider.enabled = True
+
+        convert_file(self.env, "house_standard", "data/login_defaults.xml", {}, mode="update")
+
+        user = self.env["res.users"]._signup_create_user({"name": "Chosen Signup", "login": "chosen-signup@example.test"})
+        self.assertTrue(user.share)
+        self.assertTrue(provider.enabled)

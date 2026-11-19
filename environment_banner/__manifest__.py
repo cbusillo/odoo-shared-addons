@@ -14,7 +14,6 @@ Display a backend banner for non-production environments.
     "data": [],
     "assets": {
         "web.assets_backend": [
-            "environment_banner/static/src/scss/*.scss",
             "environment_banner/static/src/js/*.js",
             "environment_banner/static/src/xml/*.xml",
         ],

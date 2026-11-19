@@ -1,15 +1,12 @@
 # Environment Banner
 
-This addon shows a banner in the backend when the instance is not recognized as
-production.
+The Odoo backend shows “This is not production. Data you enter here can be
+lost.” on testing, previews, local development and any other non-production
+lane.
 
-## Configuration
+The addon reads the Odoo process's `PLATFORM_INSTANCE`. Launchplane sets it
+for deployed lanes, and Odoo Devkit sets it for local runtimes. Only `prod`
+hides the banner. A missing, blank or unrecognized value shows it.
 
-Set these configuration parameters to control behavior:
-
-- `environment_banner.enabled` (default True)
-- `environment_banner.production_hostnames` (comma or whitespace-separated hostnames;
-  `*` wildcards allowed)
-
-If no production hostnames are configured, the banner only shows for hosts that
-look like dev/testing/localhost or include `.local`/`-local` labels.
+Existing `environment_banner.enabled` and
+`environment_banner.production_hostnames` database parameters have no effect.

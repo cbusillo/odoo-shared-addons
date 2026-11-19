@@ -1,1 +1,1 @@
-from . import test_browser, test_configuration
+from . import test_browser

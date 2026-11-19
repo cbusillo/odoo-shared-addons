@@ -1,15 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <templates xml:space="preserve">
     <t t-name="environment_banner.EnvironmentBanner">
-        <t t-if="this.state.showBanner">
-            <div t-attf-class="{{this.bannerClasses}}">
-                <div class="banner-content">
-                    <i class="fa fa-exclamation-triangle" aria-hidden="true"/>
-                    <span t-out="this.bannerText"/>
-                    <span>(<t t-out="this.state.hostname"/>)</span>
-                    <i class="fa fa-exclamation-triangle" aria-hidden="true"/>
-                </div>
-            </div>
-        </t>
+        <div class="environment-banner text-center fw-bold text-bg-warning shadow-sm">This is not production. Data you enter here can be lost.</div>
     </t>
 </templates>

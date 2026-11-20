@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from itertools import count, islice
 
 from odoo import fields, models
@@ -17,7 +18,7 @@ class IrSequence(models.Model):
     product_number_floor = fields.Integer(string="Lowest Product Number", default=1)
     product_number_as_barcode = fields.Boolean(string="Use Product Number as Barcode")
 
-    def _next_available_product_number(self, reserved: set[str]) -> str:
+    def _available_product_numbers(self, reserved: set[str]) -> Iterator[str]:
         self.ensure_one()
         if self.use_date_range or self.number_increment < 1:
             raise ValidationError(self.env._("Product numbering requires a positive increment and no date ranges."))
@@ -28,10 +29,9 @@ class IrSequence(models.Model):
             numbers = (self.get_next_char(number) for number in count(self.product_number_floor))
             while True:
                 candidates = list(islice(numbers, GAP_SEARCH_BATCH))
-                occupied = reserved | products._occupied_product_numbers(candidates)
-                if available := next((number for number in candidates if number not in occupied), None):
-                    return available
+                occupied = products._product_number_owners(candidates)
+                yield from (number for number in candidates if number not in occupied and number not in reserved)
         while number := self.next_by_id():
-            if number not in reserved and not products._occupied_product_numbers([number]):
-                return number
+            if number not in reserved and not products._product_number_owners([number]):
+                yield number
         raise ValidationError(self.env._("The product sequence did not return a number."))

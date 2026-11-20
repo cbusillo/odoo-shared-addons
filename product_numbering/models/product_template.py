@@ -21,6 +21,7 @@ class ProductTemplate(models.Model):
                     {values[field] for field in NUMBER_FIELDS if values.get(field) and (field == "barcode" or values[field] != "/")},
                 )
                 for template, values in zip(templates, vals_list, strict=True)
+                if len(template.product_variant_ids) != 1
             ]
         )
         return templates
@@ -51,6 +52,7 @@ class ProductTemplate(models.Model):
                 },
             )
             for template in self
+            if len(template.product_variant_ids) != 1
         ]
         result = super().write(vals)
         products._check_product_number_changes(changes)

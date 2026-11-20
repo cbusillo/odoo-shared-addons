@@ -63,7 +63,7 @@ class TestProductNumbering(TransactionCase):
         existing.name = "Renamed"
         self.assertEqual((existing.default_code, existing.barcode), ("LEGACY", "LEGACY-BARCODE"))
 
-    def test_variant_batch_uses_separate_numbers(self) -> None:
+    def test_variant_batch_skips_the_independent_template_barcode(self) -> None:
         attribute = self.env["product.attribute"].create({"name": "Color"})
         values = self.env["product.attribute.value"].create(
             [{"name": name, "attribute_id": attribute.id} for name in ("Red", "Blue")]
@@ -72,11 +72,13 @@ class TestProductNumbering(TransactionCase):
         template = self.template_model.create(
             {
                 "name": "Part with variants",
+                "barcode": "100001",
                 "attribute_line_ids": [Command.create({"attribute_id": attribute.id, "value_ids": [Command.set(values.ids)]})],
             }
         )
         variants = template.product_variant_ids
-        self.assertEqual(set(variants.mapped("default_code")), {"100001", "100002"})
+        self.assertEqual(template.barcode, "100001")
+        self.assertEqual(set(variants.mapped("default_code")), {"100002", "100003"})
         self.assertEqual(variants.mapped("default_code"), variants.mapped("barcode"))
 
     def test_one_attribute_value_keeps_explicit_identifiers(self) -> None:
@@ -101,3 +103,4 @@ class TestProductNumbering(TransactionCase):
         template = self.template_model.create({"name": "Legacy part", "default_code": "LEGACY-PART", "barcode": "LEGACY-SCAN"})
         template.default_code = "/"
         self.assertEqual((template.default_code, template.barcode), ("100002", "LEGACY-SCAN"))
+        self.assertEqual(template.product_variant_id.default_code, "100002")

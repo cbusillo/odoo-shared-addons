@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from typing import Self
 
 from odoo import api, fields, models
@@ -34,10 +35,6 @@ class ProductProduct(models.Model):
         return owners
 
     @api.model
-    def _occupied_product_numbers(self, numbers: list[str]) -> set[str]:
-        return set(self._product_number_owners(numbers))
-
-    @api.model
     def _check_product_number_changes(self, changes: list[tuple[int, int, set[str]]]) -> None:
         owners = self._product_number_owners(list(set().union(*(numbers for _, _, numbers in changes))))
         for template_id, variant_id, numbers in changes:
@@ -50,10 +47,15 @@ class ProductProduct(models.Model):
 
     @api.model
     def _allocate_product_number(
-        self, values: "odoo.values.product_product", category: "odoo.model.product_category", reserved: set[str]
+        self,
+        values: "odoo.values.product_product",
+        category: "odoo.model.product_category",
+        reserved: set[str],
+        candidates_by_sequence: dict[int, Iterator[str]],
     ) -> "odoo.values.product_product":
         sequence = self.env["ir.sequence"].get_category_sequence_id(category)
-        number = sequence._next_available_product_number(reserved)
+        candidates = candidates_by_sequence.setdefault(sequence.id, sequence._available_product_numbers(reserved))
+        number = next(candidates)
         reserved.add(number)
         numbered = dict(values, default_code=number)
         if sequence.product_number_as_barcode and not values.get("barcode"):
@@ -64,6 +66,7 @@ class ProductProduct(models.Model):
     def create(self, vals_list: list["odoo.values.product_product"]) -> Self:
         self._serialize_product_number_changes()
         prepared = []
+        candidates_by_sequence: dict[int, Iterator[str]] = {}
         reserved = {values[field] for values in vals_list for field in NUMBER_FIELDS if values.get(field)}
         templates = self.env["product.template"].browse(
             [values["product_tmpl_id"] for values in vals_list if values.get("product_tmpl_id")]
@@ -73,7 +76,7 @@ class ProductProduct(models.Model):
                 category = self.env["product.category"].browse(values.get("categ_id"))
                 if not category and values.get("product_tmpl_id"):
                     category = templates.browse(values["product_tmpl_id"]).with_prefetch(templates.ids).categ_id
-                values = self._allocate_product_number(values, category, reserved)
+                values = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
             prepared.append(values)
         products = super().create(prepared)
         self._check_product_number_changes(
@@ -90,11 +93,16 @@ class ProductProduct(models.Model):
         self._serialize_product_number_changes()
         if vals.get("default_code") == "/":
             reserved: set[str] = set()
+            candidates_by_sequence: dict[int, Iterator[str]] = {}
             for product in self:
                 category = self.env["product.category"].browse(vals["categ_id"]) if "categ_id" in vals else product.categ_id
                 values = dict(vals)
                 values.setdefault("barcode", product.barcode)
-                product.write(self._allocate_product_number(values, category, reserved))
+                numbered = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
+                template = product.product_tmpl_id
+                if len(template.product_variant_ids) == 1:
+                    template.default_code = numbered["default_code"]
+                product.write(numbered)
             return True
         changes = [
             (

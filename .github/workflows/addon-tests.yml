@@ -20,11 +20,11 @@ jobs:
         with:
           path: source
           persist-credentials: false
-      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@b1a504917e2bd56a384afac16cc0f53cfb2c1043
+      - uses: cbusillo/odoo-devkit/.github/actions/addon-tests@8dd691e8bd48222dd202c0b334a0d819d1c90935
         with:
           command-metadata: source/.github/github.json
           addons-root: source
-          image: ghcr.io/cbusillo/odoo-docker@sha256:ddbddb4a0ae81f679f1e4f4276611a9b3dbe86917e1207c0c5aef686867c17fa
+          image: ghcr.io/cbusillo/odoo-docker@sha256:c3c1b3f0dac573763dbab2d38f9643b28a45c3faab6a2e6314eda35307812486
           output: ${{ runner.temp }}/addon-tests
       - name: Upload addon test evidence
         if: always()

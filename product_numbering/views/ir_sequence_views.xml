@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<odoo>
+    <record id="ir_sequence_form_product_numbering" model="ir.ui.view">
+        <field name="name">ir.sequence.form.product.numbering</field>
+        <field name="model">ir.sequence</field>
+        <field name="inherit_id" ref="base.sequence_view"/>
+        <field name="arch" type="xml">
+            <field name="padding" position="after">
+                <group string="Product Numbering" invisible="code != 'product.product' and 'product.product - ' not in (code or '')">
+                    <field name="product_number_mode"/>
+                    <field name="product_number_floor" invisible="product_number_mode != 'lowest_free'"/>
+                    <field name="product_number_as_barcode"/>
+                </group>
+            </field>
+        </field>
+    </record>
+</odoo>

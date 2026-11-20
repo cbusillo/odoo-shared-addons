@@ -11,12 +11,12 @@ Sequences**.
   Number**. It leaves the sequence counter alone.
 - **Use Product Number as Barcode** sets the same value on a new product that
   has no supplied barcode. A supplied reference or barcode is preserved.
-  Enter `/` as the internal reference to request a new number explicitly.
+  Enter `/` on a single-variant product or a variant to request a new number.
 
 Use an empty prefix and zero padding for short plain numbers. The addon clears
 the unused stock OCA prefix and padding on first install. It keeps existing
-sequence formatting once the counter has advanced. Date ranges are unavailable
-for product numbering because they start a new counter.
+sequence formatting once the counter has advanced. Leave date ranges off
+when using one running counter.
 
 Archived products, shared products, and products in other companies reserve
 their internal references and primary barcodes. Existing values stay in place

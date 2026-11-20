@@ -20,8 +20,6 @@ class IrSequence(models.Model):
 
     def _available_product_numbers(self, reserved: set[str]) -> Iterator[str]:
         self.ensure_one()
-        if self.use_date_range or self.number_increment < 1:
-            raise ValidationError(self.env._("Product numbering requires a positive increment and no date ranges."))
         products = self.env["product.product"]
         if self.product_number_mode == "lowest_free":
             if self.product_number_floor < 1:
@@ -31,6 +29,8 @@ class IrSequence(models.Model):
                 candidates = list(islice(numbers, GAP_SEARCH_BATCH))
                 occupied = products._occupied_product_numbers(candidates)
                 yield from (number for number in candidates if number not in occupied and number not in reserved)
+        if self.implementation == "no_gap" and not self.number_increment:
+            raise ValidationError(self.env._("The product sequence step must be nonzero to skip occupied numbers."))
         while number := self.next_by_id():
             if number not in reserved and not products._occupied_product_numbers([number]):
                 yield number

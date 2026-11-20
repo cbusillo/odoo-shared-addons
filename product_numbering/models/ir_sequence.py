@@ -29,9 +29,9 @@ class IrSequence(models.Model):
             numbers = (self.get_next_char(number) for number in count(self.product_number_floor))
             while True:
                 candidates = list(islice(numbers, GAP_SEARCH_BATCH))
-                occupied = products._product_number_owners(candidates)
+                occupied = products._occupied_product_numbers(candidates)
                 yield from (number for number in candidates if number not in occupied and number not in reserved)
         while number := self.next_by_id():
-            if number not in reserved and not products._product_number_owners([number]):
+            if number not in reserved and not products._occupied_product_numbers([number]):
                 yield number
         raise ValidationError(self.env._("The product sequence did not return a number."))

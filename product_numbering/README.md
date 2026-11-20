@@ -20,10 +20,8 @@ for product numbering because they start a new counter.
 
 Archived products, shared products, and products in other companies reserve
 their internal references and primary barcodes. Existing values stay in place
-when editing unrelated product information. When assigning a reference or
-barcode manually, use a value that belongs to this product or is unused.
-Import updates to an existing part through its existing import binding.
-An ordinary module update retains
+when editing unrelated product information. Manual assignments and imports
+use native product validation. An ordinary module update retains
 the configured mode, format, barcode behavior, and counter. A supported
 database restore restores those settings and the counter saved in that backup.
 

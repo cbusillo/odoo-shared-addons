@@ -1,4 +1,4 @@
-from typing import Literal, Self
+from typing import Self
 
 from odoo import api, models
 
@@ -16,21 +16,7 @@ class ProductTemplate(models.Model):
             else values
             for values in vals_list
         ]
-        products = self.env["product.product"]
-        products._serialize_product_number_changes()
-        templates = super(ProductTemplate, self.with_context(numbering_template_create=True)).create(vals_list).with_env(self.env)
-        products._check_product_number_changes(
-            [
-                (
-                    template.id,
-                    0,
-                    {values[field] for field in NUMBER_FIELDS if values.get(field)},
-                )
-                for template, values in zip(templates, vals_list, strict=True)
-                if len(template.product_variant_ids) != 1
-            ]
-        )
-        return templates
+        return super(ProductTemplate, self.with_context(numbering_template_create=True)).create(vals_list).with_env(self.env)
 
     def _prepare_variant_values(self, combination: "odoo.model.product_template_attribute_value") -> "odoo.values.product_product":
         vals = super()._prepare_variant_values(combination)
@@ -41,25 +27,3 @@ class ProductTemplate(models.Model):
                 if self[field]:
                     vals[field] = self[field]
         return vals
-
-    def write(self, vals: "odoo.values.product_template") -> Literal[True]:
-        if not set(vals).intersection(NUMBER_FIELDS):
-            return super().write(vals)
-        products = self.env["product.product"]
-        products._serialize_product_number_changes()
-        changes = [
-            (
-                template.id,
-                0,
-                {
-                    vals[field]
-                    for field in NUMBER_FIELDS
-                    if vals.get(field) and (field == "barcode" or vals[field] != "/") and vals[field] != template[field]
-                },
-            )
-            for template in self
-            if len(template.product_variant_ids) != 1
-        ]
-        result = super().write(vals)
-        products._check_product_number_changes(changes)
-        return result

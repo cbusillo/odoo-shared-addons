@@ -2,7 +2,6 @@ from collections.abc import Iterator
 from typing import Literal, Self
 
 from odoo import api, fields, models
-from odoo.exceptions import ValidationError
 from odoo.tools import SQL
 
 NUMBER_FIELDS = ("default_code", "barcode")
@@ -12,38 +11,19 @@ class ProductProduct(models.Model):
     _inherit = "product.product"
 
     @api.model
-    def _serialize_product_number_changes(self) -> None:
+    def _serialize_product_number_allocation(self) -> None:
         sequence = self.env.ref("product_sequence.seq_product_auto")
         self.env.cr.execute(SQL("UPDATE ir_sequence SET write_date = write_date WHERE id = %s", sequence.id))
 
     @api.model
-    def _product_number_owners(self, numbers: list[str]) -> dict[str, set[tuple[int, int]]]:
-        if not numbers:
-            return {}
+    def _occupied_product_numbers(self, numbers: list[str]) -> set[str]:
         domain = fields.Domain("default_code", "in", numbers) | fields.Domain("barcode", "in", numbers)
         inventory = self.sudo().with_context(active_test=False)
-        variants = inventory.search_fetch(domain, [*NUMBER_FIELDS, "product_tmpl_id"])
+        variants = inventory.search_fetch(domain, NUMBER_FIELDS)
         templates = inventory.env["product.template"].search_fetch(domain, NUMBER_FIELDS)
-        owners: dict[str, set[tuple[int, int]]] = {}
-        wanted = set(numbers)
-        for product in variants:
-            for value in wanted.intersection((product.default_code, product.barcode)):
-                owners.setdefault(value, set()).add((product.product_tmpl_id.id, product.id))
-        for template in templates:
-            for value in wanted.intersection((template.default_code, template.barcode)):
-                owners.setdefault(value, set()).add((template.id, 0))
-        return owners
-
-    @api.model
-    def _check_product_number_changes(self, changes: list[tuple[int, int, set[str]]]) -> None:
-        owners = self._product_number_owners(list(set().union(*(numbers for _, _, numbers in changes))))
-        for template_id, variant_id, numbers in changes:
-            for number in numbers:
-                if any(
-                    owner_template != template_id or (variant_id and owner_variant not in (0, variant_id))
-                    for owner_template, owner_variant in owners.get(number, ())
-                ):
-                    raise ValidationError(self.env._("Product reference or barcode %(number)s is already in use.", number=number))
+        return set(numbers).intersection(
+            value for records in (variants, templates) for field in NUMBER_FIELDS for value in records.mapped(field)
+        )
 
     @api.model
     def _allocate_product_number(
@@ -64,7 +44,9 @@ class ProductProduct(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list["odoo.values.product_product"]) -> Self:
-        self._serialize_product_number_changes()
+        if all(values.get("default_code", "/") != "/" for values in vals_list):
+            return super().create(vals_list)
+        self._serialize_product_number_allocation()
         prepared = []
         candidates_by_sequence: dict[int, Iterator[str]] = {}
         reserved = {values[field] for values in vals_list for field in NUMBER_FIELDS if values.get(field)}
@@ -78,40 +60,21 @@ class ProductProduct(models.Model):
                     category = templates.browse(values["product_tmpl_id"]).with_prefetch(templates.ids).categ_id
                 values = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
             prepared.append(values)
-        products = super().create(prepared)
-        self._check_product_number_changes(
-            [
-                (product.product_tmpl_id.id, product.id, {values[field] for field in NUMBER_FIELDS if values.get(field)})
-                for product, values in zip(products, prepared, strict=True)
-            ]
-        )
-        return products
+        return super().create(prepared)
 
     def write(self, vals: "odoo.values.product_product") -> Literal[True]:
-        if not set(vals).intersection(NUMBER_FIELDS):
+        if vals.get("default_code") != "/":
             return super().write(vals)
-        self._serialize_product_number_changes()
-        if vals.get("default_code") == "/":
-            reserved: set[str] = set()
-            candidates_by_sequence: dict[int, Iterator[str]] = {}
-            for product in self:
-                category = self.env["product.category"].browse(vals["categ_id"]) if "categ_id" in vals else product.categ_id
-                values = dict(vals)
-                values.setdefault("barcode", product.barcode)
-                numbered = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
-                template = product.product_tmpl_id
-                if template.product_variant_ids == product:
-                    template.default_code = numbered["default_code"]
-                product.write(numbered)
-            return True
-        changes = [
-            (
-                product.product_tmpl_id.id,
-                product.id,
-                {vals[field] for field in NUMBER_FIELDS if vals.get(field) and vals[field] != product[field]},
-            )
-            for product in self
-        ]
-        result = super().write(vals)
-        self._check_product_number_changes(changes)
-        return result
+        self._serialize_product_number_allocation()
+        reserved: set[str] = set()
+        candidates_by_sequence: dict[int, Iterator[str]] = {}
+        for product in self:
+            category = self.env["product.category"].browse(vals["categ_id"]) if "categ_id" in vals else product.categ_id
+            values = dict(vals)
+            values.setdefault("barcode", product.barcode)
+            numbered = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
+            template = product.product_tmpl_id
+            if template.product_variant_ids == product:
+                template.default_code = numbered["default_code"]
+            super(ProductProduct, product).write(numbered)
+        return True

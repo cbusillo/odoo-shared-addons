@@ -1,5 +1,4 @@
 from odoo import Command
-from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -54,14 +53,16 @@ class TestProductNumbering(TransactionCase):
         self.assertFalse(any(allocated.mapped("barcode")))
         self.assertEqual(self.sequence.number_next_actual, 100001)
 
-    def test_manual_update_cannot_take_another_products_number(self) -> None:
-        new, existing = self.template_model.create(
-            [{"name": "Numbered"}, {"name": "Legacy part", "default_code": "LEGACY", "barcode": "LEGACY-BARCODE"}]
+    def test_explicit_create_and_write_follow_native_identifier_rules(self) -> None:
+        first, second = self.template_model.create(
+            [{"name": "First source part", "default_code": "100001"}, {"name": "Second source part", "default_code": "100001"}]
         )
-        with self.assertRaises(ValidationError), self.cr.savepoint():
-            existing.barcode = new.default_code
-        existing.name = "Renamed"
-        self.assertEqual((existing.default_code, existing.barcode), ("LEGACY", "LEGACY-BARCODE"))
+        second.barcode = first.default_code
+        self.assertEqual(first.default_code, second.default_code)
+        self.assertEqual(second.barcode, "100001")
+        self.assertEqual(self.sequence.number_next_actual, 100001)
+        generated = self.template_model.create({"name": "Next available number"})
+        self.assertEqual(generated.default_code, "100002")
 
     def test_variant_batch_skips_the_independent_template_barcode(self) -> None:
         attribute = self.env["product.attribute"].create({"name": "Color"})

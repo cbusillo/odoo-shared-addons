@@ -1,5 +1,7 @@
 from odoo import Command
 from odoo.exceptions import AccessError
+from odoo.service.model import call_kw
+from odoo.tests import new_test_user
 
 from ..common_imports import common
 from ..fixtures.base import UnitTestCase
@@ -7,6 +9,25 @@ from ..fixtures.base import UnitTestCase
 
 @common.tagged(*common.UNIT_TAGS)
 class TestExternalIdentityAccess(UnitTestCase):
+    def test_rpc_users_cannot_ensure_external_systems(self) -> None:
+        for group in ("base.group_user", "base.group_portal"):
+            user = new_test_user(self.env, login=f"external-system-{group}", groups=group)
+            code = f"rpc_{user.id}"
+            blocked = False
+            try:
+                call_kw(
+                    self.ExternalSystem.with_user(user),
+                    "ensure_system",
+                    [],
+                    {"code": code, "name": f"RPC fixture {user.id}"},
+                )
+            except AccessError:
+                blocked = True
+
+            with self.subTest(group=group):
+                self.assertFalse(self.ExternalSystem.sudo().with_context(active_test=False).search([("code", "=", code)]))
+                self.assertTrue(blocked)
+
     def test_external_users_cannot_manage_rename_wizards(self) -> None:
         portal = self.env["res.users"].create(
             {

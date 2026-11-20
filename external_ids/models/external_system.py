@@ -83,6 +83,7 @@ class ExternalSystem(models.Model):
                 raise ValidationError("System name must be unique!")
 
     @api.model
+    @api.private
     def ensure_system(
         self,
         *,

@@ -83,6 +83,7 @@ class AuthentikSsoGroupMapping(models.Model):
         return sorted({group.id for group in admin_groups})
 
     @api.model
+    @api.private
     def ensure_default_mappings(self, *, seed_admin_mapping: bool = False) -> None:
         """Create missing default mappings; never rewrite existing ones.
 

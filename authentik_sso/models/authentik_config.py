@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Mapping
 
-from odoo import models
+from odoo import api, models
 from odoo.exceptions import AccessError, UserError, ValidationError
 
 _logger = logging.getLogger(__name__)
@@ -49,6 +49,7 @@ class AuthentikSsoConfig(models.AbstractModel):
     _name = "authentik.sso.config"
     _description = "Authentik SSO configuration"
 
+    @api.private
     def apply_from_values(self, overrides: Mapping[str, str | None]) -> None:
         self._apply_runtime_settings(overrides)
         self._disable_oauth_providers(overrides)

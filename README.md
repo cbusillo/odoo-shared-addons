@@ -27,9 +27,10 @@ are in [`.github/github.json`](.github/github.json).
 ## Addon Inventory
 
 - `authentik_sso`: Authentik OAuth2/OpenID Connect provider setup and group
-  mapping helpers. Internal-template signup applies only to the configured
-  Authentik provider; other OAuth providers retain native signup, invitation
-  and portal-template behavior.
+  mapping helpers. Configuration methods are reserved for trusted callers.
+  Internal-template signup applies only to the configured Authentik provider.
+  Other OAuth providers retain native signup, invitation, and portal-template
+  behavior.
 - [`disable_odoo_online`](disable_odoo_online/README.md): skip the publisher-warranty
   phone-home call on self-hosted Odoo 20 Community.
 - `discuss_record_links`: Discuss/Chatter shortcuts for linking to business

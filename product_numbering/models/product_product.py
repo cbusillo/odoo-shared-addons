@@ -67,12 +67,11 @@ class ProductProduct(models.Model):
             return super().write(vals)
         self._serialize_product_number_allocation()
         reserved: set[str] = set()
-        candidates_by_sequence: dict[int, Iterator[str]] = {}
         for product in self:
             category = self.env["product.category"].browse(vals["categ_id"]) if "categ_id" in vals else product.categ_id
             values = dict(vals)
             values.setdefault("barcode", product.barcode)
-            numbered = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
+            numbered = self._allocate_product_number(values, category, reserved, {})
             template = product.product_tmpl_id
             if template.product_variant_ids == product:
                 template.default_code = numbered["default_code"]

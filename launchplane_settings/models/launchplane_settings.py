@@ -2,7 +2,7 @@ import logging
 import os
 from collections.abc import Callable, Iterable, Mapping
 
-from odoo import models
+from odoo import api, models
 from odoo.exceptions import ValidationError
 
 from ..services import override_payload
@@ -71,6 +71,7 @@ class LaunchplaneSettings(models.AbstractModel):
     _name = "launchplane.settings"
     _description = "Launchplane Settings Apply Adapter"
 
+    @api.private
     def apply_from_env(self) -> None:
         payload = _load_override_payload()
         if payload is None:

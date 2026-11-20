@@ -1,5 +1,5 @@
 from collections.abc import Iterator
-from typing import Self
+from typing import Literal, Self
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
@@ -73,7 +73,7 @@ class ProductProduct(models.Model):
         )
         for values in vals_list:
             if values.get("default_code", "/") == "/":
-                category = self.env["product.category"].browse(values.get("categ_id"))
+                category = self.env["product.category"].browse(values.get("categ_id") or ())
                 if not category and values.get("product_tmpl_id"):
                     category = templates.browse(values["product_tmpl_id"]).with_prefetch(templates.ids).categ_id
                 values = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
@@ -87,7 +87,7 @@ class ProductProduct(models.Model):
         )
         return products
 
-    def write(self, vals: "odoo.values.product_product") -> bool:
+    def write(self, vals: "odoo.values.product_product") -> Literal[True]:
         if not set(vals).intersection(NUMBER_FIELDS):
             return super().write(vals)
         self._serialize_product_number_changes()
@@ -100,7 +100,7 @@ class ProductProduct(models.Model):
                 values.setdefault("barcode", product.barcode)
                 numbered = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
                 template = product.product_tmpl_id
-                if len(template.product_variant_ids) == 1:
+                if template.product_variant_ids == product:
                     template.default_code = numbered["default_code"]
                 product.write(numbered)
             return True

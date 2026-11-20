@@ -104,3 +104,27 @@ class TestProductNumbering(TransactionCase):
         template.default_code = "/"
         self.assertEqual((template.default_code, template.barcode), ("100002", "LEGACY-SCAN"))
         self.assertEqual(template.product_variant_id.default_code, "100002")
+
+    def test_slash_on_create_issues_one_reference_and_matching_barcode(self) -> None:
+        self.sequence.product_number_as_barcode = True
+        template = self.template_model.create({"name": "Number requested on create", "default_code": "/"})
+        self.assertEqual((template.default_code, template.barcode), ("100001", "100001"))
+        self.assertEqual(self.sequence.number_next_actual, 100002)
+
+    def test_renumbering_archived_variant_keeps_active_siblings_reference(self) -> None:
+        attribute = self.env["product.attribute"].create({"name": "Size"})
+        values = self.env["product.attribute.value"].create(
+            [{"name": name, "attribute_id": attribute.id} for name in ("Small", "Large")]
+        )
+        template = self.template_model.create(
+            {
+                "name": "Part with archived sibling",
+                "attribute_line_ids": [Command.create({"attribute_id": attribute.id, "value_ids": [Command.set(values.ids)]})],
+            }
+        )
+        archived, active = template.product_variant_ids
+        original_active_number = active.default_code
+        archived.active = False
+        archived.default_code = "/"
+        self.assertEqual(archived.default_code, "100003")
+        self.assertEqual(active.default_code, original_active_number)

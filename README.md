@@ -56,6 +56,8 @@ are in [`.github/github.json`](.github/github.json).
 - [`printnode_direct_print`](printnode_direct_print/README.md): server-side
   personal printers by physical paper size, shared by report actions and save
   hooks, with submission after commit.
+- [`product_numbering`](product_numbering/README.md): collision-aware product
+  references and optional matching barcodes using OCA Product Sequence.
 - `test_support`: shared fixtures, helpers and base cases; carrier-factory callers declare `delivery` themselves.
 - `transaction_utilities`: transaction and cron runtime-budget helpers.
 

@@ -2,6 +2,8 @@
 
 import { registry } from "@web/core/registry";
 
+const appsControl = ".o_navbar_apps_menu [data-hotkey='h']";
+
 registry.category("web_tour.tours").add("smoke_login_tour", {
     url: "/web",
     steps: () => [
@@ -11,17 +13,17 @@ registry.category("web_tour.tours").add("smoke_login_tour", {
         },
         {
             content: "Open the apps menu",
-            trigger: ".o_navbar_apps_menu button, .o_home_menu",
+            trigger: `${appsControl}, .o_home_menu`,
             run(actions) {
-                const communityMenu = document.querySelector(".o_navbar_apps_menu button");
-                if (communityMenu) {
-                    actions.click(communityMenu);
+                const control = document.querySelector(appsControl);
+                if (control) {
+                    actions.click(control);
                 }
             },
         },
         {
             content: "Ensure the apps menu is visible",
-            trigger: ".o_app[data-menu-xmlid]",
+            trigger: ".o_app[data-menu-xmlid], .o_house_app[data-menu-xmlid]",
         },
         {
             content: "Confirm the user menu renders",

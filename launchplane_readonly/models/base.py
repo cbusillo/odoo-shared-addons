@@ -1,13 +1,15 @@
+import json
 from contextvars import ContextVar
 from typing import Any
 
-from odoo import api, models
+from odoo import SUPERUSER_ID, api, models
 from odoo.exceptions import AccessError
 from odoo.http import request
 
 from ..policy import GROUP
 
 AUTHENTICATING = ContextVar("launchplane_readonly_authenticating", default=False)
+SERVING_STAFF_ASSETS = ContextVar("serving_staff_assets", default=False)
 STAFF_OBSERVER_READ_CURSOR: ContextVar[object | None] = ContextVar("staff_observer_read_cursor", default=None)
 
 
@@ -45,9 +47,31 @@ class Base(models.AbstractModel):
         if "observer" in self._staff_observer_modes():
             raise AccessError(self.env._("This staff role can only read business records."))
 
+    def _creating_staff_assets(self, vals_list: list[dict[str, Any]]) -> bool:
+        if not SERVING_STAFF_ASSETS.get():
+            return False
+        if self._name == "bus.bus":
+            return all(json.loads(values["message"]).get("type") == "bundle_changed" for values in vals_list)
+        return (
+            self._name == "ir.attachment"
+            and self.env.uid == SUPERUSER_ID
+            and all(
+                values.get("public")
+                and values.get("type") == "binary"
+                and values.get("res_model") == "ir.ui.view"
+                and not values.get("res_id")
+                and values.get("url", "").startswith("/web/assets/")
+                for values in vals_list
+            )
+        )
+
     @api.model_create_multi
     def create(self, vals_list: list[dict[str, Any]]) -> "odoo.model.base":
-        if not (AUTHENTICATING.get() and self._name == "res.users.log" and all(not values for values in vals_list)):
+        if AUTHENTICATING.get() and self._name == "res.users.log" and all(not values for values in vals_list):
+            return super().create(vals_list)
+        if self._creating_staff_assets(vals_list):
+            self._launchplane_readonly_refuse()
+        else:
             self._readonly_business_refuse()
         return super().create(vals_list)
 

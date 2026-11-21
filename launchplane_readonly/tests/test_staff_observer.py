@@ -1,16 +1,21 @@
 import json
 from unittest.mock import patch
 
+from lxml import html
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import JsonRpcException
+
+from .http_cursor import initial_writable_rpc_cursor
 
 
 @tagged("post_install", "-at_install")
 class TestStaffObserver(HttpCase):
     def setUp(self) -> None:
         super().setUp()
+        if "sale.order" not in self.env or "stock.reference" not in self.env:
+            self.skipTest("Requires Sales and Stock for native work-role and ambient-write controls.")
         self.observer_group = self.env.ref("launchplane_readonly.group_staff_observer")
         self.sales_group = self.env.ref("sales_team.group_sale_salesman")
         self.sales_only = self._user("sales", self.sales_group)
@@ -33,7 +38,6 @@ class TestStaffObserver(HttpCase):
             type(self.observer),
             "_staff_observer_work_groups",
             return_value=("sales_team.group_sale_salesman",),
-            create=True,
         )
         work_role.start()
         self.addCleanup(work_role.stop)
@@ -71,7 +75,7 @@ class TestStaffObserver(HttpCase):
         with self.assertRaises(AccessError), self.env.cr.savepoint():
             self.reference.with_user(self.observer).create({"name": "Unexpected observer creation"})
         with self.assertRaises(AccessError), self.env.cr.savepoint():
-            self.reference.with_user(self.observer).unlink()
+            self.reference.with_user(self.observer).sudo().unlink()
         with self.assertRaises(AccessError), self.env.cr.savepoint():
             self.outside.with_user(self.observer).action_preview_sale_order()
 
@@ -129,3 +133,38 @@ class TestStaffObserver(HttpCase):
                 self.assertTrue(quotation.access_token)
                 self.assertFalse(self.outside.access_token)
                 self.assertNotIn("Unexpected outside write", self.outside.note or "")
+
+    def test_combined_staff_keeps_work_scope_on_a_writable_initial_cursor(self) -> None:
+        self._staff_login(self.combined)
+        with initial_writable_rpc_cursor(self):
+            self.assertEqual(self._rpc("sale.order", "read", [[self.outside.id], ["name"]])[0]["name"], self.outside.name)
+        with initial_writable_rpc_cursor(self), self.assertRaises(JsonRpcException):
+            self._rpc("sale.order", "action_preview_sale_order", [[self.outside.id]])
+        with initial_writable_rpc_cursor(self):
+            self._rpc("sale.order", "action_preview_sale_order", [[self.combined_quote.id]])
+        self.env.invalidate_all()
+        self.assertTrue(self.combined_quote.access_token)
+        self.assertFalse(self.outside.access_token)
+
+    def test_observer_can_refresh_with_cold_generated_assets(self) -> None:
+        self._staff_login(self.observer)
+        assets = self.env["ir.attachment"].search(
+            [
+                ("url", "=like", "/web/assets/%"),
+                ("res_model", "=", "ir.ui.view"),
+            ]
+        )
+        self.assertTrue(assets)
+        assets.unlink()
+        self.env.flush_all()
+
+        response = self.url_open("/odoo")
+        self.assertTrue(response.url.endswith("/odoo"))
+        urls = [
+            url
+            for url in html.fromstring(response.content).xpath("//script[@src]/@src | //link[@href]/@href")
+            if url.startswith("/web/assets/")
+        ]
+        self.assertTrue(urls)
+        for url in urls:
+            self.assertEqual(self.url_open(url).status_code, 200, url)

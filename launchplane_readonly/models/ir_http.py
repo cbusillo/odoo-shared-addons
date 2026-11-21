@@ -4,6 +4,7 @@ from functools import partial
 from typing import Any
 
 from odoo import models, sql_db
+from odoo.addons.web.controllers.binary import Binary
 from odoo.addons.web.controllers.dataset import DataSet
 from odoo.addons.web.controllers.export import Export, ExportFormat
 from odoo.addons.web.controllers.home import Home
@@ -15,8 +16,9 @@ from odoo.http.session import SessionExpiredException, logout
 from psycopg2.errors import ReadOnlySqlTransaction
 
 from ..policy import matches_native_read
-from .base import STAFF_OBSERVER_READ_CURSOR
+from .base import SERVING_STAFF_ASSETS, STAFF_OBSERVER_READ_CURSOR
 
+NATIVE_CONTENT_ASSETS = Binary.content_assets
 NATIVE_CALL_KW = DataSet.call_kw
 NATIVE_RANGE_READ = WebBase.search_panel_select_range
 NATIVE_RANGE_HELPERS = (
@@ -54,7 +56,9 @@ class IrHttp(models.AbstractModel):
             if exclusive and prohibited:
                 base._readonly_business_refuse()
             bootstrap = rule.endpoint.func.__name__ == "web_client" and isinstance(controller, Home)
-            if not prohibited and (cls._readonly_route(rule, args) or (exclusive and bootstrap)):
+            if exclusive and not actors and getattr(rule.endpoint.func, "__func__", None) is NATIVE_CONTENT_ASSETS:
+                request.dispatcher.dispatch = partial(cls._staff_asset_dispatch, request.dispatcher.dispatch)
+            elif not prohibited and (cls._readonly_route(rule, args) or (exclusive and bootstrap)):
                 request.dispatcher.dispatch = partial(
                     cls._launchplane_readonly_dispatch, request.dispatcher.dispatch, staff_overlay=not exclusive
                 )
@@ -109,6 +113,16 @@ class IrHttp(models.AbstractModel):
         return cls._launchplane_readonly_call(super()._handle_error, exception)
 
     @classmethod
+    def _staff_asset_dispatch(cls, operation: Callable[..., Any], endpoint: Any, args: dict) -> Any:
+        token = SERVING_STAFF_ASSETS.set(True)
+        try:
+            result = operation(endpoint, args)
+            request.env.cr.flush()
+            return result
+        finally:
+            SERVING_STAFF_ASSETS.reset(token)
+
+    @classmethod
     def _launchplane_readonly_dispatch(cls, operation: Callable[..., Any], endpoint: Any, args: dict, *, staff_overlay: bool) -> Any:
         request.dispatcher.dispatch = operation
 
@@ -128,10 +142,10 @@ class IrHttp(models.AbstractModel):
 
     @classmethod
     def _launchplane_readonly_call(cls, operation: Callable[..., Any], *args: Any, staff_overlay: bool = False) -> Any:
-        if not staff_overlay and not request.env["base"]._readonly_business_actor():
+        if not staff_overlay and (SERVING_STAFF_ASSETS.get() or not request.env["base"]._readonly_business_actor()):
             return operation(*args)
         original = request.env
-        manager = nullcontext(original.cr) if original.cr.readonly else cls._launchplane_readonly_cursor()
+        manager = nullcontext(original.cr) if original.cr.readonly and not staff_overlay else cls._launchplane_readonly_cursor()
         cursor = None
         read_scope = None
         try:

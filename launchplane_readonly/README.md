@@ -175,4 +175,12 @@ read request to get the extra permissions.
 The staff group uses native Odoo credentials and never participates in
 Launchplane QA qualification. Assign the QA group only through the existing
 runtime-owned identity flow. Run the complete native addon's tests with HR,
-Sales and Stock installed to exercise both paths.
+Sales, Stock and OAuth installed to exercise both paths.
+
+Observer-only sessions use the read-only workspace. Changes to passwords and
+preferences, chatter posts and read receipts, exports, reports, imports and
+public website submissions require their usual authorized account or work
+role. Native login creates the client settings needed to open the workspace.
+Odoo's native public asset route can regenerate browser assets for an already
+signed-in observer after an upgrade. The exception covers generated bundles
+and their bundle-change notifications.

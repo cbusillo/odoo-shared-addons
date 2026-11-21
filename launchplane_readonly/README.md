@@ -181,6 +181,6 @@ Observer-only sessions use the read-only workspace. Changes to passwords and
 preferences, chatter posts and read receipts, exports, reports, imports and
 public website submissions require their usual authorized account or work
 role. Native login creates the client settings needed to open the workspace.
-Odoo's native public asset route can regenerate browser assets for an already
-signed-in observer after an upgrade. The exception covers generated bundles
-and their bundle-change notifications.
+Odoo's native public asset and websocket worker bundle routes can regenerate
+browser assets for an already signed-in observer after an upgrade. The exception
+covers generated bundles and their bundle-change notifications.

@@ -148,23 +148,33 @@ class TestStaffObserver(HttpCase):
 
     def test_observer_can_refresh_with_cold_generated_assets(self) -> None:
         self._staff_login(self.observer)
+        current_mode = self._registry_readonly_enabled
+        self.addCleanup(self.set_registry_readonly_mode, current_mode)
+        for native_readonly in (True, False):
+            with self.subTest(native_readonly=native_readonly):
+                self.set_registry_readonly_mode(native_readonly)
+                self._refresh_observer_assets()
+
+    def _refresh_observer_assets(self) -> None:
+        names = ("web.assets_web.min.js", "bus.websocket_worker_assets.min.js")
         assets = self.env["ir.attachment"].search(
             [
-                ("url", "=like", "/web/assets/%"),
                 ("res_model", "=", "ir.ui.view"),
+                ("url", "=like", "/web/assets/%"),
+                ("name", "in", names),
             ]
         )
-        self.assertTrue(assets)
-        assets.unlink()
+        self.assertEqual(set(assets.mapped("name")), set(names))
+        for asset in assets:
+            asset.url = f"/web/assets/stale/{asset.name}"
         self.env.flush_all()
 
         response = self.url_open("/odoo")
         self.assertTrue(response.url.endswith("/odoo"))
-        urls = [
-            url
-            for url in html.fromstring(response.content).xpath("//script[@src]/@src | //link[@href]/@href")
-            if url.startswith("/web/assets/")
-        ]
-        self.assertTrue(urls)
-        for url in urls:
-            self.assertEqual(self.url_open(url).status_code, 200, url)
+        scripts = html.fromstring(response.content).xpath("//script[@src]/@src")
+        bundle = next(url for url in scripts if url.endswith("/web.assets_web.min.js"))
+        self.assertEqual(self.url_open(bundle).status_code, 200)
+        worker = self.url_open("/bus/websocket_worker_bundle")
+        self.assertEqual(worker.status_code, 200)
+        self.assertIn("javascript", worker.headers["Content-Type"])
+        self.assertFalse(assets.exists())

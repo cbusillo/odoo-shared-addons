@@ -15,10 +15,11 @@ from odoo.http import request
 from odoo.http.session import SessionExpiredException, logout
 from psycopg2.errors import ReadOnlySqlTransaction
 
+from ..controllers.websocket import ReadOnlyWorkerBundle
 from ..policy import matches_native_read
 from .base import SERVING_STAFF_ASSETS, STAFF_OBSERVER_READ_CURSOR
 
-NATIVE_CONTENT_ASSETS = Binary.content_assets
+STAFF_ASSET_ROUTES = frozenset((Binary.content_assets, ReadOnlyWorkerBundle.get_websocket_worker_bundle))
 NATIVE_CALL_KW = DataSet.call_kw
 NATIVE_RANGE_READ = WebBase.search_panel_select_range
 NATIVE_RANGE_HELPERS = (
@@ -56,7 +57,7 @@ class IrHttp(models.AbstractModel):
             if exclusive and prohibited:
                 base._readonly_business_refuse()
             bootstrap = rule.endpoint.func.__name__ == "web_client" and isinstance(controller, Home)
-            if exclusive and not actors and getattr(rule.endpoint.func, "__func__", None) is NATIVE_CONTENT_ASSETS:
+            if exclusive and not actors and getattr(rule.endpoint.func, "__func__", None) in STAFF_ASSET_ROUTES:
                 request.dispatcher.dispatch = partial(cls._staff_asset_dispatch, request.dispatcher.dispatch)
             elif not prohibited and (cls._readonly_route(rule, args) or (exclusive and bootstrap)):
                 request.dispatcher.dispatch = partial(

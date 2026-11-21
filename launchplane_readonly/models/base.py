@@ -60,7 +60,7 @@ class Base(models.AbstractModel):
                 and values.get("type") == "binary"
                 and values.get("res_model") == "ir.ui.view"
                 and not values.get("res_id")
-                and values.get("url", "").startswith("/web/assets/")
+                and (values.get("url") or "").startswith("/web/assets/")
                 for values in vals_list
             )
         )

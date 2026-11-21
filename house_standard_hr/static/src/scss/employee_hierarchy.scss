@@ -20,7 +20,8 @@
     }
 
     .o_hierarchy_node_container {
-        width: min(250px, 50%);
+        width: 50%;
+        max-width: 250px;
 
         .o_hierarchy_node {
             border-radius: 0.875rem !important;

@@ -6,7 +6,7 @@
         <field name="inherit_id" ref="hr.hr_employee_hierarchy_view"/>
         <field name="arch" type="xml">
             <xpath expr="//t[@t-name='hierarchy-box']/div[field[@name='image_1024']]" position="attributes">
-                <attribute name="t-attf-class" add="o_house_hierarchy_portrait" remove="pb-4" separator=" "/>
+                <attribute name="t-attf-class" add="o_house_hierarchy_portrait" remove="m-2 mb-0 rounded-3 pb-4" separator=" "/>
             </xpath>
             <xpath expr="//t[@t-name='hierarchy-box']//field[@name='job_title']" position="after">
                 <span t-if="record.department_id.raw_value" class="o_house_hierarchy_department" t-out="record.department_id.value"/>

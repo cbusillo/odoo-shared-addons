@@ -153,42 +153,64 @@ class TestStaffObserver(HttpCase):
         self.assertTrue(self.combined_quote.access_token)
         self.assertFalse(self.outside.access_token)
 
-    def test_observer_can_refresh_with_cold_generated_assets(self) -> None:
+    def test_signed_in_observer_can_refresh_and_reuse_changed_assets(self) -> None:
         self._staff_login(self.observer)
+        session_id = self.opener.cookies["session_id"]
         for native_readonly in (True, False):
             with self.subTest(native_readonly=native_readonly):
                 self._refresh_observer_assets(native_readonly=native_readonly)
+                self.assertEqual(self.opener.cookies["session_id"], session_id)
 
-    def _refresh_observer_assets(self, *, native_readonly: bool) -> None:
-        names = ("web.assets_web.min.js", "bus.websocket_worker_assets.min.js")
-        assets = self.env["ir.attachment"].search(
-            [
-                ("res_model", "=", "ir.ui.view"),
-                ("url", "=like", "/web/assets/%"),
-                ("name", "in", names),
-            ]
-        )
-        self.assertEqual(set(assets.mapped("name")), set(names))
-        for asset in assets:
-            asset.url = f"/web/assets/stale/{asset.name}"
-        self.env.flush_all()
-
+    def _observer_asset_urls(self) -> dict[str, str]:
         response = self.url_open("/odoo")
         self.assertTrue(response.url.endswith("/odoo"))
-        scripts = html.fromstring(response.content).xpath("//script[@src]/@src")
-        bundle = next(url for url in scripts if url.endswith("/web.assets_web.min.js"))
-        cursor = nullcontext() if native_readonly else initial_writable_cursor(self, "/web/assets/")
-        with cursor:
-            self.assertEqual(self.url_open(bundle).status_code, 200)
-        worker = self.url_open("/bus/websocket_worker_bundle")
-        self.assertEqual(worker.status_code, 200)
-        self.assertIn("javascript", worker.headers["Content-Type"])
-        refreshed = assets.search(
-            [
-                ("name", "in", names),
-                ("url", "=like", "/web/assets/%"),
-                ("url", "not like", "/web/assets/stale/%"),
-            ]
+        document = html.fromstring(response.content)
+        paths = document.xpath("//script[@src]/@src | //link[@href]/@href")
+        web = {kind: next(path for path in paths if path.endswith(f"/web.assets_web.min.{kind}")) for kind in ("js", "css")}
+        worker = self.env["ir.qweb"]._get_asset_bundle("bus.websocket_worker_assets", css=False)
+        return web | {"worker": worker.get_link("js")}
+
+    def _generated_assets(self, urls: dict[str, str]) -> "odoo.model.ir_attachment":
+        return self.env["ir.attachment"].search(
+            [("url", "in", list(urls.values())), ("res_model", "=", "ir.ui.view"), ("res_id", "=", 0), ("public", "=", True)]
         )
-        self.assertEqual(set(refreshed.mapped("name")), set(names))
-        self.assertFalse(refreshed & assets)
+
+    def _change_asset_bundles(self, version: str) -> None:
+        for kind, content in (
+            ("js", f'globalThis.staffObserverAssetVersion = "{version}";'),
+            ("css", f".staff-observer-refresh {{ --staff-observer-version: {version}; }}"),
+        ):
+            path = f"/staff-observer-{version}.{kind}"
+            self.env["ir.attachment"].create({"name": path, "url": path, "raw": content.encode(), "public": True})
+            bundles = ("web.assets_web", "bus.websocket_worker_assets") if kind == "js" else ("web.assets_web",)
+            self.env["ir.asset"].create([{"name": path, "path": path, "bundle": bundle} for bundle in bundles])
+        self.env.flush_all()
+
+    def _refresh_observer_assets(self, *, native_readonly: bool) -> None:
+        previous = self._observer_asset_urls()
+        self.assertEqual(set(self._generated_assets(previous).mapped("url")), set(previous.values()))
+
+        version = "staff-observer-readonly" if native_readonly else "staff-observer-writable"
+        self._change_asset_bundles(version)
+        current = self._observer_asset_urls()
+        for kind, url in current.items():
+            self.assertNotEqual(url, previous[kind])
+        self.assertFalse(self._generated_assets(current))
+
+        paths = current | {"worker": "/bus/websocket_worker_bundle"}
+        contents = {}
+        for kind, path in paths.items():
+            cursor = nullcontext() if native_readonly or kind == "worker" else initial_writable_cursor(self, "/web/assets/")
+            with cursor:
+                response = self.url_open(path, allow_redirects=False)
+            self.assertEqual(response.status_code, 200, path)
+            self.assertIn(version.encode(), response.content)
+            contents[current[kind]] = response.content
+
+        saved = self._generated_assets(current)
+        self.assertEqual({record.url: record.raw for record in saved}, contents)
+        for kind, path in paths.items():
+            response = self.url_open(path, allow_redirects=False)
+            self.assertEqual(response.status_code, 200, path)
+            self.assertEqual(response.content, contents[current[kind]])
+        self.assertEqual(self._generated_assets(current), saved)

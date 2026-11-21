@@ -7,6 +7,7 @@ from typing import Any
 RUNTIME_ENV = "LAUNCHPLANE_RUNTIME_IDENTITY_JSON"
 COPY_PARAMETER = "launchplane.testing_copy.restore_complete"
 GROUP = "launchplane_readonly.group_user"
+STAFF_OBSERVER_GROUP = "launchplane_readonly.group_staff_observer"
 IMPLIED_GROUP = "base.group_user"
 FORBIDDEN_IMPLIED_GROUPS = (
     "base.group_system",

@@ -12,7 +12,7 @@ NATIVE_THREAD_MESSAGES = WebclientController.store_get_thread_messages
 
 class ReadOnlyWebclientController(WebclientController):
     def _is_mail_fetch_readonly(self) -> bool:
-        if request.httprequest.method == "OPTIONS" or not request.env["base"]._launchplane_readonly_actor():
+        if request.httprequest.method == "OPTIONS" or not request.env["base"]._readonly_business_actor():
             return super()._is_mail_fetch_readonly()
         fetch_params = request.get_json_data().get("params", {}).get("fetch_params", [])
         for fetch_param in fetch_params:
@@ -36,7 +36,7 @@ class ReadOnlyWebclientController(WebclientController):
         fetch_params: dict | None = None,
         access_params: dict | None = None,
     ) -> Any:
-        if not request.env["base"]._launchplane_readonly_actor():
+        if not request.env["base"]._readonly_business_actor():
             return super().store_get_thread_messages(store, thread_model, thread_id, fetch_params, access_params)
         request.update_context(add_chatter_fields=True)
         if thread := self._get_thread_with_access(thread_model, thread_id, mode="read", **(access_params or {})):

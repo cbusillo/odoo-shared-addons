@@ -1,6 +1,6 @@
 {
     "name": "Launchplane Read-only QA",
-    "version": "20.0.1.0.0",
+    "version": "20.0.1.1.0",
     "license": "LGPL-3",
     "depends": ["web", "bus", "mail"],
     "data": ["security/groups.xml"],

@@ -1,1 +1,1 @@
-from . import test_identity, test_policy
+from . import test_identity, test_policy, test_staff_observer

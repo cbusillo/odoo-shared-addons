@@ -6,7 +6,7 @@ from odoo.tests.common import new_test_user
 class TestEmployeeHierarchy(TransactionCase):
     def test_department_cue_is_present_in_each_native_employee_view(self) -> None:
         officer = new_test_user(self.env, login="hierarchy-officer", groups="hr.group_hr_user")
-        staff = new_test_user(self.env, login="hierarchy-staff", groups="base.group_user")
+        staff = new_test_user(self.env, login="hierarchy-staff")
         officer_view_id = self.env.ref("hr.hr_employee_hierarchy_view").id
         staff_view_id = self.env.ref("hr.hr_employee_public_hierarchy_view").id
         views = (

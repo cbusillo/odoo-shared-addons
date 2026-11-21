@@ -1,7 +1,6 @@
 import json
 import os
-from collections.abc import Iterator
-from contextlib import contextmanager, nullcontext
+from contextlib import nullcontext
 from types import MethodType, SimpleNamespace
 from typing import Any
 from unittest.mock import Mock, patch
@@ -27,6 +26,7 @@ from psycopg2.errors import ReadOnlySqlTransaction
 from ..controllers.mail import ReadOnlyWebclientController
 from ..models.ir_http import NATIVE_RANGE_READ
 from ..policy import COPY_PARAMETER, GROUP, IMPLIED_GROUP, RUNTIME_ENV, product_login
+from .http_cursor import initial_writable_cursor
 
 
 @tagged("post_install", "-at_install")
@@ -605,7 +605,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         ):
             kwargs = {"enable_counters": True, "hierarchize": hierarchize, "search_domain": [("id", "=", employee.id)]}
             expected = NATIVE_RANGE_READ(employees, field, **kwargs)
-            with self.subTest(field=field), self._initial_writable_rpc_cursor():
+            with self.subTest(field=field), initial_writable_cursor(self):
                 result = self._rpc(employees._name, NATIVE_RANGE_READ.__name__, [field], kwargs)
             self.assertEqual(result, expected)
             self.assertIn(value, [item["id"] for item in result["values"]])
@@ -648,7 +648,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
                     self.subTest(implementation=implementation, location=location),
                     manager,
                     patch.object(NATIVE_RANGE_READ, "_readonly", True, create=True),
-                    self._initial_writable_rpc_cursor(),
+                    initial_writable_cursor(self),
                     self.assertRaises(JsonRpcException) as refusal,
                 ):
                     self._rpc(model._name, NATIVE_RANGE_READ.__name__, ["department_id"], {"enable_counters": True})
@@ -722,26 +722,6 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             self.registry["ir.http"]._pre_dispatch(rule, {})
         self.assertEqual(effects, [])
 
-    @contextmanager
-    def _initial_writable_rpc_cursor(self) -> Iterator[None]:
-        native_cursor = self.registry.cursor
-        native_mode = self._registry_readonly_enabled
-        self.set_registry_readonly_mode(True)
-        first = True
-
-        def cursor(readonly: bool = False) -> Any:
-            nonlocal first
-            if first and request and request.httprequest.path.startswith("/web/dataset/call_kw"):
-                first = False
-                return native_cursor(readonly=False)
-            return native_cursor(readonly=readonly)
-
-        try:
-            with patch.object(self.registry, "cursor", cursor):
-                yield
-        finally:
-            self.set_registry_readonly_mode(native_mode)
-
     def test_real_http_materializes_lazy_reads_before_closing_readonly_cursor(
         self,
     ) -> None:
@@ -760,7 +740,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             return {"name": lazy(read_name)}
 
         with (
-            self._initial_writable_rpc_cursor(),
+            initial_writable_cursor(self),
             patch.object(type(partner), "launchplane_test_lazy_read", read_lazy, create=True),
         ):
             self.assertEqual(
@@ -790,7 +770,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             return {"value": lazy(write_sql)}
 
         with (
-            self._initial_writable_rpc_cursor(),
+            initial_writable_cursor(self),
             patch.object(type(partner), "launchplane_test_lazy_write", lazy_write, create=True),
         ):
             with self.assertRaises(JsonRpcException) as refusal:
@@ -843,7 +823,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             for writable_first in (False, True):
                 calls.clear()
                 hooks.clear()
-                manager = self._initial_writable_rpc_cursor() if writable_first else nullcontext()
+                manager = initial_writable_cursor(self) if writable_first else nullcontext()
                 with (
                     self.subTest(writable_first=writable_first),
                     manager,

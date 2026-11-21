@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Any
+from typing import Any, Literal
 
 from odoo import SUPERUSER_ID, Command, api, fields, models
 from odoo.exceptions import AccessDenied, AccessError
@@ -11,11 +11,12 @@ from ..policy import (
     GROUP,
     IMPLIED_GROUP,
     RUNTIME_ENV,
+    STAFF_OBSERVER_GROUP,
     canonical_identity,
     product_login,
     qualify_runtime,
 )
-from .base import AUTHENTICATING
+from .base import AUTHENTICATING, STAFF_OBSERVER_READ_CURSOR
 
 
 class ResUsers(models.Model):
@@ -23,6 +24,27 @@ class ResUsers(models.Model):
 
     launchplane_readonly_owner = fields.Json(copy=False, groups=fields.NO_ACCESS)
     launchplane_readonly_runtime = fields.Json(copy=False, groups=fields.NO_ACCESS)
+
+    @api.model
+    def _staff_observer_work_groups(self) -> tuple[str, ...]:
+        return ()
+
+    def _staff_observer_mode(self, group_ids: tuple[int, ...] | None = None) -> Literal["observer", "worker"] | None:
+        if group_ids is None:
+            group_ids = super()._get_group_ids()
+        definitions = self.env["res.groups"]._get_group_definitions()
+        if definitions.get_id(STAFF_OBSERVER_GROUP) not in group_ids:
+            return None
+        return (
+            "worker" if any(definitions.get_id(xmlid) in group_ids for xmlid in self._staff_observer_work_groups()) else "observer"
+        )
+
+    def _get_group_ids(self) -> tuple[int, ...]:
+        group_ids = super()._get_group_ids()
+        if self.env.cr is STAFF_OBSERVER_READ_CURSOR.get() or self._staff_observer_mode(group_ids) != "worker":
+            return group_ids
+        observer_group = self.env["res.groups"]._get_group_definitions().get_id(STAFF_OBSERVER_GROUP)
+        return tuple(group_id for group_id in group_ids if group_id != observer_group)
 
     @api.model
     def _launchplane_readonly_runtime_owner(self, identity: dict) -> dict:
@@ -166,9 +188,18 @@ class ResUsers(models.Model):
 
     def _login(self, credential: dict, user_agent_env: dict) -> dict:
         user = self.sudo().search(self._get_login_domain(credential["login"]), order=self._get_login_order(), limit=1)
-        users = self.with_context(tracking_disable=True) if user.launchplane_readonly_owner else self
+        observer = user and user._staff_observer_mode() == "observer"
+        users = self.with_context(tracking_disable=True) if user.launchplane_readonly_owner or observer else self
         token = AUTHENTICATING.set(True)
         try:
-            return super(ResUsers, users)._login(credential, user_agent_env)
+            auth_info = super(ResUsers, users)._login(credential, user_agent_env)
+            if observer:
+                user._staff_observer_prepare_webclient()
+            return auth_info
         finally:
             AUTHENTICATING.reset(token)
+
+    def _staff_observer_prepare_webclient(self) -> None:
+        if "odoobot_state" in self._fields and self.odoobot_state in (False, "not_initialized"):
+            self.with_context(tracking_disable=True).write({"odoobot_state": "disabled"})
+        self._launchplane_readonly_prepare_webclient()

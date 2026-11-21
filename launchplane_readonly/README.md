@@ -150,3 +150,37 @@ require that installed addon and compare company/department ranges and counters
 with the native read. Refusal tests replace entrypoints and private helpers on
 registry classes, inherited registry classes and definition classes, including
 under an inherited readonly marker, and check that no effect sentinel runs.
+
+## Staff observers
+
+Assign `launchplane_readonly.group_staff_observer` through the tenant's staff
+sign-in mapping. Put the observer's additional model permissions on that group
+as native `ir.access` read permissions. The tenant owns the menus, record
+domains and work roles. The observer group implies internal access only.
+Override `res.users._staff_observer_work_groups()` in the tenant addon to
+return the XML IDs of the existing groups that authorize work. With no
+configured work group, the shared ORM and HTTP guards refuse business writes
+and keep native sign-in. Login prepares Odoo's own client settings and assets.
+
+A staff member with a work role can read the extra records through qualified
+Odoo read routes. Those requests use a PostgreSQL read-only cursor. Odoo
+evaluates writes and writable retries with the observer group removed from
+effective access checks, so the member's existing work rules govern the
+operation. For example, a salesperson can preview their own quotation.
+Reading another salesperson's quotation through observer access grants no
+permission to create its portal token. Trusted server code can read as an
+observer-only user through the normal ORM. A mixed user needs the qualified
+read request to get the extra permissions.
+
+The staff group uses native Odoo credentials and never participates in
+Launchplane QA qualification. Assign the QA group only through the existing
+runtime-owned identity flow. Run the complete native addon's tests with HR,
+Sales, Stock and OAuth installed to exercise both paths.
+
+Observer-only sessions use the read-only workspace. Changes to passwords and
+preferences, chatter posts and read receipts, exports, reports, imports and
+public website submissions require their usual authorized account or work
+role. Native login creates the client settings needed to open the workspace.
+Odoo's native public asset and websocket worker bundle routes can regenerate
+browser assets for an already signed-in observer after an upgrade. The exception
+covers generated bundles and their bundle-change notifications.

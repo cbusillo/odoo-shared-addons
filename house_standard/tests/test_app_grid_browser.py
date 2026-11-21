@@ -60,16 +60,18 @@ class TestAppGridBrowser(HttpCase):
         )
 
     def test_explicit_home_action_still_opens_on_login(self) -> None:
+        action = self.env.ref("contacts.action_contacts")
         staff = new_test_user(
             self.env,
             login="house-chosen-home",
             groups="base.group_user,base.group_partner_manager",
-            action_id=self.env.ref("contacts.action_contacts").id,
+            action_id=action.id,
         )
+        action_path = action.path or f"action-{action.id}"
         self.browser_js(
             "/odoo",
             f"console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});",
-            ready="Boolean(document.querySelector('.o_kanban_view'))",
+            ready=f"location.pathname === {json.dumps(f'/odoo/{action_path}')}",
             login=staff.login,
         )
 

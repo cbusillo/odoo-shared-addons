@@ -1,6 +1,6 @@
 {
     "name": "House Standard",
-    "version": "20.0.1.4.0",
+    "version": "20.0.1.5.0",
     "summary": "Install the house backend look and defaults every product shares",
     "category": "Hidden",
     "author": "Chris Busillo (Shiny Computers)",

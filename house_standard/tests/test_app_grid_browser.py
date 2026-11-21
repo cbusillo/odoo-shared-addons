@@ -1,28 +1,101 @@
 import json
 
 from odoo.tests import HttpCase, tagged
-from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL
+from odoo.tests.common import DEFAULT_SUCCESS_SIGNAL, new_test_user
 
-OPEN_FIRST_APP_JS = f"""(async () => {{
-    const app = document.querySelector('.o_house_app');
-    const name = app.textContent.trim();
-    app.click();
-    const deadline = Date.now() + 20000;
-    while (document.querySelector('.o_menu_brand')?.textContent.trim() !== name) {{
-        if (Date.now() > deadline) {{
-            throw new Error(`The ${{name}} app did not open from the app grid`);
-        }}
-        await new Promise((resolve) => setTimeout(resolve, 100));
-    }}
-    console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});
-}})()"""
+WAIT_FOR_JS = """
+    async function waitFor(find, description) {
+        const deadline = Date.now() + 20000;
+        while (Date.now() < deadline) {
+            const result = find();
+            if (result) return result;
+            await new Promise((resolve) => setTimeout(resolve, 100));
+        }
+        throw new Error(description);
+    }
+"""
 
 
 @tagged("-at_install", "post_install")
 class TestAppGridBrowser(HttpCase):
-    def test_web_client_lands_on_app_grid_and_opens_an_app(self) -> None:
+    def test_apps_button_from_a_record_returns_to_the_login_grid(self) -> None:
+        staff = new_test_user(self.env, login="house-grid-staff", groups="base.group_user,base.group_partner_manager")
+        contact = self.env["res.partner"].create({"name": "Synthetic Home Contact"})
         self.browser_js(
-            "/odoo", OPEN_FIRST_APP_JS, ready="Boolean(document.querySelector('.o_house_app_grid .o_house_app'))", login="admin"
+            "/odoo",
+            f"""(async () => {{
+                {WAIT_FOR_JS}
+                const tileSelector = ".o_house_app_grid .o_house_app";
+                const appIds = () => Array.from(
+                    document.querySelectorAll(tileSelector), (app) => app.dataset.menuXmlid
+                ).join(",");
+                const initialApps = appIds();
+                const homePath = location.pathname;
+                const isHome = () => location.pathname === homePath && appIds() === initialApps &&
+                    document.querySelector(".mk_apps_sidebar .nav-link")?.getClientRects().length &&
+                    !document.querySelector(".mk_app_menu, .o_menu_brand");
+                document.querySelector(`${{tileSelector}}[data-menu-xmlid="contacts.menu_contacts"]`).click();
+                const card = await waitFor(
+                    () => Array.from(document.querySelectorAll(".o_kanban_record")).find(
+                        (item) => item.textContent.includes({json.dumps(contact.name)})
+                    ),
+                    "The Contacts tile did not open the synthetic contact's app"
+                );
+                card.click();
+                await waitFor(() => document.querySelector(".o_form_view"), "The contact form did not open");
+                const recordPath = location.pathname;
+                document.querySelector('.o_navbar_apps_menu [data-hotkey="h"]').click();
+                await waitFor(isHome, "The apps button did not return from the contact to the login grid");
+                history.back();
+                await waitFor(
+                    () => document.querySelector(".o_form_view") && location.pathname === recordPath,
+                    "Browser Back did not return to the contact"
+                );
+                history.forward();
+                await waitFor(isHome, "Browser Forward did not restore Home without the contact app's navbar");
+                console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});
+            }})()""",
+            ready="Boolean(document.querySelector('.o_house_app_grid .o_house_app'))",
+            login=staff.login,
+        )
+
+    def test_explicit_home_action_still_opens_on_login(self) -> None:
+        staff = new_test_user(
+            self.env,
+            login="house-chosen-home",
+            groups="base.group_user,base.group_partner_manager",
+            action_id=self.env.ref("contacts.action_contacts").id,
+        )
+        self.browser_js(
+            "/odoo",
+            f"console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});",
+            ready="Boolean(document.querySelector('.o_kanban_view'))",
+            login=staff.login,
+        )
+
+    def test_mobile_all_apps_opens_home_from_the_record_menu(self) -> None:
+        self.browser_size = "390x844"
+        contact = self.env["res.partner"].create({"name": "Synthetic Mobile Home Contact"})
+        contact_action = self.env.ref("contacts.action_contacts")
+        self.browser_js(
+            f"/odoo/action-{contact_action.id}/{contact.id}",
+            f"""(async () => {{
+                {WAIT_FOR_JS}
+                document.querySelector(".o_menu_toggle").click();
+                const allApps = await waitFor(
+                    () => document.querySelector(".o_app_menu_sidebar .o_sidebar_topbar a"),
+                    "The contextual mobile menu did not open"
+                );
+                allApps.click();
+                await waitFor(
+                    () => document.querySelector(".o_house_app_grid .o_house_app") &&
+                          !document.querySelector(".o_app_menu_sidebar"),
+                    "All Apps did not close the drawer and open the Home grid"
+                );
+                console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});
+            }})()""",
+            ready="Boolean(document.querySelector('.o_form_view .o_field_widget[name=name]'))",
+            login="admin",
         )
 
 

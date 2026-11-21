@@ -18,4 +18,20 @@
             </nav>
         </div>
     </t>
+
+    <t t-name="house_standard.NavBar.AppsMenu" t-inherit="web.NavBar.AppsMenu" t-inherit-mode="extension">
+        <xpath expr="//AppsMenu" position="replace">
+            <a href="/odoo/house-home" class="dropdown-toggle" data-hotkey="h" title="Home Menu">
+                <i class="oi" data-icon="apps" aria-hidden="true"/>
+            </a>
+        </xpath>
+    </t>
+
+    <t t-name="house_standard.NavBar.AppsMenu.Sidebar" t-inherit="web.NavBar.AppsMenu.Sidebar" t-inherit-mode="extension">
+        <xpath expr="//a[@t-on-click.prevent='this.onAllAppsBtnClick']" position="attributes">
+            <attribute name="href">/odoo/house-home</attribute>
+            <attribute name="t-on-click.prevent"/>
+            <attribute name="t-on-click">this._closeAppMenuSidebar</attribute>
+        </xpath>
+    </t>
 </templates>

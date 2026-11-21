@@ -26,7 +26,7 @@ from psycopg2.errors import ReadOnlySqlTransaction
 from ..controllers.mail import ReadOnlyWebclientController
 from ..models.ir_http import NATIVE_RANGE_READ
 from ..policy import COPY_PARAMETER, GROUP, IMPLIED_GROUP, RUNTIME_ENV, product_login
-from .http_cursor import initial_writable_rpc_cursor
+from .http_cursor import initial_writable_cursor
 
 
 @tagged("post_install", "-at_install")
@@ -605,7 +605,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
         ):
             kwargs = {"enable_counters": True, "hierarchize": hierarchize, "search_domain": [("id", "=", employee.id)]}
             expected = NATIVE_RANGE_READ(employees, field, **kwargs)
-            with self.subTest(field=field), initial_writable_rpc_cursor(self):
+            with self.subTest(field=field), initial_writable_cursor(self):
                 result = self._rpc(employees._name, NATIVE_RANGE_READ.__name__, [field], kwargs)
             self.assertEqual(result, expected)
             self.assertIn(value, [item["id"] for item in result["values"]])
@@ -648,7 +648,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
                     self.subTest(implementation=implementation, location=location),
                     manager,
                     patch.object(NATIVE_RANGE_READ, "_readonly", True, create=True),
-                    initial_writable_rpc_cursor(self),
+                    initial_writable_cursor(self),
                     self.assertRaises(JsonRpcException) as refusal,
                 ):
                     self._rpc(model._name, NATIVE_RANGE_READ.__name__, ["department_id"], {"enable_counters": True})
@@ -740,7 +740,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             return {"name": lazy(read_name)}
 
         with (
-            initial_writable_rpc_cursor(self),
+            initial_writable_cursor(self),
             patch.object(type(partner), "launchplane_test_lazy_read", read_lazy, create=True),
         ):
             self.assertEqual(
@@ -770,7 +770,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             return {"value": lazy(write_sql)}
 
         with (
-            initial_writable_rpc_cursor(self),
+            initial_writable_cursor(self),
             patch.object(type(partner), "launchplane_test_lazy_write", lazy_write, create=True),
         ):
             with self.assertRaises(JsonRpcException) as refusal:
@@ -823,7 +823,7 @@ console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});""",
             for writable_first in (False, True):
                 calls.clear()
                 hooks.clear()
-                manager = initial_writable_rpc_cursor(self) if writable_first else nullcontext()
+                manager = initial_writable_cursor(self) if writable_first else nullcontext()
                 with (
                     self.subTest(writable_first=writable_first),
                     manager,

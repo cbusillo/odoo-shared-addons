@@ -25,6 +25,7 @@ class ResUsers(models.Model):
     launchplane_readonly_owner = fields.Json(copy=False, groups=fields.NO_ACCESS)
     launchplane_readonly_runtime = fields.Json(copy=False, groups=fields.NO_ACCESS)
 
+    @api.model
     def _staff_observer_work_groups(self) -> tuple[str, ...]:
         return ()
 

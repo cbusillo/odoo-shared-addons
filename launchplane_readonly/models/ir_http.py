@@ -20,6 +20,7 @@ from ..policy import matches_native_read
 from .base import SERVING_STAFF_ASSETS, STAFF_OBSERVER_READ_CURSOR
 
 STAFF_ASSET_ROUTES = frozenset((Binary.content_assets, ReadOnlyWorkerBundle.get_websocket_worker_bundle))
+STAFF_OBSERVER_RETRY_ATTR = "_staff_observer_retry"
 NATIVE_CALL_KW = DataSet.call_kw
 NATIVE_RANGE_READ = WebBase.search_panel_select_range
 NATIVE_RANGE_HELPERS = (
@@ -48,7 +49,7 @@ class IrHttp(models.AbstractModel):
 
         staff_modes = base._staff_observer_modes()
         exclusive = bool(actors) or "observer" in staff_modes
-        if exclusive or (staff_modes and not getattr(request, "_staff_observer_retry", False)):
+        if exclusive or (staff_modes and not getattr(request, STAFF_OBSERVER_RETRY_ATTR, False)):
             controller = rule.endpoint.func.__self__
             path = request.httprequest.path
             prohibited = isinstance(controller, (ReportController, Export, ExportFormat)) or path.startswith(
@@ -136,7 +137,7 @@ class IrHttp(models.AbstractModel):
         try:
             return cls._launchplane_readonly_call(dispatch, staff_overlay=staff_overlay)
         except ReadOnlySqlTransaction:
-            request._staff_observer_retry = True
+            setattr(request, STAFF_OBSERVER_RETRY_ATTR, True)
             if request.env.cr.readonly:
                 raise
             return dispatch()

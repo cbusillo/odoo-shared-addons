@@ -7,4 +7,4 @@ class ResGroups(models.Model):
     _inherit = "res.groups"
 
     def _get_light_group_xmlids(self) -> tuple[str, ...]:
-        return (*super()._get_light_group_xmlids(), GROUP, STAFF_OBSERVER_GROUP)
+        return *super()._get_light_group_xmlids(), GROUP, STAFF_OBSERVER_GROUP

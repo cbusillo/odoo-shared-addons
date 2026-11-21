@@ -1,4 +1,6 @@
 import json
+from contextlib import nullcontext
+from typing import Any
 from unittest.mock import patch
 
 from lxml import html
@@ -7,17 +9,18 @@ from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, tagged
 from odoo.tests.common import JsonRpcException
 
-from .http_cursor import initial_writable_rpc_cursor
+from .http_cursor import initial_writable_cursor
 
 
 @tagged("post_install", "-at_install")
 class TestStaffObserver(HttpCase):
     def setUp(self) -> None:
         super().setUp()
-        if "sale.order" not in self.env or "stock.reference" not in self.env:
-            self.skipTest("Requires Sales and Stock for native work-role and ambient-write controls.")
+        sales = self._fixture_model("sale.order")
+        stock_references = self._fixture_model("stock.reference")
         self.observer_group = self.env.ref("launchplane_readonly.group_staff_observer")
-        self.sales_group = self.env.ref("sales_team.group_sale_salesman")
+        sales_group_xmlid = "sales_team.group_sale_salesman"
+        self.sales_group = self.env.ref(sales_group_xmlid)
         self.sales_only = self._user("sales", self.sales_group)
         self.observer = self._user("observer", self.observer_group)
         self.combined = self._user("combined", self.observer_group | self.sales_group)
@@ -30,17 +33,22 @@ class TestStaffObserver(HttpCase):
             }
         )
         customer = self.env["res.partner"].create({"name": "Synthetic quotation customer"})
-        self.outside = self.env["sale.order"].create({"partner_id": customer.id, "user_id": self.env.uid})
-        self.sales_quote = self.env["sale.order"].create({"partner_id": customer.id, "user_id": self.sales_only.id})
-        self.combined_quote = self.env["sale.order"].create({"partner_id": customer.id, "user_id": self.combined.id})
-        self.reference = self.env["stock.reference"].create({"name": "Synthetic staff reference"})
+        self.outside = sales.create({"partner_id": customer.id, "user_id": self.env.uid})
+        self.sales_quote = sales.create({"partner_id": customer.id, "user_id": self.sales_only.id})
+        self.combined_quote = sales.create({"partner_id": customer.id, "user_id": self.combined.id})
+        self.reference = stock_references.create({"name": "Synthetic staff reference"})
         work_role = patch.object(
             type(self.observer),
             "_staff_observer_work_groups",
-            return_value=("sales_team.group_sale_salesman",),
+            return_value=(sales_group_xmlid,),
         )
         work_role.start()
         self.addCleanup(work_role.stop)
+
+    def _fixture_model(self, model: str) -> Any:
+        if model not in self.env:
+            self.skipTest(f"The native fixture requires {model}.")
+        return self.env[model]
 
     def _user(self, role: str, groups: "odoo.model.res_groups") -> "odoo.model.res_users":
         login = f"synthetic-staff-{role}"
@@ -61,7 +69,7 @@ class TestStaffObserver(HttpCase):
         )
         self.assertEqual(result["uid"], user.id)
 
-    def _rpc(self, model: str, method: str, args: list) -> list | dict | bool:
+    def _rpc(self, model: str, method: str, args: list) -> Any:
         return self.make_jsonrpc_request("/web/dataset/call_kw", {"model": model, "method": method, "args": args, "kwargs": {}})
 
     def test_observer_can_sign_in_and_read_without_saving_writes(self) -> None:
@@ -85,9 +93,7 @@ class TestStaffObserver(HttpCase):
         self.assertFalse(self.reference.search_count([("name", "=", "Unexpected observer creation")]))
 
     def test_native_oauth_signin_preserves_observer_policy(self) -> None:
-        if "auth.oauth.provider" not in self.env:
-            self.skipTest("Requires the OAuth addon used by the tenant.")
-        provider = self.env["auth.oauth.provider"].create(
+        provider = self._fixture_model("auth.oauth.provider").create(
             {
                 "name": "Synthetic OAuth provider",
                 "client_id": "synthetic-staff-client",
@@ -97,11 +103,12 @@ class TestStaffObserver(HttpCase):
             }
         )
         subject = "synthetic-staff-subject"
-        self.observer.write({"oauth_provider_id": provider.id, "oauth_uid": subject})
+        oauth_user = self._fixture_model("res.users").browse(self.observer.id)
+        oauth_user.write({"oauth_provider_id": provider.id, "oauth_uid": subject})
         self.env.flush_all()
         self.authenticate(None, None)
         state = json.dumps({"d": self.env.cr.dbname, "p": provider.id})
-        with patch.object(type(self.observer), "_auth_oauth_rpc", return_value={"sub": subject}):
+        with patch.object(type(oauth_user), "_auth_oauth_rpc", return_value={"sub": subject}):
             response = self.url_open("/auth_oauth/signin", params={"state": state, "access_token": "synthetic-staff-token"})
         self.assertTrue(response.url.endswith("/odoo"))
         session = self.make_jsonrpc_request("/web/session/get_session_info", {})
@@ -136,11 +143,11 @@ class TestStaffObserver(HttpCase):
 
     def test_combined_staff_keeps_work_scope_on_a_writable_initial_cursor(self) -> None:
         self._staff_login(self.combined)
-        with initial_writable_rpc_cursor(self):
+        with initial_writable_cursor(self):
             self.assertEqual(self._rpc("sale.order", "read", [[self.outside.id], ["name"]])[0]["name"], self.outside.name)
-        with initial_writable_rpc_cursor(self), self.assertRaises(JsonRpcException):
+        with initial_writable_cursor(self), self.assertRaises(JsonRpcException):
             self._rpc("sale.order", "action_preview_sale_order", [[self.outside.id]])
-        with initial_writable_rpc_cursor(self):
+        with initial_writable_cursor(self):
             self._rpc("sale.order", "action_preview_sale_order", [[self.combined_quote.id]])
         self.env.invalidate_all()
         self.assertTrue(self.combined_quote.access_token)
@@ -148,14 +155,11 @@ class TestStaffObserver(HttpCase):
 
     def test_observer_can_refresh_with_cold_generated_assets(self) -> None:
         self._staff_login(self.observer)
-        current_mode = self._registry_readonly_enabled
-        self.addCleanup(self.set_registry_readonly_mode, current_mode)
         for native_readonly in (True, False):
             with self.subTest(native_readonly=native_readonly):
-                self.set_registry_readonly_mode(native_readonly)
-                self._refresh_observer_assets()
+                self._refresh_observer_assets(native_readonly=native_readonly)
 
-    def _refresh_observer_assets(self) -> None:
+    def _refresh_observer_assets(self, *, native_readonly: bool) -> None:
         names = ("web.assets_web.min.js", "bus.websocket_worker_assets.min.js")
         assets = self.env["ir.attachment"].search(
             [
@@ -173,8 +177,18 @@ class TestStaffObserver(HttpCase):
         self.assertTrue(response.url.endswith("/odoo"))
         scripts = html.fromstring(response.content).xpath("//script[@src]/@src")
         bundle = next(url for url in scripts if url.endswith("/web.assets_web.min.js"))
-        self.assertEqual(self.url_open(bundle).status_code, 200)
+        cursor = nullcontext() if native_readonly else initial_writable_cursor(self, "/web/assets/")
+        with cursor:
+            self.assertEqual(self.url_open(bundle).status_code, 200)
         worker = self.url_open("/bus/websocket_worker_bundle")
         self.assertEqual(worker.status_code, 200)
         self.assertIn("javascript", worker.headers["Content-Type"])
-        self.assertFalse(assets.exists())
+        refreshed = assets.search(
+            [
+                ("name", "in", names),
+                ("url", "=like", "/web/assets/%"),
+                ("url", "not like", "/web/assets/stale/%"),
+            ]
+        )
+        self.assertEqual(set(refreshed.mapped("name")), set(names))
+        self.assertFalse(refreshed & assets)

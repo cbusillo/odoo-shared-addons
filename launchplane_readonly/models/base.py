@@ -30,7 +30,11 @@ class Base(models.AbstractModel):
         return self._readonly_request_users().filtered(lambda user: user.launchplane_readonly_owner or user.has_group(GROUP))
 
     def _staff_observer_modes(self) -> set[str]:
-        return {mode for user in self._readonly_request_users() if (mode := user._staff_observer_mode())}
+        modes: set[str] = set()
+        for user in self._readonly_request_users():
+            if (mode := user._staff_observer_mode()) is not None:
+                modes.add(mode)
+        return modes
 
     def _readonly_business_actor(self) -> bool:
         return self._launchplane_readonly_actor() or "observer" in self._staff_observer_modes()

@@ -1,0 +1,70 @@
+.o_hierarchy_renderer:has(.o_house_hierarchy_portrait) {
+    --house-hierarchy-line: #{mix($o-brand-primary, $o-border-color, 65%)};
+
+    .o_hierarchy_container {
+        .o_hierarchy_line_part,
+        .o_hierarchy_line_part::before,
+        .o_hierarchy_line_part::after {
+            border-color: var(--house-hierarchy-line);
+        }
+
+        .o_hierarchy_row:has(.o_hierarchy_node_unfolded) {
+            .o_hierarchy_node_container:not(.o_hierarchy_node_unfolded) {
+                opacity: 1;
+            }
+
+            .o_hierarchy_node_unfolded .o_hierarchy_node {
+                outline: 2px solid var(--house-hierarchy-line);
+            }
+        }
+    }
+
+    .o_hierarchy_node_container {
+        width: min(250px, 50%);
+
+        .o_hierarchy_node {
+            border-radius: 0.875rem !important;
+            overflow-wrap: anywhere;
+
+            .o_house_hierarchy_portrait {
+                --house-department-color: #{$o-border-color};
+
+                @for $index from 2 through length($o-colors) {
+                    &.o_hierarchy_node_color_#{$index - 1} {
+                        --house-department-color: #{nth($o-colors, $index)};
+                    }
+                }
+
+                height: 4.5rem;
+                align-items: center;
+                border-block-start: 4px solid var(--house-department-color);
+                background: color-mix(in srgb, var(--house-department-color) 18%, transparent);
+
+                .o_field_background_image {
+                    margin-bottom: 0;
+                    transform: none;
+
+                    > img {
+                        box-shadow: 0 0 0 2px $o-view-background-color;
+                    }
+                }
+            }
+        }
+
+        .o_hierarchy_node_content {
+            padding: 0.25rem 0.5rem;
+            text-align: center;
+        }
+
+        .o_house_hierarchy_department {
+            display: block;
+            padding: 0.25rem 0.25rem 0;
+            font-size: 0.8125rem;
+            color: $o-gray-700;
+        }
+
+        .o_hierarchy_node_button {
+            grid-template-columns: 1fr auto 1fr;
+        }
+    }
+}

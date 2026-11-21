@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <record id="hr_employee_hierarchy_house" model="ir.ui.view">
+        <field name="name">hr.employee.hierarchy.house</field>
+        <field name="model">hr.employee</field>
+        <field name="inherit_id" ref="hr.hr_employee_hierarchy_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//t[@t-name='hierarchy-box']/div[field[@name='image_1024']]" position="attributes">
+                <attribute name="t-attf-class" add="o_house_hierarchy_portrait" remove="pb-4" separator=" "/>
+            </xpath>
+            <xpath expr="//t[@t-name='hierarchy-box']//field[@name='job_title']" position="after">
+                <span t-if="record.department_id.raw_value" class="o_house_hierarchy_department" t-out="record.department_id.value"/>
+            </xpath>
+        </field>
+    </record>
+
+    <record id="hr_employee_public_hierarchy_house" model="ir.ui.view">
+        <field name="name">hr.employee.public.hierarchy.house</field>
+        <field name="model">hr.employee.public</field>
+        <field name="inherit_id" ref="hr.hr_employee_public_hierarchy_view"/>
+        <field name="arch" type="xml">
+            <xpath expr="//t[@t-name='hierarchy-box']/div[field[@name='image_1024']]" position="attributes">
+                <attribute name="t-attf-class" add="o_house_hierarchy_portrait" remove="pb-4" separator=" "/>
+            </xpath>
+            <xpath expr="//t[@t-name='hierarchy-box']//field[@name='job_id']" position="after">
+                <span t-if="record.department_id.raw_value" class="o_house_hierarchy_department" t-out="record.department_id.value"/>
+            </xpath>
+        </field>
+    </record>
+</odoo>

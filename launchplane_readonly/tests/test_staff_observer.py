@@ -186,6 +186,15 @@ class TestStaffObserver(HttpCase):
             self.env["ir.asset"].create([{"name": path, "path": path, "bundle": bundle} for bundle in bundles])
         self.env.flush_all()
 
+    def _fetch_observer_asset(self, path: str, *, native_readonly: bool) -> bytes:
+        cursor = nullcontext()
+        if not native_readonly and path.startswith("/web/assets/"):
+            cursor = initial_writable_cursor(self, path)
+        with cursor:
+            response = self.url_open(path, allow_redirects=False)
+        self.assertEqual(response.status_code, 200, path)
+        return response.content
+
     def _refresh_observer_assets(self, *, native_readonly: bool) -> None:
         previous = self._observer_asset_urls()
         self.assertEqual(set(self._generated_assets(previous).mapped("url")), set(previous.values()))
@@ -200,17 +209,15 @@ class TestStaffObserver(HttpCase):
         paths = current | {"worker": "/bus/websocket_worker_bundle"}
         contents = {}
         for kind, path in paths.items():
-            cursor = nullcontext() if native_readonly or kind == "worker" else initial_writable_cursor(self, "/web/assets/")
-            with cursor:
-                response = self.url_open(path, allow_redirects=False)
-            self.assertEqual(response.status_code, 200, path)
-            self.assertIn(version.encode(), response.content)
-            contents[current[kind]] = response.content
+            content = self._fetch_observer_asset(path, native_readonly=native_readonly)
+            self.assertIn(version.encode(), content)
+            contents[current[kind]] = content
 
         saved = self._generated_assets(current)
-        self.assertEqual({record.url: record.raw for record in saved}, contents)
+        self.assertEqual(set(saved.mapped("url")), set(contents))
+        for record in saved:
+            self.assertTrue(record.raw.content == contents[record.url], record.url)
         for kind, path in paths.items():
-            response = self.url_open(path, allow_redirects=False)
-            self.assertEqual(response.status_code, 200, path)
-            self.assertEqual(response.content, contents[current[kind]])
+            content = self._fetch_observer_asset(path, native_readonly=native_readonly)
+            self.assertTrue(content == contents[current[kind]], path)
         self.assertEqual(self._generated_assets(current), saved)

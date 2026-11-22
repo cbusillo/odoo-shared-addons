@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<templates>
+    <t t-name="web_hierarchy_d3.HierarchyD3Renderer">
+        <section class="o_hierarchy_d3 o_renderer" t-att-hidden="!this.props.model.resIds.length">
+            <div class="o_hierarchy_d3_toolbar">
+                <div class="o_hierarchy_d3_find">
+                    <input type="search" class="form-control" aria-label="Find in chart"
+                        placeholder="Find in chart" t-att-value="this.query()" t-on-input="this.onInput"
+                        t-on-keydown="this.onFindKeydown" t-att-disabled="this.chartUnavailable()"/>
+                    <div t-if="this.showMatches()" class="o_hierarchy_d3_matches shadow border rounded">
+                        <button t-foreach="this.matches" t-as="record" t-key="record.id" type="button"
+                            class="btn text-start" t-on-click="() => this.find(record)">
+                            <t t-esc="record.display_name"/>
+                        </button>
+                        <span t-if="!this.matches.length" class="text-muted px-3 py-2">No matches in this chart.</span>
+                    </div>
+                </div>
+                <div class="btn-group" role="group" aria-label="Chart zoom">
+                    <button type="button" class="btn btn-secondary" aria-label="Zoom out"
+                        t-on-click="() => this.chart?.zoom(0.8)" t-att-disabled="this.chartUnavailable()">−</button>
+                    <button type="button" class="btn btn-secondary" aria-label="Zoom in"
+                        t-on-click="() => this.chart?.zoom(1.25)" t-att-disabled="this.chartUnavailable()">+</button>
+                    <button type="button" class="btn btn-secondary" aria-label="Fit chart"
+                        t-on-click="() => this.chart?.fit()" t-att-disabled="this.chartUnavailable()">Fit</button>
+                </div>
+                <button type="button" class="btn btn-secondary" t-on-click="this.download"
+                    t-att-disabled="this.exportPending() || this.chartUnavailable()">Export PNG</button>
+            </div>
+            <div t-if="this.props.model.root.truncated" class="o_hierarchy_d3_limit alert alert-warning mb-0" role="status">
+                Showing the first <t t-esc="this.props.model.resIds.length"/> records. Use Odoo’s search filters to narrow the chart.
+            </div>
+            <div t-if="this.hasCycles()" class="alert alert-warning mb-0" role="status">
+                Some parent links form a loop. The chart breaks those loops to show the records.
+            </div>
+            <div t-if="this.chartUnavailable()" class="alert alert-danger mb-0" role="alert">
+                The chart could not be loaded. Reload the view to try again.
+            </div>
+            <div class="o_hierarchy_d3_canvas" t-ref="this.canvas" aria-label="Hierarchy chart"/>
+        </section>
+    </t>
+</templates>

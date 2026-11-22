@@ -1,0 +1,57 @@
+.o_hierarchy_d3 {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+
+    &[hidden] {
+        display: none;
+    }
+
+    .o_hierarchy_d3_toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.625rem clamp(0.625rem, 2vw, 1.25rem);
+        border-bottom: 1px solid var(--border-color, #cbd6e0);
+        background: var(--o-view-background-color, #fff);
+    }
+
+    .o_hierarchy_d3_find {
+        position: relative;
+        flex: 1 1 14rem;
+        max-width: 24rem;
+    }
+
+    .o_hierarchy_d3_matches {
+        display: grid;
+        position: absolute;
+        z-index: 2;
+        inset: calc(100% + 0.25rem) 0 auto;
+        max-height: 35vh;
+        overflow: auto;
+        background: var(--o-view-background-color, #fff);
+    }
+
+    .o_hierarchy_d3_canvas {
+        flex: 1 0 auto;
+        min-height: 24rem;
+        height: 0;
+        overflow: hidden;
+        background-color: #f3f6f9;
+        background-image: radial-gradient(#c2cfdb 0.75px, transparent 0.75px);
+        background-size: 20px 20px;
+        touch-action: none;
+
+        svg.svg-chart-container {
+            display: block;
+        }
+
+        .o_hierarchy_d3_card:focus-visible .o_hierarchy_d3_card_border {
+            stroke: #176b75;
+            stroke-width: 3;
+        }
+    }
+}

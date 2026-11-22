@@ -3,7 +3,7 @@
     <t t-name="web_hierarchy_d3.HierarchyD3Renderer">
         <section class="o_hierarchy_d3 o_renderer" t-att-hidden="!this.props.model.resIds.length">
             <div class="o_hierarchy_d3_toolbar">
-                <div class="o_hierarchy_d3_find">
+                <div class="o_hierarchy_d3_find" t-on-focusout="this.onFindFocusout">
                     <input type="search" class="form-control" aria-label="Find in chart"
                         placeholder="Find in chart" t-att-value="this.query()" t-on-input="this.onInput"
                         t-on-keydown="this.onFindKeydown" t-att-disabled="this.chartUnavailable()"/>

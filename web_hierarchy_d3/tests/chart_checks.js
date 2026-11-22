@@ -3,6 +3,10 @@ async function checkHierarchy(test, ids) {
     const card = (id) => select(`.o_hierarchy_d3_card[data-record-id="${id}"]`);
     const allCards = () => [...document.querySelectorAll(".o_hierarchy_d3_card")];
     const transform = () => select(".o_hierarchy_d3_canvas g.chart").getAttribute("transform");
+    const exportButton = () =>
+        [...document.querySelectorAll(".o_hierarchy_d3_toolbar button")].find(
+            (button) => button.textContent.trim() === "Export PNG",
+        );
     const toggle = (id) => card(id)?.parentElement.querySelector(".node-button-g");
     const click = (element) => element.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     const assert = (condition, message) => {
@@ -29,11 +33,20 @@ async function checkHierarchy(test, ids) {
             select(".o_hierarchy_d3_limit")?.textContent.includes("200"),
             "The chart hid truncation",
         );
+        click(exportButton());
+        await waitFor(
+            () => select(".o_notification")?.textContent.includes("too large"),
+            "Export should explain when the forest is too large for a legible bitmap",
+        );
         console.log("test successful");
         return;
     }
 
-    assert(allCards().length === 4, "The filtered forest should contain four records");
+    assert(allCards().length === 4, "A focused action replaced the permission-filtered forest");
+    assert(
+        card(ids.child)?.querySelector('rect[stroke-width="2.5"]'),
+        "The action target was not highlighted",
+    );
     assert(card(ids.root) && card(ids.second) && card(ids.detached), "A visible root is missing");
     assert(
         !card(ids.protected) && !card(ids.excluded) && !card(ids.inactive),
@@ -71,9 +84,44 @@ async function checkHierarchy(test, ids) {
     click(select('button[aria-label="Fit chart"]'));
     const fitted = transform();
     click(select('button[aria-label="Zoom in"]'));
-    assert(transform() !== fitted, "Zoom did not change the chart transform");
+    const zoomed = transform();
+    assert(zoomed !== fitted, "Zoom did not change the chart transform");
     click(select('button[aria-label="Fit chart"]'));
     assert(transform() === fitted, "Fit did not restore the chart bounds");
+
+    click(select('button[aria-label="Zoom in"]'));
+    const canvas = select(".o_hierarchy_d3_canvas");
+    const viewport = canvas.querySelector(".svg-chart-container");
+    const initialHeight = viewport.getAttribute("height");
+    canvas.style.minHeight = `${canvas.clientHeight + 32}px`;
+    await waitFor(
+        () => viewport.getAttribute("height") !== initialHeight,
+        "The SVG did not follow the available space",
+    );
+    assert(transform() === zoomed, "Resizing reset the user's zoom");
+
+    const originalClick = HTMLAnchorElement.prototype.click;
+    let pngUrl;
+    HTMLAnchorElement.prototype.click = function () {
+        if (this.download === "hierarchy.png") {
+            pngUrl = this.href;
+        } else {
+            originalClick.call(this);
+        }
+    };
+    try {
+        click(exportButton());
+        await waitFor(() => pngUrl, "The chart did not offer a PNG download");
+        const bitmap = new Image();
+        bitmap.src = pngUrl;
+        await bitmap.decode();
+        assert(
+            pngUrl.startsWith("data:image/png;base64,") && bitmap.width > 1 && bitmap.height > 1,
+            "Export did not render a PNG bitmap",
+        );
+    } finally {
+        HTMLAnchorElement.prototype.click = originalClick;
+    }
 
     click(select(".o_searchview_dropdown_toggler"));
     const filter = () =>
@@ -87,7 +135,8 @@ async function checkHierarchy(test, ids) {
         "The native search filter did not narrow the chart",
     );
 
-    click(card(ids.child));
+    card(ids.child).focus();
+    card(ids.child).dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true }));
     await waitFor(
         () =>
             select('.o_form_view [name="name"] input')?.value === "Limes" ||

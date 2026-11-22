@@ -15,6 +15,7 @@ const COLORS = {
     border: "#b5c5d4",
     accent: "#176b75",
     highlight: "#e4f7f6",
+    avatar: "#e4edf5",
     departments: ["#176b75", "#4854a3", "#93456f", "#516b31", "#94521e"],
 };
 
@@ -82,7 +83,28 @@ function cardContent(node, options) {
         );
     }
     if (options.avatarField) {
+        const [initial] = Array.from(name.trim());
         card.append(
+            svgElement("rect", {
+                x: 10,
+                y: 15,
+                width: 38,
+                height: 38,
+                rx: 4,
+                fill: COLORS.avatar,
+            }),
+            svgElement(
+                "text",
+                {
+                    x: 29,
+                    y: 40,
+                    "text-anchor": "middle",
+                    "font-size": 16,
+                    "font-weight": 650,
+                    fill: COLORS.muted,
+                },
+                initial?.toLocaleUpperCase(),
+            ),
             svgElement("image", {
                 x: 10,
                 y: 15,
@@ -205,18 +227,22 @@ export function createChart(library, container, data, options) {
         setView(box, Math.max(scale, MIN_ZOOM));
     }
 
+    let fitted = false;
     return {
         fit,
         resize({ width, height }) {
             chart.svgWidth(width).svgHeight(height);
             chart.getChartState().svg.attr("width", width).attr("height", height);
-            fit();
+            if (!fitted && width > 0 && height > 0) {
+                fit();
+                fitted = true;
+            }
         },
         zoom(factor) {
             const { svg, zoomBehavior } = chart.getChartState();
             svg.interrupt().call(zoomBehavior.scaleBy, factor);
         },
-        find(id) {
+        find(id, focus = true) {
             chart.clearHighlighting().setHighlighted(id).render();
             const { root, svg, lastTransform } = chart.getChartState();
             const { x, y } = root.descendants().find(({ data }) => data.id === id);
@@ -224,7 +250,9 @@ export function createChart(library, container, data, options) {
                 { x: x - CARD_WIDTH / 2, y, width: CARD_WIDTH, height: CARD_HEIGHT },
                 Math.max(lastTransform.k, 1),
             );
-            svg.select(`[data-record-id="${id}"]`).node()?.focus({ preventScroll: true });
+            if (focus) {
+                svg.select(`[data-record-id="${id}"]`).node()?.focus({ preventScroll: true });
+            }
         },
         get state() {
             return chart.getChartState();

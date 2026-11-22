@@ -43,6 +43,14 @@ class HierarchyD3ArchParser extends HierarchyArchParser {
 }
 
 class HierarchyD3Model extends HierarchyModel {
+    _getNextConfig(currentConfig, params) {
+        const { hierarchy_res_id: focusId, ...context } = params.context || {};
+        const chartParams = focusId ? { ...params, context } : params;
+        const config = super._getNextConfig(currentConfig, chartParams);
+        config.focusId = !this.root && this.isSearchDefaultOrEmpty() ? focusId : undefined;
+        return config;
+    }
+
     async _loadData(config) {
         const useName = this.activeFields.name && this.fields.name.type === "char";
         const nameField = useName ? "name" : "display_name";
@@ -74,6 +82,7 @@ class HierarchyD3Model extends HierarchyModel {
         const records = result.slice(0, RECORD_LIMIT);
         return {
             records,
+            focusId: this.root ? undefined : config.focusId,
             resIds: records.map(({ id }) => id),
             truncated: result.length > RECORD_LIMIT,
         };

@@ -1,4 +1,5 @@
 const PNG_MAX_SIDE = 4096;
+const PNG_MIN_SCALE = 0.65;
 
 async function inlineImage(image) {
     try {
@@ -24,12 +25,15 @@ async function inlineImage(image) {
 }
 
 export async function exportPng({ svg, centerG, nodesWrapper }) {
+    await new Promise((resolve) => requestAnimationFrame(resolve));
     const box = nodesWrapper.node().getBBox();
     const width = Math.ceil(box.width + 32);
     const height = Math.ceil(box.height + 32);
     const scale = Math.min(2, PNG_MAX_SIDE / Math.max(width, height));
-    const original = svg.node();
-    const copy = original.cloneNode(false);
+    if (scale < PNG_MIN_SCALE) {
+        return null;
+    }
+    const copy = svg.node().cloneNode(false);
     copy.append(centerG.node().cloneNode(true));
     copy.firstElementChild.removeAttribute("transform");
     copy.setAttribute("width", width);

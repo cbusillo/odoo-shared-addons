@@ -10,7 +10,7 @@ class TestHierarchyD3(HttpCase):
     @classmethod
     def setUpClass(cls) -> None:
         super().setUpClass()
-        cls.reader = new_test_user(cls.env, login="chart-reader")
+        cls.reader = new_test_user(cls.env, login="chart-reader", context={"no_reset_password": True})
         cls.category = cls.env["res.partner.category"]
         cls.hierarchy_view = cls.env["ir.ui.view"].create(
             {
@@ -40,7 +40,7 @@ class TestHierarchyD3(HttpCase):
             }
         )
 
-    def open_chart(self, ids: list[int], check: str, case_data: dict[str, int]) -> None:
+    def open_chart(self, ids: list[int], check: str, case_data: dict[str, int], focus_id: int | None = None) -> None:
         action = self.env["ir.actions.act_window"].create(
             {
                 "name": "Synthetic partner tags",
@@ -48,6 +48,7 @@ class TestHierarchyD3(HttpCase):
                 "view_mode": "hierarchy,form",
                 "search_view_id": self.search_view.id,
                 "domain": repr([("id", "in", ids)]),
+                "context": repr({"hierarchy_res_id": focus_id}) if focus_id else "{}",
             }
         )
         self.env["ir.actions.act_window.view"].create(
@@ -99,6 +100,7 @@ class TestHierarchyD3(HttpCase):
                 "excluded": excluded.id,
                 "inactive": inactive.id,
             },
+            focus_id=child.id,
         )
 
     def test_chart_reports_truncation_and_stable_order(self) -> None:

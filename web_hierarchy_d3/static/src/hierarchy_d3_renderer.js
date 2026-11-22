@@ -40,6 +40,7 @@ export class HierarchyD3Renderer extends Component {
         onPatched(() => this.syncChart());
         onWillUnmount(() => {
             this.resizeObserver.disconnect();
+            this.renderedRoot = null;
             this.chart?.destroy();
         });
     }
@@ -85,6 +86,9 @@ export class HierarchyD3Renderer extends Component {
             this.chartUnavailable.set(false);
             this.hasCycles.set(forest.hasCycles);
             this.chart.resize({ width: container.clientWidth, height: container.clientHeight });
+            if (root.resIds.includes(root.focusId)) {
+                this.chart.find(root.focusId, false);
+            }
         } catch (error) {
             if (this.canvas() && this.renderedRoot === root) {
                 this.chartUnavailable.set(true);
@@ -96,6 +100,12 @@ export class HierarchyD3Renderer extends Component {
     onInput(event) {
         this.query.set(event.target.value);
         this.showMatches.set(Boolean(this.query().trim()));
+    }
+
+    onFindFocusout(event) {
+        if (!event.currentTarget.contains(event.relatedTarget)) {
+            this.showMatches.set(false);
+        }
     }
 
     onFindKeydown(event) {
@@ -121,12 +131,22 @@ export class HierarchyD3Renderer extends Component {
         const chart = this.chart;
         try {
             const url = await exportPng(chart.state);
-            if (this.canvas() && this.chart === chart) {
-                const link = document.createElement("a");
-                link.download = "hierarchy.png";
-                link.href = url;
-                link.click();
+            if (!this.canvas() || this.chart !== chart) {
+                return;
             }
+            if (!url) {
+                this.notification.add(
+                    _t(
+                        "This chart is too large to export clearly. Collapse branches or narrow the Odoo search.",
+                    ),
+                    { type: "warning" },
+                );
+                return;
+            }
+            const link = document.createElement("a");
+            link.download = "hierarchy.png";
+            link.href = url;
+            link.click();
         } catch {
             this.notification.add(_t("The chart could not be exported."), { type: "danger" });
         } finally {

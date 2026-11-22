@@ -49,9 +49,20 @@
             display: block;
         }
 
-        .o_hierarchy_d3_card:focus-visible .o_hierarchy_d3_card_border {
-            stroke: #176b75;
-            stroke-width: 3;
+        .o_hierarchy_d3_card:focus-visible {
+            outline: none;
+
+            .o_hierarchy_d3_card_border {
+                stroke: #176b75;
+                stroke-width: 3;
+            }
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .o_hierarchy_d3_find {
+            flex-basis: 100%;
+            max-width: none;
         }
     }
 }

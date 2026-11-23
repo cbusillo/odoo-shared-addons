@@ -26,6 +26,7 @@ are in [`.github/github.json`](.github/github.json).
 
 ## Addon Inventory
 
+- [`web_hierarchy_d3`](web_hierarchy_d3/README.md): opt-in interactive chart for Odoo hierarchy views.
 - `authentik_sso`: Authentik OAuth2/OpenID Connect provider setup and group
   mapping helpers. Configuration methods are reserved for trusted callers.
   Internal-template signup applies only to the configured Authentik provider.

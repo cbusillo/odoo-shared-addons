@@ -26,6 +26,7 @@ are in [`.github/github.json`](.github/github.json).
 
 ## Addon Inventory
 
+- [`web_hierarchy_d3`](web_hierarchy_d3/README.md): opt-in interactive chart for Odoo hierarchy views.
 - `authentik_sso`: Authentik OAuth2/OpenID Connect provider setup and group
   mapping helpers. Configuration methods are reserved for trusted callers.
   Internal-template signup applies only to the configured Authentik provider.
@@ -46,6 +47,8 @@ are in [`.github/github.json`](.github/github.json).
   `document_page` wiki) and its
   defaults: contacts as cards, message panel below forms, an app-grid home and
   a lighter look.
+- [`house_standard_hr`](house_standard/README.md#employee-hierarchy): styles the
+  native employee hierarchy when Employees and House Standard are installed.
 - [`launchplane_settings`](launchplane_settings/README.md): adapter for applying
   Launchplane-managed instance settings inside Odoo, with a pure installed
   payload projection for verified readers.

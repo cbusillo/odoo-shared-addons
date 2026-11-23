@@ -46,6 +46,8 @@ are in [`.github/github.json`](.github/github.json).
   `document_page` wiki) and its
   defaults: contacts as cards, message panel below forms, an app-grid home and
   a lighter look.
+- [`house_standard_hr`](house_standard/README.md#employee-hierarchy): styles the
+  native employee hierarchy when Employees and House Standard are installed.
 - [`launchplane_settings`](launchplane_settings/README.md): adapter for applying
   Launchplane-managed instance settings inside Odoo, with a pure installed
   payload projection for verified readers.

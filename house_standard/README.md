@@ -33,3 +33,15 @@ The theme and wiki modules ship in the base image (cbusillo/odoo-docker), not
 here. A product adopts the standard by pinning an image pair that carries them and
 installing `house_standard`. Add a default here when every product should get
 it; keep product-specific choices in the product.
+
+## Employee hierarchy
+
+`house_standard_hr` styles Odoo's employee hierarchy for HR officers and
+internal staff. Employee cards use the existing photos or Odoo's fallback
+images. Department names and color bands identify teams, and the open branch
+is marked on its card.
+
+The companion installs automatically when House Standard and Employees are
+installed together or either is newly installed alongside the other. On an
+existing database with both installed, install `house_standard_hr` once
+through the product's normal module installation path.

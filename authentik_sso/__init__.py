@@ -42,7 +42,7 @@ def pre_init_hook(cr_or_env: api.Environment | Cursor) -> None:
             "name": "authentik_template_user",
             "model": "res.users",
             "res_id": existing_user.id,
-            "noupdate": False,
+            "noupdate": True,
         }
     )
 

@@ -75,6 +75,30 @@ class TestAppGridBrowser(HttpCase):
             login=staff.login,
         )
 
+    def test_mobile_home_menu_lists_apps_on_the_first_tap(self) -> None:
+        self.browser_size = "390x844"
+        staff = new_test_user(self.env, login="house-mobile-staff", groups="base.group_user,base.group_partner_manager")
+        self.browser_js(
+            "/odoo",
+            f"""(async () => {{
+                {WAIT_FOR_JS}
+                const homePath = location.pathname;
+                document.querySelector(".o_menu_toggle").click();
+                const contacts = await waitFor(
+                    () => document.querySelector('.o_app_menu_sidebar .o_app[data-menu-xmlid="contacts.menu_contacts"]'),
+                    "The first tap from Home did not show Contacts in the mobile menu"
+                );
+                contacts.click();
+                await waitFor(
+                    () => location.pathname !== homePath && !document.querySelector(".o_house_app_grid, .o_app_menu_sidebar"),
+                    "The Contacts entry did not open the app and close the drawer"
+                );
+                console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});
+            }})()""",
+            ready="Boolean(document.querySelector('.o_house_app_grid .o_house_app'))",
+            login=staff.login,
+        )
+
     def test_mobile_all_apps_opens_home_from_the_record_menu(self) -> None:
         self.browser_size = "390x844"
         contact = self.env["res.partner"].create({"name": "Synthetic Mobile Home Contact"})
@@ -88,11 +112,23 @@ class TestAppGridBrowser(HttpCase):
                     () => document.querySelector(".o_app_menu_sidebar .o_sidebar_topbar a"),
                     "The contextual mobile menu did not open"
                 );
+                const drawer = allApps.closest(".o_app_menu_sidebar");
+                const sections = drawer.querySelectorAll(
+                    '.o_burger_menu_content li[data-menu-xmlid^="contacts."]:not(.o_app)'
+                );
+                if (drawer.querySelector(".o_app") || ![...sections].some((section) => section.getClientRects().length)) {{
+                    throw new Error("The contact record's menu did not show Contacts sections");
+                }}
                 allApps.click();
                 await waitFor(
                     () => document.querySelector(".o_house_app_grid .o_house_app") &&
                           !document.querySelector(".o_app_menu_sidebar"),
                     "All Apps did not close the drawer and open the Home grid"
+                );
+                document.querySelector(".o_menu_toggle").click();
+                await waitFor(
+                    () => document.querySelector('.o_app_menu_sidebar .o_app[data-menu-xmlid="contacts.menu_contacts"]'),
+                    "Returning to Home from a record kept the drawer in the previous app"
                 );
                 console.log({json.dumps(DEFAULT_SUCCESS_SIGNAL)});
             }})()""",

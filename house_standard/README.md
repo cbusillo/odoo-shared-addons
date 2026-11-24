@@ -21,7 +21,8 @@ shared Odoo 20 base image provides: MuK's LGPL-3 Community backend theme,
   install it becomes the Home Action of every internal user who has none, and
   new users start with it; an admin can change a user's Home Action.
   The desktop apps button and the mobile menu's All Apps button open this same
-  grid. The grid and sidebar show the apps available to the signed-in user.
+  grid. On a phone, the top-left menu lists apps from Home and app sections
+  when an app is open. App lists show the apps available to the signed-in user.
 - A lighter look from this addon's stylesheet: a white top bar and app
   sidebar and Odoo's plum accent. They override MuK's colors, so MuK's color
   settings do not change them. Writing them as MuK settings would store them

@@ -33,5 +33,8 @@
             <attribute name="t-on-click.prevent"/>
             <attribute name="t-on-click">this._closeAppMenuSidebar</attribute>
         </xpath>
+        <xpath expr="//t[@t-if='!this.state.isAllAppsMenuOpened']" position="attributes">
+            <attribute name="t-if">!this.state.isAllAppsMenuOpened and this.currentApp</attribute>
+        </xpath>
     </t>
 </templates>

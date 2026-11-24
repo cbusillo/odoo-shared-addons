@@ -188,7 +188,7 @@ class TestAuthentikSso(UnitTestCase):
         xml_id = (
             self.env["ir.model.data"].sudo().search([("module", "=", "authentik_sso"), ("name", "=", "authentik_template_user")])
         )
-        xml_id.write({"noupdate": False})  # Previously installed database
+        xml_id.write({"noupdate": False})
         mail = self.env["mail.mail"].sudo()
         with patch.object(type(mail), "send", autospec=True):
             before = mail.search([])

@@ -195,7 +195,7 @@ class TestAuthentikSso(UnitTestCase):
             template.write({"login": "fixture-template-login"})
             login_notice = mail.search([]) - before
             self.assertEqual(len(login_notice), 1)
-            convert_file(self.env(su=True), "authentik_sso", "data/authentik_template_user.xml", {}, "update")
+            convert_file(self.env(su=True), "authentik_sso", "data/authentik_template_user.xml", {})
             self.assertEqual(set(mail.search([]).ids), set((before | login_notice).ids))
         self.assertEqual(template.login, "fixture-template-login")
 

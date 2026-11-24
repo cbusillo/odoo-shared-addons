@@ -183,6 +183,22 @@ class TestAuthentikSso(UnitTestCase):
 
         self.assertEqual(user.group_ids, existing_groups)
 
+    def test_template_upgrade_keeps_user_and_only_real_login_change_sends_mail(self) -> None:
+        template = self.env.ref("authentik_sso.authentik_template_user")
+        xml_id = (
+            self.env["ir.model.data"].sudo().search([("module", "=", "authentik_sso"), ("name", "=", "authentik_template_user")])
+        )
+        xml_id.write({"noupdate": False})
+        mail = self.env["mail.mail"].sudo()
+        with patch.object(type(mail), "send", autospec=True):
+            before = mail.search([])
+            template.write({"login": "fixture-template-login"})
+            login_notice = mail.search([]) - before
+            self.assertEqual(len(login_notice), 1)
+            convert_file(self.env(su=True), "authentik_sso", "data/authentik_template_user.xml", {})
+            self.assertEqual(set(mail.search([]).ids), set((before | login_notice).ids))
+        self.assertEqual(template.login, "fixture-template-login")
+
     def _load_mapping_data(self, mode: str) -> None:
         # Load the shipped mapping data the way Odoo's module loader does.
         convert_file(

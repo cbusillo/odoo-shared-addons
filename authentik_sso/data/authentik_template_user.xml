@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <data>
+    <data noupdate="1">
         <record id="authentik_template_user" model="res.users">
             <field name="name">Authentik Template User</field>
             <field name="login">authentik_template_user</field>

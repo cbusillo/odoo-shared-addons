@@ -185,7 +185,9 @@ class TestAuthentikSso(UnitTestCase):
 
     def test_template_upgrade_keeps_user_and_only_real_login_change_sends_mail(self) -> None:
         template = self.env.ref("authentik_sso.authentik_template_user")
-        xml_id = self.env["ir.model.data"].sudo().search([("module", "=", "authentik_sso"), ("name", "=", "authentik_template_user")])
+        xml_id = (
+            self.env["ir.model.data"].sudo().search([("module", "=", "authentik_sso"), ("name", "=", "authentik_template_user")])
+        )
         xml_id.write({"noupdate": False})  # Previously installed database
         mail = self.env["mail.mail"].sudo()
         with patch.object(type(mail), "send", autospec=True):

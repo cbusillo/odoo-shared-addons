@@ -53,12 +53,16 @@ class TestHouseDefaults(TransactionCase):
     def test_upgrades_preserve_explicit_login_choices(self) -> None:
         parameters = self.env["ir.config_parameter"].sudo()
         parameters.set_str("auth_signup.invitation_scope", "b2c")
+        website = self.env.ref("base.default_website")
+        if site_scope := website._fields.get("auth_signup_uninvited"):
+            website[site_scope.name] = False
         provider = self.env.ref("auth_oauth.provider_openerp")
         provider.enabled = True
 
         convert_file(self.env, "house_standard", "data/login_defaults.xml", {}, mode="update")
 
-        user = self.env["res.users"]._signup_create_user({"name": "Chosen Signup", "login": "chosen-signup@example.test"})
+        users = self.env["res.users"].with_context(host_id=website.id)
+        user = users._signup_create_user({"name": "Chosen Signup", "login": "chosen-signup@example.test"})
         self.assertTrue(user.share)
         self.assertTrue(provider.enabled)
 

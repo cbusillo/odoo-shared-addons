@@ -34,7 +34,8 @@ are in [`.github/github.json`](.github/github.json).
   link a verified email to one active internal user's login or email. Returning
   users sign in by provider and subject. First linking trusts the provider to
   verify the current address and the Odoo account's login and email to identify
-  its owner. Confirm both before enabling it on a lane. Both paths preserve groups and reject
+  its owner. These conditions must hold whenever a new identity links, including
+  after an email change. Both paths preserve groups and reject
   invitation and reset tokens in this mode. An explicit `provision` or a new
   Authentik settings block omitting the selector restores the default. A payload
   without an Authentik block leaves the applied configuration in place. Unknown

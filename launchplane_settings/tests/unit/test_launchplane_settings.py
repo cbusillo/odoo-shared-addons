@@ -388,15 +388,15 @@ class TestLaunchplaneSettings(UnitTestCase):
                 self.Settings.apply_from_env()
 
         provider = {"base_url": "https://auth.example.test", "client_id": "fixture-only"}
-        key = "authentik_sso.callback_mode"
+        parameter_name = "authentik_sso.callback_mode"
         apply(provider)
-        self.assertEqual(self.ConfigParameter.get_str(key), "provision")
+        self.assertEqual(self.ConfigParameter.get_str(parameter_name), "provision")
         for reset in ({"callback_mode": "provision"}, {}):
             apply({**provider, "callback_mode": "existing_user"})
             apply({})
-            self.assertEqual(self.ConfigParameter.get_str(key), "existing_user")
+            self.assertEqual(self.ConfigParameter.get_str(parameter_name), "existing_user")
             with self.assertRaises(ValidationError):
                 apply({**provider, "callback_mode": "unknown"})
-            self.assertEqual(self.ConfigParameter.get_str(key), "existing_user")
+            self.assertEqual(self.ConfigParameter.get_str(parameter_name), "existing_user")
             apply({**provider, **reset})
-            self.assertEqual(self.ConfigParameter.get_str(key), "provision")
+            self.assertEqual(self.ConfigParameter.get_str(parameter_name), "provision")

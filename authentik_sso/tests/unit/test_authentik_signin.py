@@ -163,7 +163,7 @@ class TestAuthentikSignin(UnitTestCase):
             self.Users.sudo()
             .with_context(active_test=False)
             .search([])
-            .read(["oauth_provider_id", "oauth_uid", "oauth_access_token", "group_ids", "all_group_ids"], load=None)
+            .read(["oauth_provider_id", "oauth_uid", "oauth_access_token", "group_ids", "all_group_ids"])
         )
 
     def _assert_existing_user_refused(self, claims: dict[str, object], token: str | None = None) -> None:

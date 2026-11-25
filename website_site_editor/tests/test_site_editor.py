@@ -1,0 +1,170 @@
+from typing import Any
+
+from odoo import Command
+from odoo.exceptions import AccessError
+from odoo.tests import HttpCase, tagged
+
+
+@tagged("-at_install", "post_install")
+class TestSiteEditor(HttpCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        cls.first_site = cls.env["website"].search([], limit=1)
+        cls.second_site = cls.env["website"].create({"name": "Pebble Grove"})
+        cls.first_editor, cls.second_editor = (
+            cls.env["res.users"]
+            .with_context(no_reset_password=True)
+            .create(
+                [
+                    {
+                        "name": login.title(),
+                        "login": login,
+                        "password": login,
+                        "group_ids": [Command.set([cls.env.ref("website_site_editor.group_editor").id])],
+                    }
+                    for login in ("inkfinch", "sandfinch")
+                ]
+            )
+        )
+        cls.first_site.site_editor_ids = cls.first_editor
+        cls.second_site.site_editor_ids = cls.second_editor
+        cls.pages = cls.env["website.page"]
+        for site, content in ((cls.first_site, "Amber leaf"), (cls.second_site, "Silver leaf")):
+            view = cls.env["ir.ui.view"].create(
+                {
+                    "name": "Garden notebook",
+                    "key": "site_editor_test.garden",
+                    "website_id": site.id,
+                    "type": "qweb",
+                    "arch": '<t t-name="site_editor_test.garden"><t t-call="website.layout"><div id="wrap"><h2 id="garden-heading">Garden notebook</h2><t t-call="website_site_editor.page_body"/></div></t></t>',
+                }
+            )
+            cls.pages |= cls.env["website.page"].create(
+                {
+                    "view_id": view.id,
+                    "url": "/garden-notebook",
+                    "is_published": True,
+                    "site_editor_body": f"<p>{content}</p>",
+                }
+            )
+        cls.first_page, cls.second_page = cls.pages
+        cls.preview = cls.first_site.get_client_action_url("/garden-notebook")
+
+    def test_builder_saves_body_without_changing_template(self) -> None:
+        template = self.env.ref("website_site_editor.page_body")
+        originals = (template | self.pages.view_id).mapped("arch_db")
+        self.start_tour(self.preview, "site_editor_text", login=self.first_editor.login)
+        self.start_tour(self.preview, "site_editor_block", login=self.first_editor.login)
+        self.pages.invalidate_recordset()
+        self.assertIn("Golden fern", self.first_page.site_editor_body)
+        self.assertIn("s_text_block", self.first_page.site_editor_body)
+        self.assertEqual(self.second_page.site_editor_body, "<p>Silver leaf</p>")
+        self.assertEqual((template | self.pages.view_id).mapped("arch_db"), originals)
+        self.assertFalse(self.env["ir.ui.view"].search_count([("key", "=", template.key), ("website_id", "!=", False)]))
+        self.authenticate(None, None)
+        response = self.url_open("/garden-notebook")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Golden fern", response.text)
+        self.assertNotIn('data-editable="1"', response.text)
+
+    def test_builder_moves_and_removes_blocks(self) -> None:
+        self.first_page.site_editor_body = "".join(
+            f'<section class="s_text_block garden-{label}" data-snippet="s_text_block" data-name="Text"><div class="container"><p>{label} ferns</p></div></section>'
+            for label in ("one", "two", "three")
+        )
+        self.start_tour(self.preview, "site_editor_arrange", login=self.first_editor.login)
+        self.first_page.invalidate_recordset()
+        body = self.first_page.site_editor_body
+        self.assertLess(body.index("two ferns"), body.index("one ferns"))
+        self.assertNotIn("three ferns", body)
+
+    def test_unassigned_preview_has_no_edit_control(self) -> None:
+        self.start_tour(self.preview, "site_editor_unassigned", login=self.second_editor.login)
+
+    def test_rpc_checks_each_assigned_site(self) -> None:
+        for editor, own, other in (
+            (self.first_editor, self.first_page, self.second_page),
+            (self.second_editor, self.second_page, self.first_page),
+        ):
+            self.authenticate(editor.login, editor.login)
+            own_value = f"<p>{editor.login} garden</p>"
+            other_value = other.site_editor_body
+            self.assertTrue(self._rpc_write(own, {"site_editor_body": own_value})["result"])
+            self.assertEqual(
+                self._rpc_write(other, {"site_editor_body": own_value})["error"]["data"]["name"], "odoo.exceptions.AccessError"
+            )
+            self.pages.invalidate_recordset()
+            self.assertEqual(own.site_editor_body, own_value)
+            self.assertEqual(other.site_editor_body, other_value)
+
+    def _rpc_write(self, page: "odoo.model.website_page", values: dict[str, Any]) -> dict[str, Any]:
+        response = self.url_open(
+            "/web/dataset/call_kw/website.page.write",
+            json={
+                "jsonrpc": "2.0",
+                "method": "call",
+                "id": 1,
+                "params": {"model": page._name, "method": "write", "args": [[page.id], values], "kwargs": {}},
+            },
+        )
+        self.assertEqual(response.status_code, 200)
+        return response.json()
+
+    def test_page_url_menu_and_homepage_follow_the_assignment(self) -> None:
+        for page, editor, other in (
+            (self.first_page, self.first_editor, self.second_editor),
+            (self.second_page, self.second_editor, self.first_editor),
+        ):
+            site = page.website_id
+            site.with_user(editor).write({"homepage_url": page.url})
+            page.with_user(editor).with_context(website_id=site.id, lang=site.default_lang_id.code).write(
+                {"url": "/ferns", "website_indexed": False}
+            )
+            self.assertEqual(site.homepage_url, page.url)
+            self.assertEqual(page.url, "/ferns")
+            self.assertFalse(page.website_indexed)
+            menus = self.env["website.menu"].with_user(editor)
+            entry = {
+                "id": "new-fern",
+                "parent_id": site.menu_id.id,
+                "name": "Ferns",
+                "url": page.url,
+                "new_window": False,
+                "sequence": 2,
+                "is_mega_menu": False,
+            }
+            menus.save(site.id, {"data": [entry]})
+            menu = menus.browse(entry["id"])
+            self.assertEqual(menu.website_id, site)
+            self.assertEqual(menu.page_id, page)
+            with self.assertRaises(AccessError):
+                menu.with_user(other).write({"name": "Different name"})
+            with self.assertRaises(AccessError):
+                page.with_user(other).write({"url": "/unassigned"})
+            with self.assertRaises(AccessError):
+                site.with_user(other).sudo().write({"homepage_url": "/unassigned"})
+            self.assertEqual(site.homepage_url, "/ferns")
+            menus.save(site.id, {"data": [], "to_delete": [menu.id]})
+            self.assertFalse(menu.exists())
+
+    def test_template_global_settings_and_site_binding_stay_admin_owned(self) -> None:
+        editor = self.first_editor
+        for record, values in (
+            (self.first_page.view_id, {"name": "New template name"}),
+            (self.env.ref("website_site_editor.page_body"), {"name": "Shared frame"}),
+            (self.first_page, {"view_id": self.second_page.view_id.id}),
+            (self.first_site, {"custom_code_head": "<!-- garden -->"}),
+            (self.second_site, {"site_editor_ids": [Command.link(editor.id)]}),
+        ):
+            with self.assertRaises(AccessError):
+                record.with_user(editor).write(values)
+        self.assertFalse(self.env["res.config.settings"].with_user(editor).has_access("create"))
+        self.first_site.site_editor_ids = [Command.clear()]
+        with self.assertRaises(AccessError):
+            self.first_page.with_user(editor).write({"site_editor_body": "<p>Fern</p>"})
+        admin = self.env.ref("base.user_admin")
+        self.second_site.with_user(admin).write({"homepage_url": "/garden-notebook"})
+        self.first_page.view_id.with_user(admin).write({"name": "Garden frame"})
+        self.assertEqual(self.second_site.homepage_url, self.second_page.url)
+        self.assertEqual(self.first_page.view_id.name, "Garden frame")

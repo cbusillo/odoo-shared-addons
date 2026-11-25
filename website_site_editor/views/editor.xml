@@ -1,0 +1,59 @@
+<odoo>
+    <template id="page_body" name="Assigned editor page body">
+        <div class="o_site_editor_body" data-site-editor-body="1" t-field="main_object.site_editor_body"/>
+    </template>
+    <template id="layout_access" inherit_id="website.layout">
+        <xpath expr="//html" position="attributes">
+            <attribute name="t-att-data-site-editor-access">website._site_editor_access()</attribute>
+        </xpath>
+    </template>
+    <record id="settings_editors" model="ir.ui.view">
+        <field name="model">website</field>
+        <field name="inherit_id" ref="website.view_website_form"/>
+        <field name="arch" type="xml">
+            <field name="domain" position="after">
+                <field name="site_editor_ids" widget="many2many_tags" groups="base.group_system"
+                       options="{'no_create': True}" domain="[('share', '=', False)]"/>
+            </field>
+        </field>
+    </record>
+    <record id="page_body_form" model="ir.ui.view">
+        <field name="model">website.page</field>
+        <field name="inherit_id" ref="website.website_pages_form_view"/>
+        <field name="arch" type="xml">
+            <field name="menu_ids" position="after"><field name="site_editor_body" groups="base.group_system"/></field>
+        </field>
+    </record>
+    <record id="settings_list" model="ir.ui.view">
+        <field name="model">website</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list string="Assigned websites" editable="bottom" create="0" delete="0">
+                <field name="name"/><field name="homepage_url"/>
+            </list>
+        </field>
+    </record>
+    <record id="page_list" model="ir.ui.view">
+        <field name="model">website.page</field>
+        <field name="priority">90</field>
+        <field name="arch" type="xml">
+            <list string="Assigned pages" editable="bottom" create="0" delete="0">
+                <field name="website_id" readonly="1"/><field name="url"/><field name="website_indexed"/>
+            </list>
+        </field>
+    </record>
+    <record id="assigned_sites" model="ir.actions.server">
+        <field name="name">Assigned websites</field>
+        <field name="model_id" ref="website.model_website"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_site_editor_settings()</field>
+    </record>
+    <record id="assigned_pages" model="ir.actions.server">
+        <field name="name">Assigned pages</field>
+        <field name="model_id" ref="website.model_website_page"/>
+        <field name="state">code</field>
+        <field name="code">action = model.action_site_editor_pages()</field>
+    </record>
+    <menuitem id="menu_settings" name="Assigned websites" parent="website.menu_site" groups="group_editor" action="assigned_sites"/>
+    <menuitem id="menu_pages" name="Assigned pages" parent="website.menu_site" groups="group_editor" action="assigned_pages"/>
+</odoo>

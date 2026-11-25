@@ -54,8 +54,8 @@ class TestHouseDefaults(TransactionCase):
         parameters = self.env["ir.config_parameter"].sudo()
         parameters.set_str("auth_signup.invitation_scope", "b2c")
         website = self.env.ref("base.default_website")
-        if "auth_signup_uninvited" in website._fields:
-            website["auth_signup_uninvited"] = False
+        if site_scope := website._fields.get("auth_signup_uninvited"):
+            website[site_scope.name] = False
         provider = self.env.ref("auth_oauth.provider_openerp")
         provider.enabled = True
 

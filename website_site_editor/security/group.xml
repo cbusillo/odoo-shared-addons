@@ -1,0 +1,8 @@
+<odoo>
+    <record id="group_editor" model="res.groups">
+        <field name="name">Assigned Website Editor</field>
+        <field name="privilege_id" ref="website.res_groups_privilege_website"/>
+        <field name="sequence">15</field>
+        <field name="implied_ids" eval="[Command.link(ref('website.group_website_restricted_editor')), Command.link(ref('website.group_multi_website'))]"/>
+    </record>
+</odoo>

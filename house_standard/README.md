@@ -35,6 +35,9 @@ here. A product adopts the standard by pinning an image pair that carries them a
 installing `house_standard`. Add a default here when every product should get
 it; keep product-specific choices in the product.
 
+Installing or upgrading `house_standard` also installs the shared
+[`environment_banner`](../environment_banner/README.md).
+
 ## Employee hierarchy
 
 `house_standard_hr` styles Odoo's employee hierarchy for HR officers and

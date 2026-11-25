@@ -273,6 +273,7 @@ class TestAuthentikSignin(UnitTestCase):
         self.assertEqual((login, token, user.oauth_uid), (user.login, params["access_token"], "validated"))
 
     def test_invited_signup_remains_available_to_provisioning_and_other_providers(self) -> None:
+        users = self.Users.with_user(SUPERUSER_ID).with_context(host_id=self.env.ref("base.default_website").id)
         for provider in (self.provider, self.env.ref("auth_oauth.provider_openerp")):
             if provider != self.provider:
                 self._select_existing_users()
@@ -280,9 +281,7 @@ class TestAuthentikSignin(UnitTestCase):
             partner = self.env["res.partner"].create({"name": "Invited", "email": address})
             partner.signup_prepare()
             params = {"access_token": "fixture-token", "state": json.dumps({"t": partner._generate_signup_token()})}
-            login = self.Users.with_user(SUPERUSER_ID)._auth_oauth_signin(
-                provider.id, {"user_id": "invited", "email": address}, params
-            )
+            login = users._auth_oauth_signin(provider.id, {"user_id": "invited", "email": address}, params)
             self.assertEqual(login, address)
             self.assertEqual(partner.user_ids.oauth_provider_id, provider)
             self.assertFalse(partner.signup_type)

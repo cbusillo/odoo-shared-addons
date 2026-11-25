@@ -36,7 +36,7 @@ class TestAuthentikSignin(UnitTestCase):
     def _signin(self, validation: dict[str, object], *, access_token: str = "token-1") -> str | None:
         params = {"access_token": access_token, "state": json.dumps({})}
         self.env.flush_all()
-        anonymous_env = api.Environment(self.env.cr, None, {})
+        anonymous_env = api.Environment(self.env.cr, None, {"host_id": self.env.ref("base.default_website").id})
         with patch.object(self.env.cr.transaction, "default_env", anonymous_env):
             login = anonymous_env["res.users"].with_user(SUPERUSER_ID)._auth_oauth_signin(self.provider.id, validation, params)
             anonymous_env.cr.flush()
@@ -110,7 +110,9 @@ class TestAuthentikSignin(UnitTestCase):
 
     def _other_provider_signin(self, subject: str) -> str | None:
         provider = self.env.ref("auth_oauth.provider_openerp")
-        users = self.Users.with_user(SUPERUSER_ID).with_context(oauth_use_internal_template=True)
+        users = self.Users.with_user(SUPERUSER_ID).with_context(
+            oauth_use_internal_template=True, host_id=self.env.ref("base.default_website").id
+        )
         return users._auth_oauth_signin(
             provider.id,
             {"user_id": subject, "email": f"{subject}@example.invalid", "name": subject},
@@ -118,6 +120,9 @@ class TestAuthentikSignin(UnitTestCase):
         )
 
     def test_other_provider_uses_native_portal_template(self) -> None:
+        website = self.env.ref("base.default_website")
+        if "auth_signup_uninvited" in website._fields:
+            website["auth_signup_uninvited"] = False
         self.env["ir.config_parameter"].sudo().set_str("auth_signup.invitation_scope", "b2c")
 
         login = self._other_provider_signin("other-portal")

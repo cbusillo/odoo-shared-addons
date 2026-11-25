@@ -214,6 +214,8 @@ class TestAuthentikSignin(UnitTestCase):
         other.active = False
         self.provider.enabled = False
         self._assert_existing_user_refused(claims)
+        self.provider.enabled = True
+        self.assertEqual(self._signin(claims), user.login)
 
     def test_existing_mode_denies_ineligible_subject_before_considering_email(self) -> None:
         self._select_existing_users()
@@ -256,12 +258,12 @@ class TestAuthentikSignin(UnitTestCase):
         params = {"access_token": "fixture-token", "state": "{}"}
         before = self._user_auth_state()
         with patch.object(type(self.Users), "_auth_oauth_rpc", return_value={}), TestCase.assertRaises(self, AccessDenied):
-            self.Users.auth_oauth(self.provider.id, params)
+            self.Users.with_user(SUPERUSER_ID).auth_oauth(self.provider.id, params)
         self.env.invalidate_all()
         self.assertEqual(self._user_auth_state(), before)
         claims = {"sub": "validated", "email": user.login, "email_verified": True}
         with patch.object(type(self.Users), "_auth_oauth_rpc", return_value=claims):
-            _, login, token = self.Users.auth_oauth(self.provider.id, params)
+            _, login, token = self.Users.with_user(SUPERUSER_ID).auth_oauth(self.provider.id, params)
         self.assertEqual((login, token, user.oauth_uid), (user.login, params["access_token"], "validated"))
 
     def test_invited_signup_remains_available_to_provisioning_and_other_providers(self) -> None:
@@ -272,7 +274,9 @@ class TestAuthentikSignin(UnitTestCase):
             partner = self.env["res.partner"].create({"name": "Invited", "email": address})
             partner.signup_prepare()
             params = {"access_token": "fixture-token", "state": json.dumps({"t": partner._generate_signup_token()})}
-            login = self.Users._auth_oauth_signin(provider.id, {"user_id": "invited", "email": address}, params)
+            login = self.Users.with_user(SUPERUSER_ID)._auth_oauth_signin(
+                provider.id, {"user_id": "invited", "email": address}, params
+            )
             self.assertEqual(login, address)
             self.assertEqual(partner.user_ids.oauth_provider_id, provider)
             self.assertFalse(partner.signup_type)

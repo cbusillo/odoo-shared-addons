@@ -1,12 +1,12 @@
 {
     "name": "House Standard",
-    "version": "20.0.1.5.0",
+    "version": "20.0.1.6.0",
     "summary": "Install the house backend look and defaults every product shares",
     "category": "Hidden",
     "author": "Chris Busillo (Shiny Computers)",
     "maintainers": ["cbusillo"],
     "license": "LGPL-3",
-    "depends": ["auth_oauth", "auth_signup", "contacts", "document_page", "muk_web_theme"],
+    "depends": ["auth_oauth", "auth_signup", "contacts", "document_page", "environment_banner", "muk_web_theme"],
     "data": [
         "data/app_grid_action.xml",
         "data/contacts_action.xml",

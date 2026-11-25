@@ -7,7 +7,7 @@ from odoo.tests import HttpCase, tagged
 @tagged("-at_install", "post_install")
 class TestEnvironmentBannerBrowser(HttpCase):
     def test_only_production_hides_the_warning(self) -> None:
-        for lane, shown in (("preview", True), ("testing", True), ("", True), ("prod", False)):
+        for lane, shown in (("preview", True), ("testing", True), ("unknown", True), ("", True), ("prod", False)):
             with self.subTest(lane=lane), patch.dict(os.environ, {"PLATFORM_INSTANCE": lane}):
                 self.browser_js(
                     "/odoo",

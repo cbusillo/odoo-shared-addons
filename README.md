@@ -26,6 +26,8 @@ are in [`.github/github.json`](.github/github.json).
 
 ## Addon Inventory
 
+- [`website_site_editor`](website_site_editor/README.md) lets assigned editors maintain prepared website pages, navigation and site settings.
+
 - [`web_hierarchy_d3`](web_hierarchy_d3/README.md): opt-in interactive chart for Odoo hierarchy views.
 - `authentik_sso`: Authentik OAuth2/OpenID Connect provider setup and group
   mapping helpers. Configuration methods are reserved for trusted callers.

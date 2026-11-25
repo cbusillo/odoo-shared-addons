@@ -34,7 +34,7 @@ class WebsiteMenu(models.Model):
             site = self.env["website"].browse(vals.get("website_id", self.env.website.id))
             self._check_site_menu_values(vals, site)
             vals["website_id"] = site.id
-            vals.setdefault("parent_id", site.menu_id.id)
+            vals["parent_id"] = vals.get("parent_id") or site.menu_id.id
         return super(WebsiteMenu, self.with_context(clean_context)).create(vals_list)
 
     def write(self, vals: "odoo.values.website_menu") -> Literal[True]:
@@ -48,6 +48,8 @@ class WebsiteMenu(models.Model):
             if "website_id" in vals or vals.keys() - self._site_editor_fields:
                 raise denied(self.env)
             for menu in self:
+                if "parent_id" in vals and (not vals["parent_id"] or not menu.parent_id):
+                    raise denied(self.env)
                 self._check_site_menu_values(vals, menu.website_id)
         return super().write(vals)
 

@@ -34,6 +34,12 @@ class WebsitePage(models.Model):
             return False
         return super()._has_field_access(field, operation)
 
+    def _handle_url_update(self, page: "odoo.model.website_page", website_id: int, url: str, lang: str) -> str:
+        if is_site_editor(self.env):
+            scoped = self.with_context(website_id=page.website_id.id)
+            return super(WebsitePage, scoped)._handle_url_update(page, page.website_id.id, url, lang)
+        return super()._handle_url_update(page, website_id, url, lang)
+
     def _update_field_translations(
         self, field_name: str, translations: dict[str, Any], digest: Callable | None = None, source_lang: str = ""
     ) -> bool:

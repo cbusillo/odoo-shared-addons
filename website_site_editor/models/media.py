@@ -61,6 +61,17 @@ class IrAttachment(models.Model):
                 self._check_editor_media(vals)
         return values
 
+    def copy_data(self, default: "odoo.values.ir_attachment | None" = None) -> list["odoo.values.ir_attachment"]:
+        if (
+            default
+            and default.get("original_id")
+            and default.get("type") == "binary"
+            and self.env.website
+            and is_site_editor(self.env)
+        ):
+            default = dict(default, website_id=self.env.website.id, url=False)
+        return super().copy_data(default)
+
     def _check_existing_editor_media(self, changes: "odoo.values.ir_attachment") -> None:
         if is_site_editor(self.env):
             for values in self.sudo().read(self._editor_media_fields, load=""):

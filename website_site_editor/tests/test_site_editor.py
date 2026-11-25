@@ -253,4 +253,54 @@ class TestSiteEditor(HttpCase):
         self.assertEqual(self.first_site.homepage_url, self.first_page.url)
         self.start_tour(self.preview, "site_editor_page_url", login=self.first_editor.login)
         self.assertEqual(self.first_page.url, "/fern-notebook")
+        self.assertEqual(self.first_site.homepage_url, self.first_page.url)
         self.assertEqual(self.second_page.url, "/garden-notebook")
+
+    def test_other_host_cannot_redirect_a_homepage_rename(self) -> None:
+        for site in (self.first_site, self.second_site):
+            site.homepage_url = self.second_page.url
+        self.second_page.with_user(self.second_editor).with_context(
+            website_id=self.first_site.id, lang=self.second_site.default_lang_id.code
+        ).write({"url": "/moss-garden"})
+        self.assertEqual(self.second_site.homepage_url, "/moss-garden")
+        self.assertEqual(self.first_site.homepage_url, self.first_page.url)
+
+    def test_navigation_entry_cannot_become_an_extra_root(self) -> None:
+        menus = self.env["website.menu"].with_user(self.first_editor)
+        menu = menus.create({"website_id": self.first_site.id, "name": "Trees", "parent_id": False})
+        self.assertEqual(menu.parent_id, self.first_site.menu_id)
+        with self.assertRaises(AccessError):
+            menu.write({"parent_id": False})
+        self.assertEqual(menu.parent_id, self.first_site.menu_id)
+
+    def test_native_image_editor_copies_shared_media_onto_the_current_site(self) -> None:
+        with BytesIO() as data:
+            Image.new("RGB", (8, 8), "green").save(data, format="PNG")
+            original = self.env["ir.attachment"].create(
+                {
+                    "name": "ferns.png",
+                    "type": "binary",
+                    "raw": data.getvalue(),
+                    "public": True,
+                    "url": "/website/static/fixture/ferns.png",
+                    "res_model": "ir.ui.view",
+                }
+            )
+            data.seek(0)
+            data.truncate()
+            Image.new("RGB", (4, 4), "green").save(data, format="PNG")
+            self.authenticate(self.first_editor.login, self.first_editor.login)
+            self.make_jsonrpc_request(
+                f"/web_editor/modify_image/{original.id}",
+                {
+                    "res_model": "website.page",
+                    "res_id": self.first_page.id,
+                    "data": base64.b64encode(data.getvalue()).decode(),
+                    "mimetype": "image/png",
+                },
+            )
+        variant = self.env["ir.attachment"].search([("original_id", "=", original.id)])
+        self.assertEqual(variant.website_id, self.first_site)
+        self.assertFalse(variant.url)
+        self.assertFalse(original.website_id)
+        self.assertEqual(original.url, "/website/static/fixture/ferns.png")

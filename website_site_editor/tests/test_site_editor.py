@@ -1,8 +1,11 @@
+import base64
+from io import BytesIO
 from typing import Any
 
 from odoo import Command
 from odoo.exceptions import AccessError
 from odoo.tests import HttpCase, tagged
+from PIL import Image
 
 
 @tagged("-at_install", "post_install")
@@ -45,6 +48,7 @@ class TestSiteEditor(HttpCase):
                     "view_id": view.id,
                     "url": "/garden-notebook",
                     "is_published": True,
+                    "site_editor_body_enabled": True,
                     "site_editor_body": f"<p>{content}</p>",
                 }
             )
@@ -52,6 +56,7 @@ class TestSiteEditor(HttpCase):
         cls.preview = cls.first_site.get_client_action_url("/garden-notebook")
 
     def test_builder_saves_body_without_changing_template(self) -> None:
+        self.assertIn("Amber leaf", self.url_open("/garden-notebook").text)
         template = self.env.ref("website_site_editor.page_body")
         originals = (template | self.pages.view_id).mapped("arch_db")
         self.start_tour(self.preview, "site_editor_text", login=self.first_editor.login)
@@ -150,6 +155,11 @@ class TestSiteEditor(HttpCase):
 
     def test_template_global_settings_and_site_binding_stay_admin_owned(self) -> None:
         editor = self.first_editor
+        self.assertFalse(self.env["ir.ui.view"].with_user(editor).has_access("write"))
+        self.assertFalse(self.first_page.view_id.with_user(editor).has_access("write"))
+        self.first_page.site_editor_body_enabled = False
+        with self.assertRaises(AccessError):
+            self.first_page.with_user(editor).write({"site_editor_body": "<p>Before preparation</p>"})
         for record, values in (
             (self.first_page.view_id, {"name": "New template name"}),
             (self.env.ref("website_site_editor.page_body"), {"name": "Shared frame"}),
@@ -168,3 +178,67 @@ class TestSiteEditor(HttpCase):
         self.first_page.view_id.with_user(admin).write({"name": "Garden frame"})
         self.assertEqual(self.second_site.homepage_url, self.second_page.url)
         self.assertEqual(self.first_page.view_id.name, "Garden frame")
+
+    def test_builder_image_stays_on_its_site(self) -> None:
+        self.authenticate(self.first_editor.login, self.first_editor.login)
+        with BytesIO() as data:
+            Image.new("RGB", (8, 8), "green").save(data, format="PNG")
+            media = self.make_jsonrpc_request(
+                "/html_editor/attachment/add_data",
+                {
+                    "name": "fern.png",
+                    "data": base64.b64encode(data.getvalue()).decode(),
+                    "is_image": True,
+                    "res_model": "website.page",
+                    "res_id": self.first_page.id,
+                },
+            )
+        attachment = self.env["ir.attachment"].browse(media["id"])
+        self.assertEqual(attachment.website_id, self.first_site)
+        with self.assertRaises(AccessError):
+            attachment.with_user(self.second_editor).sudo().write({"name": "Other image"})
+        with self.assertRaises(AccessError):
+            attachment.with_user(self.first_editor).write({"website_id": self.second_site.id})
+        self.assertEqual(attachment.name, "fern.png")
+        self.assertEqual(attachment.website_id, self.first_site)
+        token = attachment.with_user(self.first_editor).generate_access_token()[0]
+        image_url = f"/web/image/{attachment.id}?access_token={token}"
+        self.first_page.with_user(self.first_editor).write({"site_editor_body": f'<p><img src="{image_url}" alt="Fern"/></p>'})
+        self.authenticate(None, None)
+        self.assertIn(image_url, self.url_open(self.first_page.url).text)
+        self.assertEqual(self.url_open(image_url).headers["Content-Type"].split(";")[0], "image/png")
+
+    def test_scoped_builder_uses_the_target_page_assignment(self) -> None:
+        editor = self.first_editor
+        template = self.env.ref("website_site_editor.page_body")
+        self.authenticate(editor.login, editor.login)
+        response = self.url_open(
+            "/web/dataset/call_kw/ir.ui.view.save",
+            json={
+                "jsonrpc": "2.0",
+                "method": "call",
+                "id": 1,
+                "params": {
+                    "model": "ir.ui.view",
+                    "method": "save",
+                    "args": [
+                        [template.id],
+                        f'<div data-oe-model="website.page" data-oe-id="{self.second_page.id}" data-oe-type="html" data-oe-field="site_editor_body"><p>Garden copy</p></div>',
+                    ],
+                    "kwargs": {"context": {"website_id": self.first_site.id}},
+                },
+            },
+        )
+        self.assertEqual(response.json()["error"]["data"]["name"], "odoo.exceptions.AccessError")
+        self.assertEqual(self.second_page.site_editor_body, "<p>Silver leaf</p>")
+        with self.assertRaises(AccessError):
+            self.env["theme.utils"].with_user(editor).with_context(website_id=self.second_site.id).enable_asset(
+                "website.ripple_effect_css"
+            )
+
+    def test_grid_layout_survives_an_ordinary_body_save(self) -> None:
+        page = self.first_page.with_user(self.first_editor)
+        page.write(
+            {"site_editor_body": '<section class="o_grid_mode"><div style="grid-area: 1 / 2 / 3 / 4">Golden fern</div></section>'}
+        )
+        self.assertIn("grid-area", self.first_page.site_editor_body)

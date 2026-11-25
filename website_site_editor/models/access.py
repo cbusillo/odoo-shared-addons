@@ -4,6 +4,8 @@ from odoo import fields, models
 from odoo.api import Environment
 from odoo.exceptions import AccessError
 
+PAGE_FIELD_ACCESS = object()
+
 
 def is_site_editor(env: Environment) -> bool:
     return env.user.has_group("website_site_editor.group_editor") and not env.user.has_group("base.group_system")

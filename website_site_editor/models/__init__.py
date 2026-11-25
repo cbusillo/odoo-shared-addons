@@ -1,1 +1,1 @@
-from . import access, menu, page, view, website
+from . import access, media, menu, page, view, website

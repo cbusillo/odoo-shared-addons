@@ -1,6 +1,6 @@
 <odoo>
     <template id="page_body" name="Assigned editor page body">
-        <div class="o_site_editor_body" data-site-editor-body="1" t-field="main_object.site_editor_body"/>
+        <div t-if="main_object.site_editor_body_enabled and main_object.website_id == website" class="o_site_editor_body" data-site-editor-body="1" t-field="main_object.site_editor_body"/>
     </template>
     <template id="layout_access" inherit_id="website.layout">
         <xpath expr="//html" position="attributes">
@@ -21,7 +21,7 @@
         <field name="model">website.page</field>
         <field name="inherit_id" ref="website.website_pages_form_view"/>
         <field name="arch" type="xml">
-            <field name="menu_ids" position="after"><field name="site_editor_body" groups="base.group_system"/></field>
+            <field name="menu_ids" position="after"><field name="site_editor_body_enabled" groups="base.group_system"/><field name="site_editor_body" groups="base.group_system"/></field>
         </field>
     </record>
     <record id="settings_list" model="ir.ui.view">

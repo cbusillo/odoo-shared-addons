@@ -18,8 +18,11 @@ patch(websiteService, {
                     const current = super.currentWebsite;
                     if (current?.metadata) {
                         const allowed = access(this) === "assigned";
-                        current.metadata.editable = allowed && !!this.pageDocument.querySelector("[data-site-editor-body]");
-                        current.metadata.translatable = false;
+                        current.metadata.editable = allowed && !current.metadata.translatable && !!this.pageDocument.querySelector("[data-site-editor-body][data-oe-field=site_editor_body]");
+
+                        if (!allowed) {
+                            current.metadata.translatable = false;
+                        }
                         current.metadata.canPublish = false;
                         current.metadata.canOptimizeSeo = false;
                         current.metadata.editableInBackend = false;

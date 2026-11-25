@@ -1,19 +1,26 @@
 from typing import Any
 
 from lxml import html
-from odoo import api, models
+from odoo import api, fields, models
 
-from .access import denied, is_site_editor
+from .access import PAGE_FIELD_ACCESS, denied, is_site_editor
 
 
 class IrUiView(models.Model):
     _name = "ir.ui.view"
     _inherit = ["website.site.editor.fields", "ir.ui.view"]
 
+    def _access_domain(self, operation: str) -> fields.Domain:
+        if operation == "write" and self.env.context.get("site_editor_page_field_access") is PAGE_FIELD_ACCESS:
+            operation = "read"
+        return super()._access_domain(operation)
+
     def save(self, value: str, xpath: str | None = None) -> None:
         if is_site_editor(self.env):
             self.env.website._check_assigned_sites()
             if xpath is not None:
+                raise denied(self.env)
+            if not isinstance(value, str) or not value.strip():
                 raise denied(self.env)
             element = html.fromstring(value)
             if (element.get("data-oe-model"), element.get("data-oe-field"), element.get("data-oe-type")) != (
@@ -22,7 +29,10 @@ class IrUiView(models.Model):
                 "html",
             ):
                 raise denied(self.env)
-            page = self.env["website.page"].sudo(False).browse(int(element.get("data-oe-id")))
+            page_id = element.get("data-oe-id", "")
+            if not page_id.isascii() or not page_id.isdecimal():
+                raise denied(self.env)
+            page = self.env["website.page"].sudo(False).browse(int(page_id))
             if page.website_id != self.env.website:
                 raise denied(self.env)
             return super(IrUiView, self.sudo(False)).save(value, xpath)

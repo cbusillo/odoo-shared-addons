@@ -10,7 +10,7 @@ Use a website-specific page. In its administrator-owned QWeb template, put this 
 <t t-call="website_site_editor.page_body"/>
 ```
 
-Seed **Editable page body** in the website page form with the region's existing content. Keep dynamic forms, header, footer, and template expressions in the surrounding template. Check the rendered page before assigning an editor. Each page stores its own translated, sanitized HTML. This preparation is explicit for each existing page. The addon does not convert an existing layout during installation.
+Enable **Enable assigned body editing** and seed **Editable page body** in the website page form with the region's existing content. Keep dynamic forms, header, footer, and template expressions in the surrounding template. Check the rendered page before assigning an editor. Each page stores its own translated, sanitized HTML. This preparation is explicit for each existing page. The addon does not convert an existing layout during installation.
 
 ## Assign the editor
 

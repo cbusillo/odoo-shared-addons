@@ -46,5 +46,6 @@ class Website(models.Model):
 
     def _render_template(self, template: str | int, values: dict[str, Any] | None = None) -> Any:
         if is_site_editor(self.env):
-            self = self.with_context(inherit_branding=False, inherit_branding_auto=True)
+            scoped = self.with_context(inherit_branding=False, inherit_branding_auto=True)
+            return super(Website, scoped)._render_template(template, values)
         return super()._render_template(template, values)

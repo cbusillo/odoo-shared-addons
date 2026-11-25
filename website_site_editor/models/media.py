@@ -1,4 +1,5 @@
 from typing import Any, Literal
+from urllib.parse import urlsplit
 
 from odoo import api, models
 
@@ -31,7 +32,7 @@ class ThemeUtils(models.AbstractModel):
 class IrAttachment(models.Model):
     _inherit = "ir.attachment"
 
-    _editor_media_fields = ("website_id", "res_model", "res_id", "public", "url", "key", "res_field")
+    _editor_media_fields = ("website_id", "res_model", "res_id", "public", "url", "key", "res_field", "type")
 
     def _check_editor_media(self, values: "odoo.values.ir_attachment") -> None:
         site_models = {"website", "website.page", "website.menu", "ir.ui.view", "ir.asset"}
@@ -40,7 +41,11 @@ class IrAttachment(models.Model):
         if not site and model not in site_models and not (values.get("public") and not model):
             return
         site._check_assigned_sites()
-        if any(values.get(key) for key in ("url", "key", "res_field")) or model == "ir.asset":
+        if url := values.get("url"):
+            external = urlsplit(url)
+            if values.get("type") != "url" or external.scheme not in {"https", "http"} or not external.netloc:
+                raise denied(self.env)
+        if values.get("key") or values.get("res_field") or model == "ir.asset":
             raise denied(self.env)
         record_id = values.get("res_id") or 0
         if record_id and model in site_models:

@@ -18,7 +18,8 @@ class WebsitePage(models.Model):
 
     def _access_domain(self, operation: str) -> fields.Domain:
         if operation == "write" and is_site_editor(self.env):
-            self = self.with_context(site_editor_page_field_access=PAGE_FIELD_ACCESS)
+            scoped = self.with_context(site_editor_page_field_access=PAGE_FIELD_ACCESS)
+            return super(WebsitePage, scoped)._access_domain(operation)
         return super()._access_domain(operation)
 
     def _check_site_editor_page_fields(self, names: set[str]) -> None:
@@ -41,10 +42,11 @@ class WebsitePage(models.Model):
         return super()._update_field_translations(field_name, translations, digest, source_lang)
 
     def write(self, vals: "odoo.values.website_page") -> Literal[True]:
+        pages = self
         if is_site_editor(self.env):
             self._check_site_editor_page_fields(set(vals))
-            self = self.with_prefetch(self.ids)
-        result = super().write(vals)
+            pages = self.with_prefetch(self.ids)
+        result = super(WebsitePage, pages).write(vals)
         if "site_editor_body" in vals:
             self.env.transaction.invalidate_ormcache("templates")
         return result

@@ -247,3 +247,10 @@ class TestSiteEditor(HttpCase):
         self.start_tour(self.preview, "site_editor_navigation", login=self.first_editor.login)
         menus = self.env["website.menu"].search([("name", "=", "Garden paths")])
         self.assertEqual(menus.website_id, self.first_site)
+
+    def test_assigned_site_settings_and_page_url_forms(self) -> None:
+        self.start_tour(self.preview, "site_editor_settings", login=self.first_editor.login)
+        self.assertEqual(self.first_site.homepage_url, self.first_page.url)
+        self.start_tour(self.preview, "site_editor_page_url", login=self.first_editor.login)
+        self.assertEqual(self.first_page.url, "/fern-notebook")
+        self.assertEqual(self.second_page.url, "/garden-notebook")

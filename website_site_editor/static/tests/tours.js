@@ -47,3 +47,23 @@ registerWebsitePreviewTour("site_editor_navigation", {}, () => [
     {trigger: ".modal:has(.oe_menu_editor) button.btn-primary:contains(Save)", run: "click"},
     {trigger: ":iframe .top_menu a:contains(Garden paths)"},
 ]);
+
+registerWebsitePreviewTour("site_editor_page_url", {}, () => [
+    {trigger: ":iframe .o_site_editor_body"},
+    {trigger: '.o_navbar button[data-menu-xmlid="website.menu_site"]', run: "click"},
+    {trigger: '.o_popover a[data-menu-xmlid="website_site_editor.menu_pages"]', run: "click"},
+    {trigger: ".o_data_row .o_field_cell[name=url]:contains(/garden-notebook)", run: "click"},
+    {trigger: ".o_selected_row .o_field_widget[name=url] input", run: "edit /fern-notebook"},
+    {trigger: ".o_list_button_save", run: "click"},
+    {trigger: ".o_data_row:not(.o_selected_row) .o_field_cell[name=url]:contains(/fern-notebook)"},
+]);
+
+registerWebsitePreviewTour("site_editor_settings", {}, () => [
+    {trigger: ":iframe .o_site_editor_body"},
+    {trigger: '.o_navbar button[data-menu-xmlid="website.menu_site"]', run: "click"},
+    {trigger: '.o_popover a[data-menu-xmlid="website_site_editor.menu_settings"]', run: "click"},
+    {trigger: ".o_data_row .o_field_cell[name=homepage_url]", run: "click"},
+    {trigger: ".o_selected_row .o_field_widget[name=homepage_url] input", run: "edit /garden-notebook"},
+    {trigger: ".o_list_button_save", run: "click"},
+    {trigger: ".o_data_row:not(.o_selected_row) .o_field_cell[name=homepage_url]:contains(/garden-notebook)"},
+]);

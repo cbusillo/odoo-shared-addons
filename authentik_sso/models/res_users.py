@@ -5,8 +5,10 @@ import logging
 from odoo import Command, api, models
 from odoo.addons.auth_signup.models.res_users import SignupError
 from odoo.exceptions import AccessDenied, UserError
+from odoo.tools import single_email_re
 
 from .authentik_config import (
+    AUTHENTIK_CALLBACK_MODE_PARAM,
     AUTHENTIK_GROUP_CLAIM_PARAM,
     AUTHENTIK_LOGIN_CLAIMS_PARAM,
     AUTHENTIK_NAME_CLAIMS_PARAM,
@@ -17,6 +19,8 @@ from .authentik_config import (
     DEFAULT_NAME_CLAIMS,
     DEFAULT_PROVIDER_NAME,
     DEFAULT_USER_ID_CLAIMS,
+    EXISTING_USER_MODE,
+    PROVISION_MODE,
 )
 
 _logger = logging.getLogger(__name__)
@@ -217,6 +221,31 @@ class ResUsers(models.Model):
 
         oauth_user.sudo().write({"group_ids": commands})
 
+    def _signin_existing_authentik_user(self, provider: int, subject: str, validation: dict[str, object], access_token: str) -> str:
+        users = self.with_context(active_test=False)
+        linked = users.search([("oauth_provider_id", "=", provider), ("oauth_uid", "=", subject)])
+        if linked:
+            if not linked.active or linked.share:
+                raise AccessDenied()
+            linked.write({"oauth_access_token": access_token})
+            return linked.login
+
+        email = validation.get("email")
+        if (
+            validation.get("email_verified") is not True
+            or not isinstance(email, str)
+            or not single_email_re.fullmatch(email.strip())
+        ):
+            raise AccessDenied()
+        address = email.strip().casefold()
+        candidates = users.search([("active", "=", True), ("share", "=", False)]).filtered(
+            lambda user: address in ((user.login or "").casefold(), (user.email or "").casefold())
+        )
+        if len(candidates) != 1 or candidates.oauth_uid or candidates.oauth_provider_id:
+            raise AccessDenied()
+        candidates.write({"oauth_provider_id": provider, "oauth_uid": subject, "oauth_access_token": access_token})
+        return candidates.login
+
     @api.model
     def _auth_oauth_signin(
         self,
@@ -235,6 +264,19 @@ class ResUsers(models.Model):
                 ", ".join(sorted(normalized_validation.keys())),
             )
             raise AccessDenied()
+        if is_authentik_provider:
+            mode = self.env["ir.config_parameter"].sudo().get_str(AUTHENTIK_CALLBACK_MODE_PARAM, PROVISION_MODE)
+            if mode == EXISTING_USER_MODE:
+                if (
+                    not provider_record.enabled
+                    or json.loads(params["state"]).get("t")
+                    or not isinstance(oauth_uid, str)
+                    or not oauth_uid.strip()
+                ):
+                    raise AccessDenied()
+                return self._signin_existing_authentik_user(provider, oauth_uid, validation, params["access_token"])
+            if mode != PROVISION_MODE:
+                raise AccessDenied()
         oauth_uid = str(oauth_uid)
         try:
             oauth_user = self.search(

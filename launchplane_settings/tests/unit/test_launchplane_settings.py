@@ -372,3 +372,31 @@ class TestLaunchplaneSettings(UnitTestCase):
             self.Settings.apply_from_env()
 
         self.assertEqual(self.ConfigParameter.get_str("shopify.test_store"), "True")
+
+    def test_authentik_callback_mode_apply_and_clear(self) -> None:
+        if self.env.get("authentik.sso.config") is None:
+            self.skipTest("Install authentik_sso to exercise its adapter.")
+
+        def apply(settings: dict[str, str]) -> None:
+            payload = {
+                "addon_settings": [
+                    {"addon": "authentik_sso", "setting": key, "value": {"source": "literal", "value": value}}
+                    for key, value in settings.items()
+                ]
+            }
+            with _set_env(self._payload_env(payload)):
+                self.Settings.apply_from_env()
+
+        provider = {"base_url": "https://auth.example.test", "client_id": "fixture-only"}
+        key = "authentik_sso.callback_mode"
+        apply(provider)
+        self.assertEqual(self.ConfigParameter.get_str(key), "provision")
+        for reset in ({"callback_mode": "provision"}, {}):
+            apply({**provider, "callback_mode": "existing_user"})
+            apply({})
+            self.assertEqual(self.ConfigParameter.get_str(key), "existing_user")
+            with self.assertRaises(ValidationError):
+                apply({**provider, "callback_mode": "unknown"})
+            self.assertEqual(self.ConfigParameter.get_str(key), "existing_user")
+            apply({**provider, **reset})
+            self.assertEqual(self.ConfigParameter.get_str(key), "provision")

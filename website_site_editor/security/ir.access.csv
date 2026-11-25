@@ -3,3 +3,4 @@ site_editor_website,Assigned website settings,website.model_website,group_editor
 site_editor_page,Assigned pages,website.model_website_page,group_editor,ru,"[('website_id.site_editor_ids', 'in', [user.id])]"
 site_editor_menu,Assigned navigation,website.model_website_menu,group_editor,crud,"[('website_id.site_editor_ids', 'in', [user.id])]"
 site_editor_page_parent,Read template for assigned pages,base.model_ir_ui_view,group_editor,r,"[('website_id.site_editor_ids', 'in', [user.id]), ('page_ids', '!=', False)]"
+site_editor_rewrite,Check links on assigned websites,website.model_website_rewrite,group_editor,r,"[('website_id.site_editor_ids', 'in', [user.id])]"

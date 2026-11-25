@@ -36,3 +36,14 @@ registerWebsitePreviewTour("site_editor_arrange", {}, () => [
     ...clickOnSave(),
     {trigger: ":iframe .o_site_editor_body:not(:has(.garden-three)) .garden-two + .garden-one"},
 ]);
+
+registerWebsitePreviewTour("site_editor_navigation", {}, () => [
+    {trigger: ":iframe .o_site_editor_body"},
+    {trigger: '.o_navbar button[data-menu-xmlid="website.menu_site"]', run: "click"},
+    {trigger: '.o_popover a[data-menu-xmlid="website.menu_edit_menu"]', run: "click"},
+    {trigger: ".modal .oe_menu_editor .js_edit_menu", run: "click"},
+    {trigger: ".modal:has(#url_input) input:first", run: "edit Garden paths"},
+    {trigger: ".modal:has(#url_input) button.btn-primary:contains(Continue)", run: "click"},
+    {trigger: ".modal:has(.oe_menu_editor) button.btn-primary:contains(Save)", run: "click"},
+    {trigger: ":iframe .top_menu a:contains(Garden paths)"},
+]);

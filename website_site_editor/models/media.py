@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from odoo import api, models
 
@@ -35,16 +35,17 @@ class IrAttachment(models.Model):
 
     def _check_editor_media(self, values: "odoo.values.ir_attachment") -> None:
         site_models = {"website", "website.page", "website.menu", "ir.ui.view", "ir.asset"}
-        model = values.get("res_model")
-        site = self.env["website"].browse(values.get("website_id"))
+        model = values.get("res_model") or ""
+        site = self.env["website"].browse(values.get("website_id") or [])
         if not site and model not in site_models and not (values.get("public") and not model):
             return
         site._check_assigned_sites()
         if any(values.get(key) for key in ("url", "key", "res_field")) or model == "ir.asset":
             raise denied(self.env)
-        if (record_id := values.get("res_id")) and model in site_models:
+        record_id = values.get("res_id") or 0
+        if record_id and model in site_models:
             target = self.env[model].sudo().browse(record_id)
-            if (target if model == "website" else target.website_id) != site:
+            if (target if model == "website" else target["website_id"]) != site:
                 raise denied(self.env)
 
     @api.model
@@ -57,12 +58,12 @@ class IrAttachment(models.Model):
 
     def _check_existing_editor_media(self, changes: "odoo.values.ir_attachment") -> None:
         if is_site_editor(self.env):
-            for values in self.sudo().read(self._editor_media_fields, load=None):
+            for values in self.sudo().read(self._editor_media_fields, load=""):
                 self._check_editor_media(values)
                 if changes.keys() & self._editor_media_fields:
                     self._check_editor_media(values | changes)
 
-    def write(self, vals: "odoo.values.ir_attachment") -> bool:
+    def write(self, vals: "odoo.values.ir_attachment") -> Literal[True]:
         self._check_existing_editor_media(vals)
         return super().write(vals)
 

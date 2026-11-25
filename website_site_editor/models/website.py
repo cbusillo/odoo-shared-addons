@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from odoo import api, fields, models
 
@@ -26,7 +26,7 @@ class Website(models.Model):
             return "assigned" if self._allows_site_editor() else "unassigned"
         return None
 
-    def write(self, vals: "odoo.values.website") -> bool:
+    def write(self, vals: "odoo.values.website") -> Literal[True]:
         if is_site_editor(self.env):
             self._check_assigned_sites()
             if vals.keys() - self._site_editor_fields:

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from lxml import html
 from odoo import api, fields, models
@@ -35,10 +35,14 @@ class IrUiView(models.Model):
             page = self.env["website.page"].sudo(False).browse(int(page_id))
             if page.website_id != self.env.website:
                 raise denied(self.env)
-            return super(IrUiView, self.sudo(False)).save(value, xpath)
-        return super().save(value, xpath)
+            super(IrUiView, self.sudo(False)).save(value)
+            return
+        if xpath is None:
+            super().save(value)
+        else:
+            super().save(value, xpath)
 
-    def write(self, vals: "odoo.values.ir_ui_view") -> bool:
+    def write(self, vals: "odoo.values.ir_ui_view") -> Literal[True]:
         if is_site_editor(self.env):
             raise denied(self.env)
         return super().write(vals)
@@ -62,6 +66,6 @@ class PageBodyHtml(models.AbstractModel):
         self, record: models.BaseModel, field_name: str, options: dict[str, Any], values: dict[str, Any] | None = None
     ) -> dict[str, Any]:
         if record._name == "website.page" and field_name == "site_editor_body" and is_site_editor(self.env):
-            site = record.sudo().website_id
+            site = self.env["website.page"].sudo().browse(record.id).website_id
             options = dict(options, inherit_branding=bool(site and site == self.env.website and site._allows_site_editor()))
         return super().attributes(record, field_name, options, values)

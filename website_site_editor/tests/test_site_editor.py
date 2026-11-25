@@ -26,7 +26,7 @@ class TestSiteEditor(HttpCase):
                         "password": login,
                         "group_ids": [Command.set([cls.env.ref("website_site_editor.group_editor").id])],
                     }
-                    for login in ("inkfinch", "sandfinch")
+                    for login in ("fern", "moss")
                 ]
             )
         )
@@ -242,3 +242,8 @@ class TestSiteEditor(HttpCase):
             {"site_editor_body": '<section class="o_grid_mode"><div style="grid-area: 1 / 2 / 3 / 4">Golden fern</div></section>'}
         )
         self.assertIn("grid-area", self.first_page.site_editor_body)
+
+    def test_menu_editor_saves_a_navigation_label(self) -> None:
+        self.start_tour(self.preview, "site_editor_navigation", login=self.first_editor.login)
+        menus = self.env["website.menu"].search([("name", "=", "Garden paths")])
+        self.assertEqual(menus.website_id, self.first_site)

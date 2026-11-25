@@ -1,3 +1,4 @@
+from typing import Literal
 from urllib.parse import urlsplit
 
 from odoo import api, models
@@ -15,7 +16,7 @@ class WebsiteMenu(models.Model):
         site._check_assigned_sites()
         for key, model in (("parent_id", "website.menu"), ("page_id", "website.page")):
             if vals.get(key):
-                related_site = self.env[model].sudo().browse(vals[key]).website_id
+                related_site = self.env[model].sudo().browse(vals[key])["website_id"]
                 if related_site != site and (key == "parent_id" or related_site):
                     raise denied(self.env)
         for key in ("url", "manual_url"):
@@ -36,7 +37,7 @@ class WebsiteMenu(models.Model):
             vals.setdefault("parent_id", site.menu_id.id)
         return super(WebsiteMenu, self.with_context(clean_context)).create(vals_list)
 
-    def write(self, vals: "odoo.values.website_menu") -> bool:
+    def write(self, vals: "odoo.values.website_menu") -> Literal[True]:
         if is_site_editor(self.env):
             vals = dict(vals)
             if "id" in vals and vals.pop("id") != self.id:

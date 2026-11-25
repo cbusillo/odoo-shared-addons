@@ -1,4 +1,5 @@
-from typing import Any
+from collections.abc import Callable
+from typing import Any, Literal
 
 from odoo import api, fields, models
 from odoo.tools import html_translate
@@ -20,16 +21,32 @@ class WebsitePage(models.Model):
             self = self.with_context(site_editor_page_field_access=PAGE_FIELD_ACCESS)
         return super()._access_domain(operation)
 
-    def write(self, vals: "odoo.values.website_page") -> bool:
+    def _check_site_editor_page_fields(self, names: set[str]) -> None:
+        if names - self._site_editor_fields or any(not page.website_id for page in self):
+            raise denied(self.env)
+        self.website_id._check_assigned_sites()
+        if "site_editor_body" in names and any(not page.site_editor_body_enabled for page in self):
+            raise denied(self.env)
+
+    def _has_field_access(self, field: fields.Field, operation: Literal["read", "write"]) -> bool:
+        if field.name == "site_editor_body_enabled" and operation == "write" and not self.env.is_system():
+            return False
+        return super()._has_field_access(field, operation)
+
+    def _update_field_translations(
+        self, field_name: str, translations: dict[str, Any], digest: Callable | None = None, source_lang: str = ""
+    ) -> bool:
         if is_site_editor(self.env):
-            if vals.keys() - self._site_editor_fields or any(not page.website_id for page in self):
-                raise denied(self.env)
-            self.website_id._check_assigned_sites()
-            if "site_editor_body" in vals and any(not page.site_editor_body_enabled for page in self):
-                raise denied(self.env)
+            self._check_site_editor_page_fields({field_name})
+        return super()._update_field_translations(field_name, translations, digest, source_lang)
+
+    def write(self, vals: "odoo.values.website_page") -> Literal[True]:
+        if is_site_editor(self.env):
+            self._check_site_editor_page_fields(set(vals))
+            self = self.with_prefetch(self.ids)
         result = super().write(vals)
         if "site_editor_body" in vals:
-            self.env.transaction.invalidate_ormcache("templates.cached_values")
+            self.env.transaction.invalidate_ormcache("templates")
         return result
 
     @api.model

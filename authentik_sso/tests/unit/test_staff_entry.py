@@ -43,7 +43,10 @@ class TestStaffEntry(HttpCase):
                 logout = self.url_open("/web/session/logout", data={"csrf_token": self.csrf_token(), "redirect": destination})
                 signed_out = html.fromstring(logout.content)
                 self.assertTrue(signed_out.xpath("//*[@role='status' and normalize-space()]"))
-                self.assertTrue(signed_out.xpath("//a[contains(@href, 'id.example.invalid')]"))
+                self.assertFalse(signed_out.xpath("//input[@name='password']"))
+                (retry_link,) = signed_out.xpath("//a[contains(@href, 'id.example.invalid')]/@href")
+                retry_state = json.loads(parse_qs(urlsplit(retry_link).query)["state"][0])
+                self.assertEqual(unquote_plus(retry_state["r"]), self.base_url() + destination)
 
         error_page = html.fromstring(self.url_open("/web/login?redirect=/odoo&oauth_error=2").content)
         self.assertTrue(error_page.xpath("//*[@role='alert' and normalize-space()]"))

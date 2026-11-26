@@ -72,7 +72,7 @@ class AuthentikSession(Session):
     @http.route()
     def logout(self, redirect: str = "/odoo") -> Response:
         response = super().logout(redirect)
-        if request.db and _uses_staff_entry(redirect):
+        if request.env is not None and _uses_staff_entry(redirect):
             return request.redirect_query("/web/login", {"redirect": redirect, "message": _("You have signed out of Odoo.")})
         return response
 
@@ -108,7 +108,8 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
         if not _uses_staff_entry(response.qcontext.get("redirect") or ""):
             return response
         context = response.qcontext
-        provider = next((item for item in context["providers"] if item.get("authentik_staff_provider")), None)
+        provider = next((item for item in context["providers"] if item.get("authentik_staff_provider")), {})
+        # noinspection PyUnresolvedReferences
         if provider and request.httprequest.method == "GET" and not (context.get("error") or context.get("message")):
             return request.redirect(provider["auth_link"], local=False)
         context.update(authentik_staff_entry=True, staff_provider=provider)

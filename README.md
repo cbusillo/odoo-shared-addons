@@ -53,7 +53,7 @@ are in [`.github/github.json`](.github/github.json).
   `/odoo`, backend deep links, `/web`, and scoped app links. After sign-in,
   Odoo returns them to the requested backend destination. Without Website,
   Odoo's anonymous site root also leads to the backend. Staff entry shows an
-  error if the provider is unavailable. Signing out of the backend leaves a
+  error if the provider is disabled or missing its Odoo configuration. Signing out of the backend leaves a
   confirmation and a button to sign in again. Provider callback errors return
   to Odoo's ordinary login form.
 

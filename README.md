@@ -52,18 +52,30 @@ are in [`.github/github.json`](.github/github.json).
   selects the form by that destination. Direct `/web/login`, website and
   portal destinations, and invitation or reset links keep their existing
   sign-in methods. A provider error that returns to login without a backend
-  destination also uses the ordinary form. A local administrator can use the ordinary login page
-  with their existing credentials. The switch changes presentation only.
+  destination also uses the ordinary form. Local administrators can sign in
+  there with their existing credentials. The switch changes presentation only.
 
-  For about 30 days of inactivity per device, set the native integer parameter
-  `sessions.max_inactivity_seconds` to `2592000`. Both parameters use the
-  existing `config_parameters` product payload. Set the Boolean to false to
-  restore the ordinary staff form. The lifetime applies database-wide, including
-  portal sessions. Each browser profile keeps its own persistent cookie.
-  Session refresh renews the window, so an active session can last longer
-  than 30 days. Scheduled cleanup removes stale session files by modification
-  time. Where databases share one session directory, the shortest inactivity
-  window can expire sessions for all of them.
+  Declare product defaults in the versioned product addon's XML data and list
+  that file in its manifest. Odoo applies these native parameter setters on
+  module install and update:
+
+  ```xml
+  <odoo>
+      <function model="ir.config_parameter" name="set_bool" eval="('authentik_sso.staff_login_only', True)"/>
+      <function model="ir.config_parameter" name="set_int" eval="('sessions.max_inactivity_seconds', 2592000)"/>
+  </odoo>
+  ```
+
+  Products using the ordinary form can leave the Boolean unset. To turn it
+  off after enabling it, set it to `False` on update. The two settings are
+  independent. The integer sets about 30 days of inactivity database-wide,
+  including portal accounts. Each browser profile keeps its own persistent
+  cookie. Activity that refreshes the session renews the window, so an active
+  session can last longer than 30 days. Scheduled cleanup removes stale
+  session files by modification time. Where databases share one session
+  directory, the shortest inactivity window can expire sessions for all of
+  them. An absolute reauthentication interval at the identity provider is a
+  separate provider policy.
 - [`disable_odoo_online`](disable_odoo_online/README.md): skip the publisher-warranty
   phone-home call on self-hosted Odoo 20 Community.
 - `discuss_record_links`: Discuss/Chatter shortcuts for linking to business

@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from typing import Literal, Self
 
 from odoo import api, fields, models
-from odoo.tools import SQL
+from odoo.tools.sql import SQL
 
 NUMBER_FIELDS = ("default_code", "barcode")
 NUMERIC_CODE_INDEX = "USING hash (ltrim(default_code, '0')) WHERE default_code ~ '^[0-9]+$'"

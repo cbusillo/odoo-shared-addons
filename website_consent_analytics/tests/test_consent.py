@@ -2,6 +2,7 @@ import json
 import os
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 from lxml import html
 from odoo.tests import HttpCase, tagged
@@ -24,7 +25,8 @@ class TestWebsiteConsent(HttpCase):
         self.tag_requests: list[str] = []
 
     def fetch_proxy(self, url: str) -> dict:
-        if "googletagmanager.com" in url or "google-analytics.com" in url:
+        host = urlsplit(url).hostname or ""
+        if host == "www.googletagmanager.com" or host == "google-analytics.com" or host.endswith(".google-analytics.com"):
             self.tag_requests.append(url)
             return self.make_fetch_proxy_response("window.fixtureTagLoads = (window.fixtureTagLoads || 0) + 1;")
         return super().fetch_proxy(url)
@@ -74,7 +76,7 @@ class TestWebsiteConsent(HttpCase):
             with self.subTest(lane=lane), patch.dict(os.environ, PLATFORM_INSTANCE=lane):
                 self.tag_requests.clear()
                 self.browser_js(
-                    "/cookie-policy?private=never-send#fragment",
+                    "/?private=never-send#fragment",
                     f"const local = {json.dumps(lane == 'testing')};\n{fixture}",
                     ready="document.body?.getAttribute('is-ready') === 'true' && !!document.querySelector('.o_cookies_bar_toggle')",
                 )

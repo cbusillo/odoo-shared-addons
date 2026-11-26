@@ -36,12 +36,14 @@ contents out of every mapped value. The loader sends a single consented
 advertising consent and Google signals disabled. Odoo's saved optional-cookie
 choice and native cookie bar control subsequent collection. Choosing essentials
 sets the GA opt-out flag immediately. Reaccepting on the same page resumes
-events with the same tag.
+events with the same tag. Previously set GA cookies may remain until expiry.
 
 For a local preview check, pass an optional `preview(state)` callback when
 the consumer's check URL is requested. It receives `{ accepted }` for the
 initial choice and changes, and `{ accepted, name, action }` for counted
 events. The consumer renders these notifications and its policy copy.
 Recognized links are simulated while checking. Preview creates no tag or
-Google command queue. Production ignores the callback. Provider-side
-measurement settings and release qualification belong to the consumer.
+Google command queue. Production ignores the callback. Before activation, the consumer verifies that enhanced measurement,
+connected tags and user-provided data collection cannot add unreviewed events
+or private values. The page and event maps control only commands from this
+addon. The consumer owns provider settings and release qualification.

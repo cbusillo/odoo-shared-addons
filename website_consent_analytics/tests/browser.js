@@ -12,23 +12,31 @@
     const quiet = () => !scripts().length && !window.dataLayer && !window.fixtureTagLoads;
     const events = () => local ? observed.filter((state) => state.name) :
         Array.from(window.dataLayer || []).filter(([kind]) => kind === "event");
-    const wait = () => new Promise((resolve) => setTimeout(resolve, 700));
+    async function until(predicate, reason) {
+        const deadline = performance.now() + 10000;
+        while (!predicate()) {
+            assert(performance.now() < deadline, reason);
+            await new Promise(requestAnimationFrame);
+        }
+    }
     async function choose(button) {
         const modal = document.querySelector("#website_cookies_bar .modal");
+        const settled = () => !window.Modal.getInstance(modal)?._isTransitioning;
+        await until(settled, "Native choices did not settle");
         if (!modal.classList.contains("show")) {
             document.querySelector(".o_cookies_bar_toggle").click();
-            await wait();
         }
-        assert(modal.classList.contains("show"), "Native choices did not open");
+        await until(() => modal.classList.contains("show") && settled(), "Native choices did not open");
         document.querySelector("#cookies-consent-" + button).click();
-        await wait();
+        await until(() => !modal.classList.contains("show") && settled(), "Native choices did not close");
     }
     assert(!document.querySelector("#tracking_code, #tracking_code_config"), "Native eager tag present");
     startConsentAnalytics(options);
+    await until(() => document.querySelector("#website_cookies_bar .modal.show"), "No native first-visit choices");
     await choose("all");
     assert(quiet() && !observed.length, "Unlisted page collected");
     await choose("essential");
-    pages.set("/cookie-policy", { path: "/public", title: "Public page" });
+    pages.set("/", { path: "/public", title: "Public page" });
     if (local) {
         startConsentAnalytics({ pages });
         assert(quiet(), "Preview without local check collected");
@@ -49,6 +57,7 @@
     if (local) {
         assert(quiet() && observed.at(-1).action === "phone", "Preview sent traffic or lost its action");
     } else {
+        await until(() => window.fixtureTagLoads, "Mock tag never executed");
         assert(window.fixtureTagLoads === 1 && scripts().length === 1, "Expected one intercepted tag");
         const [[, page, params], [, name, action]] = events();
         const origin = JSON.parse(document.querySelector("meta[name='consent-first-ga4']").content).origin;

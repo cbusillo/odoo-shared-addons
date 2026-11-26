@@ -88,7 +88,7 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
         if not response.is_qweb or response.qcontext.get("token"):
             return response
         target = (response.qcontext.get("redirect") or "").partition("?")[0]
-        if target not in ("/odoo", "/web") and not target.startswith(("/odoo/", "/scoped_app/")):
+        if target not in ("/odoo", "/web", "/web/") and not target.startswith(("/odoo/", "/scoped_app/")):
             return response
         if request.env["ir.config_parameter"].sudo().get_bool("authentik_sso.staff_login_only"):
             provider_name = _authentik_provider_name(request.env)

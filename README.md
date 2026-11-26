@@ -49,7 +49,9 @@ are in [`.github/github.json`](.github/github.json).
   database Boolean parameter `authentik_sso.staff_login_only` to true. Its
   default is false. The backend routes (`/odoo`, its deep links, `/web`, and
   scoped app links) pass their destination to the login page. The switch
-  selects the form by that destination. Direct `/web/login`, website and
+  selects the form by that destination. Without the Website app, Odoo's
+  anonymous site root also leads to the backend. Portal users can enter at
+  `/my`. Direct `/web/login`, website and
   portal destinations, and invitation or reset links keep their existing
   sign-in methods. A provider error that returns to login without a backend
   destination also uses the ordinary form. Local administrators can sign in

@@ -24,7 +24,7 @@ class TestStaffEntry(HttpCase):
         parameters.set_bool("authentik_sso.staff_login_only", False)
         self.assertTrue(html.fromstring(self.url_open("/odoo").content).xpath("//input[@name='password']"))
         parameters.set_bool("authentik_sso.staff_login_only", True)
-        for route in ("/odoo", "/odoo/contacts?view=list", "/web", "/scoped_app/calendar"):
+        for route in ("/odoo", "/odoo/contacts?view=list", "/web", "/web/", "/scoped_app/calendar"):
             with self.subTest(route=route):
                 page = self.url_open(route)
                 destination = parse_qs(urlsplit(page.url).query)["redirect"][0]

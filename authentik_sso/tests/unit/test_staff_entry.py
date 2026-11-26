@@ -37,6 +37,14 @@ class TestStaffEntry(HttpCase):
                 state = json.loads(query["state"][0])
                 self.assertEqual(unquote_plus(state["r"]).rstrip("?"), self.base_url() + route)
 
+        for destination in ("/odoo", "/scoped_app/calendar"):
+            with self.subTest(logout=destination):
+                self.authenticate("admin", "admin")
+                logout = self.url_open("/web/session/logout", data={"csrf_token": self.csrf_token(), "redirect": destination})
+                signed_out = html.fromstring(logout.content)
+                self.assertTrue(signed_out.xpath("//*[@role='status' and normalize-space()]"))
+                self.assertTrue(signed_out.xpath("//a[contains(@href, 'id.example.invalid')]"))
+
         error_page = html.fromstring(self.url_open("/web/login?redirect=/odoo&oauth_error=2").content)
         self.assertTrue(error_page.xpath("//*[@role='alert' and normalize-space()]"))
         self.assertTrue(error_page.xpath("//a[contains(@href, 'id.example.invalid')]"))

@@ -5,12 +5,13 @@ import os
 
 import werkzeug.urls
 import werkzeug.utils
-from odoo import http
+from odoo import _, http
 from odoo.addons.auth_oauth.controllers.main import OAuthLogin as BaseOAuthLogin
 from odoo.addons.authentik_sso.models.authentik_config import (
     AUTHENTIK_PROVIDER_NAME_PARAM,
     DEFAULT_PROVIDER_NAME,
 )
+from odoo.addons.web.controllers.session import Session
 from odoo.addons.web.controllers.utils import ensure_db
 from odoo.api import Environment
 from odoo.http import Response, request
@@ -60,6 +61,22 @@ def _build_oauth_state(provider_id: int) -> dict[str, object]:
     return state
 
 
+def _uses_staff_entry(destination: str) -> bool:
+    path = destination.partition("?")[0]
+    if path not in ("/odoo", "/web", "/web/") and not path.startswith(("/odoo/", "/scoped_app/")):
+        return False
+    return request.env["ir.config_parameter"].sudo().get_bool("authentik_sso.staff_login_only")
+
+
+class AuthentikSession(Session):
+    @http.route()
+    def logout(self, redirect: str = "/odoo") -> Response:
+        response = super().logout(redirect)
+        if request.db and _uses_staff_entry(redirect):
+            return request.redirect_query("/web/login", {"redirect": redirect, "message": _("You have signed out of Odoo.")})
+        return response
+
+
 class AuthentikOAuthLogin(BaseOAuthLogin):
     def list_providers(self) -> list[dict[str, object]]:
         providers = super().list_providers()
@@ -88,10 +105,7 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
         response = super().web_login(*args, **kwargs)
         if not response.is_qweb or response.qcontext.get("token"):
             return response
-        target = (response.qcontext.get("redirect") or "").partition("?")[0]
-        if target not in ("/odoo", "/web", "/web/") and not target.startswith(("/odoo/", "/scoped_app/")):
-            return response
-        if not request.env["ir.config_parameter"].sudo().get_bool("authentik_sso.staff_login_only"):
+        if not _uses_staff_entry(response.qcontext.get("redirect") or ""):
             return response
         context = response.qcontext
         provider = next((item for item in context["providers"] if item.get("authentik_staff_provider")), None)

@@ -7,6 +7,9 @@ from odoo.exceptions import AccessError, UserError, ValidationError
 _logger = logging.getLogger(__name__)
 
 AUTHENTIK_ADMIN_GROUP_PARAM = "authentik_sso.admin_group"
+AUTHENTIK_CALLBACK_MODE_PARAM = "authentik_sso.callback_mode"
+PROVISION_MODE = "provision"
+EXISTING_USER_MODE = "existing_user"
 AUTHENTIK_GROUP_CLAIM_PARAM = "authentik_sso.group_claim"
 AUTHENTIK_LOGIN_CLAIMS_PARAM = "authentik_sso.login_claims"
 AUTHENTIK_NAME_CLAIMS_PARAM = "authentik_sso.name_claims"
@@ -57,6 +60,10 @@ class AuthentikSsoConfig(models.AbstractModel):
 
     def _apply_runtime_settings(self, overrides: Mapping[str, str | None]) -> None:
         parameter_model = self.env["ir.config_parameter"].sudo()
+        mode = overrides.get("callback_mode", PROVISION_MODE)
+        if mode not in (PROVISION_MODE, EXISTING_USER_MODE):
+            raise ValidationError(self.env._("Unsupported Authentik callback mode."))
+        parameter_model.set_str(AUTHENTIK_CALLBACK_MODE_PARAM, mode)
         parameter_model.set_str(
             AUTHENTIK_ADMIN_GROUP_PARAM,
             _clean_setting_value(overrides.get("admin_group"), default=DEFAULT_ADMIN_GROUP),

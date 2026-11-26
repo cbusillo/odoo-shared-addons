@@ -1,6 +1,6 @@
 {
     "name": "Authentik SSO",
-    "version": "20.0.0.2",
+    "version": "20.0.0.3",
     "category": "Authentication",
     "summary": "Authentik OAuth2/OpenID Connect integration",
     "description": "Authentik SSO configuration and user mapping.",

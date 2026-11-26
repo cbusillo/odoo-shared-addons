@@ -90,8 +90,11 @@ class ProductProduct(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list["odoo.values.product_product"]) -> Self:
-        automatic_inputs = (False, None, "") if self._literal_slash_on_create() else ("/",)
-        needs_numbers = ["default_code" not in values or values["default_code"] in automatic_inputs for values in vals_list]
+        if self._literal_slash_on_create():
+            codes = (values.get("default_code") for values in vals_list)
+            needs_numbers = [code is False or code is None or code == "" for code in codes]
+        else:
+            needs_numbers = [values.get("default_code", "/") == "/" for values in vals_list]
         if not any(needs_numbers):
             return super().create(vals_list)
         self._serialize_product_number_allocation()
@@ -122,9 +125,7 @@ class ProductProduct(models.Model):
         return super().create(prepared)
 
     def write(self, vals: "odoo.values.product_product") -> Literal[True]:
-        if vals.get("default_code") != "/" or (
-            self.env.context.get("numbering_template_create") and self._literal_slash_on_create()
-        ):
+        if vals.get("default_code") != "/" or (self.env.context.get("numbering_create_inverse") and self._literal_slash_on_create()):
             return super().write(vals)
         self._serialize_product_number_allocation()
         reserved: defaultdict[str, set[str]] = defaultdict(set)

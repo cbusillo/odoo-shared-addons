@@ -26,6 +26,10 @@ class ProductTemplate(models.Model):
             ]
         return super(ProductTemplate, self.with_context(numbering_template_create=True)).create(vals_list).with_env(self.env)
 
+    def _set_default_code(self) -> None:
+        templates = self.with_context(numbering_create_inverse=True) if self.env.context.get("numbering_template_create") else self
+        super(ProductTemplate, templates)._set_default_code()
+
     def _prepare_variant_values(self, combination: "odoo.model.product_template_attribute_value") -> "odoo.values.product_product":
         vals = super()._prepare_variant_values(combination)
         if self.env.context.get("numbering_template_create") and all(

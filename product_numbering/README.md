@@ -8,10 +8,16 @@ Sequences**.
 - **Next number** advances the existing sequence, skipping occupied references
   and barcodes. Set **Next Number** once when adopting it.
 - **Lowest free number** fills the first gap at or above **Lowest Product
-  Number**. It leaves the sequence counter alone.
+  Number**. With an empty prefix and suffix, digit-only references and barcodes
+  reserve the same number at every padding width. For example, an archived
+  reference of `8000` reserves `008000` when padding is six. A prefix or
+  suffix uses exact matching. The sequence counter stays in place.
+- **Automatically Number Goods Only** limits automatic numbering on creation
+  to products of type Goods, including when a new record supplies `/`. Leave
+  it off to number all product types.
 - **Use Product Number as Barcode** sets the same value on a new product that
   has no supplied barcode. A supplied reference or barcode is preserved.
-  Enter `/` on a single-variant product or a variant to request a new number.
+  On an existing single-variant product or variant, enter `/` to request a new number.
 
 Use an empty prefix and zero padding for short plain numbers. The addon clears
 the unused stock OCA prefix and padding on first install. It keeps existing

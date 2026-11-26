@@ -2,11 +2,14 @@ from typing import Self
 
 from odoo import api, models
 
-from .product_product import NUMBER_FIELDS
+from .product_product import NUMBER_FIELDS, NUMERIC_BARCODE_INDEX, NUMERIC_CODE_INDEX
 
 
 class ProductTemplate(models.Model):
     _inherit = "product.template"
+
+    _number_code = models.Index(NUMERIC_CODE_INDEX)
+    _number_barcode = models.Index(NUMERIC_BARCODE_INDEX)
 
     @api.model_create_multi
     def create(self, vals_list: list["odoo.values.product_template"]) -> Self:

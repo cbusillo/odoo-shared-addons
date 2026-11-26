@@ -39,15 +39,14 @@ class ProductProduct(models.Model):
             for field in NUMBER_FIELDS:
                 queries.append(
                     SQL(
-                        "SELECT ltrim(%(field)s, '0') FROM %(table)s "
-                        "WHERE %(field)s ~ '^[0-9]+$' AND ltrim(%(field)s, '0') = ANY(%(numbers)s)",
+                        "SELECT FROM %(table)s WHERE %(field)s ~ '^[0-9]+$' AND ltrim(%(field)s, '0') = candidate",
                         table=SQL.identifier(model._table),
                         field=SQL.identifier(field),
-                        numbers=numbers,
                     )
                 )
         # noinspection PyUnresolvedReferences
-        query = SQL(" UNION ALL ").join(queries)
+        occupied = SQL(" UNION ALL ").join(queries)
+        query = SQL("SELECT candidate FROM unnest(%s::text[]) AS candidate WHERE EXISTS (%s)", numbers, occupied)
         return {number for (number,) in self.env.execute_query(query)}
 
     @api.model

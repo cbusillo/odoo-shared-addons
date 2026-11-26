@@ -19,6 +19,15 @@ Sequences**.
   has no supplied barcode. A supplied reference or barcode is preserved.
   On an existing single-variant product or variant, enter `/` to request a new number.
 
+By default, entering `/` when creating a product requests a new number. Set
+the database Boolean parameter `product_numbering.literal_slash_on_create`
+to true when callers use `/` as source text. On creation, an explicitly
+supplied slash then reaches native validation and imports as supplied.
+Omitted and empty references use the configured allocator. Entering `/` on
+an existing product still requests a new number, including in update imports.
+Literal-slash mode requires a packaged `product_sequence` with the
+`_is_product_sequence_placeholder` hook on both variant create and write.
+
 Use an empty prefix and zero padding for short plain numbers. The addon clears
 the unused stock OCA prefix and padding on first install. It keeps existing
 sequence formatting once the counter has advanced. Leave date ranges off
@@ -31,10 +40,6 @@ use native product validation. An ordinary module update retains
 the configured mode, format, barcode behavior, and counter. A supported
 database restore restores those settings and the counter saved in that backup.
 
-Before first installing OCA Product Sequence on a populated target, check the
-current target's products with SQL NULL or a literal `/` internal reference
-and verify reprints on a disposable copy. OCA's one-time install hook assigns
-a reference to those rows and leaves their barcodes untouched. A row with a
-barcode can therefore have different reference text when its label is
-reprinted. Start adoption after verifying that the product's existing numbers
-and label contents are preserved.
+Older images with the original OCA pre-install hook assign placeholder
+references to existing blank and slash variants. On a populated database,
+use a package that preserves existing references on first install.

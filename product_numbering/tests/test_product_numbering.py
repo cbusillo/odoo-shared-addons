@@ -1,4 +1,7 @@
-from odoo import Command
+from unittest.mock import patch
+
+from odoo import Command, api
+from odoo.exceptions import ValidationError
 from odoo.tests import TransactionCase, tagged
 
 
@@ -167,6 +170,58 @@ class TestProductNumbering(TransactionCase):
         template = self.template_model.create({"name": "Number requested on create", "default_code": "/"})
         self.assertEqual((template.default_code, template.barcode), ("100001", "100001"))
         self.assertEqual(self.sequence.number_next_actual, 100002)
+
+    def test_manual_create_validates_literal_reference(self) -> None:
+        self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash_on_create", True)
+
+        @api.constrains("default_code")
+        def validate_reference(templates: "odoo.model.product_template") -> None:
+            if "/" in templates.mapped("default_code"):
+                raise ValidationError(templates.env._("Use a catalogue reference."))
+
+        constraints = [*self.template_model._constraint_methods, validate_reference]
+        with patch.object(type(self.template_model), "_constraint_methods", constraints):
+            self.assertTrue(self.template_model.create({"name": "Automatic reference"}).default_code)
+            with self.assertRaisesRegex(ValidationError, "Use a catalogue reference"):
+                self.template_model.create({"name": "Typed reference", "default_code": "/"})
+
+    def test_import_create_keeps_literal_reference_in_a_mixed_batch(self) -> None:
+        self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash_on_create", True)
+        self.sequence.product_number_as_barcode = True
+        variants = self.env["product.product"].create(
+            [
+                {"name": "No reference supplied"},
+                {"name": "Literal source reference", "default_code": "/", "barcode": "SOURCE-SCAN"},
+                {"name": "Empty reference", "default_code": False},
+                {"name": "Empty text", "default_code": ""},
+            ]
+        )
+        self.assertEqual(variants.mapped("default_code"), ["100001", "/", "100002", "100003"])
+        self.assertEqual(variants.mapped("barcode"), ["100001", "SOURCE-SCAN", "100002", "100003"])
+        self.assertEqual(variants.product_tmpl_id.mapped("default_code"), variants.mapped("default_code"))
+        variants[1].default_code = "/"
+        self.assertEqual((variants[1].default_code, variants[1].barcode), ("100004", "SOURCE-SCAN"))
+
+    def test_untouched_form_default_allocates_beside_a_typed_slash(self) -> None:
+        self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash_on_create", True)
+        products = self.env["product.product"]
+        defaults = products.default_get(["default_code"])
+        generated, literal = products.create([dict(defaults, name="Form default"), {"name": "Typed slash", "default_code": "/"}])
+        self.assertEqual((generated.default_code, literal.default_code), ("100001", "/"))
+        templates = self.template_model.with_context(default_default_code="/").create(
+            [{"name": "Blank template"}, {"name": "Literal template", "default_code": "/"}]
+        )
+        self.assertEqual(templates.mapped("default_code"), ["100002", "/"])
+        self.assertEqual(templates.product_variant_id.mapped("default_code"), ["100002", "/"])
+
+    def test_template_create_inverse_keeps_literal_until_a_later_renumber(self) -> None:
+        self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash_on_create", True)
+        template = self.template_model.create(
+            {"name": "Supplied variant", "default_code": "/", "product_variant_ids": [Command.create({"default_code": "SOURCE"})]}
+        )
+        self.assertEqual((template.default_code, template.product_variant_id.default_code), ("/", "/"))
+        template.default_code = "/"
+        self.assertEqual((template.default_code, template.product_variant_id.default_code), ("100001", "100001"))
 
     def test_renumbering_archived_variant_keeps_active_siblings_reference(self) -> None:
         attribute = self.env["product.attribute"].create({"name": "Size"})

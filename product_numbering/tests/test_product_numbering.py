@@ -85,6 +85,8 @@ class TestProductNumbering(TransactionCase):
         self.assertFalse(combo.barcode)
         service_variant = self.env["product.product"].with_context(default_type="service").create({"name": "Service variant"})
         self.assertFalse(service_variant.default_code)
+        direct_goods = self.env["product.product"].create({"name": "Goods variant"})
+        self.assertEqual((direct_goods.default_code, direct_goods.barcode), ("100003", "100003"))
         self.assertEqual((goods.default_code, goods.barcode), ("100002", "100002"))
 
     def test_prefixed_gap_numbers_reserve_the_exact_identifier(self) -> None:

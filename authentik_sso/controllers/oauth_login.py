@@ -80,6 +80,7 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
             redirect_url = request.httprequest.url_root + "auth_oauth/signin"
             state = self.get_state(provider)
             provider["auth_link"] = _build_authentik_auth_link(provider, state, redirect_url)
+            provider["authentik_staff_provider"] = True
         return providers
 
     @http.route()
@@ -90,13 +91,13 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
         target = (response.qcontext.get("redirect") or "").partition("?")[0]
         if target not in ("/odoo", "/web", "/web/") and not target.startswith(("/odoo/", "/scoped_app/")):
             return response
-        if request.env["ir.config_parameter"].sudo().get_bool("authentik_sso.staff_login_only"):
-            provider_name = _authentik_provider_name(request.env)
-            response.qcontext["authentik_staff_entry"] = True
-            response.qcontext["staff_provider"] = next(
-                (provider for provider in response.qcontext["providers"] if provider["name"] == provider_name),
-                None,
-            )
+        if not request.env["ir.config_parameter"].sudo().get_bool("authentik_sso.staff_login_only"):
+            return response
+        context = response.qcontext
+        provider = next((item for item in context["providers"] if item.get("authentik_staff_provider")), None)
+        if provider and request.httprequest.method == "GET" and not (context.get("error") or context.get("message")):
+            return request.redirect(provider["auth_link"], local=False)
+        context.update(authentik_staff_entry=True, staff_provider=provider)
         return response
 
     @http.route("/authentik/login", type="http", auth="none", sitemap=False)

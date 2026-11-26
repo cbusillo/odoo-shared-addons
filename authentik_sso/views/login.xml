@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+    <template id="staff_login" inherit_id="web.login" name="Staff sign-in">
+        <xpath expr="//owl-component[@name='web.user_switch']" position="attributes">
+            <attribute name="t-if" add="not authentik_staff_entry" separator=" and "/>
+        </xpath>
+        <xpath expr="//form[@role='form']" position="before">
+            <div t-if="authentik_staff_entry" class="d-grid">
+                <p t-if="error" class="alert alert-danger" role="alert" t-out="error"/>
+                <a t-if="staff_provider" class="btn btn-primary" t-att-href="staff_provider['auth_link']"
+                   t-out="staff_provider['body']"/>
+                <p t-else="" class="alert alert-warning" role="alert">Staff sign-in is unavailable.</p>
+            </div>
+        </xpath>
+        <xpath expr="//form[@role='form']" position="attributes">
+            <attribute name="t-if">not authentik_staff_entry</attribute>
+        </xpath>
+    </template>
+</odoo>

@@ -44,6 +44,23 @@ are in [`.github/github.json`](.github/github.json).
   mode values fail validation. [Authentik email verification](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/verify-email-address/)
   Other OAuth providers retain native signup, invitation, and portal-template
   behavior.
+
+  To show only the configured Authentik button at the staff entry, set the
+  database Boolean parameter `authentik_sso.staff_login_only` to true. Its
+  default is false. The backend routes (`/odoo`, its deep links, `/web`, and
+  scoped app links) pass their destination to the login page. The switch
+  selects the form by that destination. Direct `/web/login`, website and
+  portal destinations, and invitation or reset links keep their existing
+  sign-in methods. A local administrator can use the ordinary login page
+  with their existing credentials. The switch changes presentation only.
+
+  For about 30 days of inactivity per device, set the native integer parameter
+  `sessions.max_inactivity_seconds` to `2592000`. Both parameters use the
+  existing `config_parameters` product payload. Set the Boolean to false to
+  turn the staff form off. Odoo applies the lifetime database-wide, including
+  portal sessions. It renews the persistent cookie on session refresh and
+  vacuums stale session files by modification time. A deployment sharing a
+  session directory between databases also shares the files each vacuum scans.
 - [`disable_odoo_online`](disable_odoo_online/README.md): skip the publisher-warranty
   phone-home call on self-hosted Odoo 20 Community.
 - `discuss_record_links`: Discuss/Chatter shortcuts for linking to business

@@ -1,20 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
-    <template id="staff_login" inherit_id="web.login" name="Staff sign-in">
-        <xpath expr="//owl-component[@name='web.user_switch']" position="replace">
-            <t t-if="not authentik_staff_entry">$0</t>
-        </xpath>
-        <xpath expr="//form[@role='form']" position="before">
-            <div t-if="authentik_staff_entry" class="d-grid">
-                <p t-if="error" class="alert alert-danger" role="alert" t-out="error"/>
-                <p t-if="message" class="alert alert-success" role="status" t-out="message"/>
-                <a t-if="staff_provider" class="btn btn-primary" t-att-href="staff_provider['auth_link']"
-                   t-out="staff_provider['body']"/>
-                <p t-else="" class="alert alert-warning" role="alert">Staff sign-in is unavailable.</p>
-            </div>
-        </xpath>
-        <xpath expr="//form[@role='form']" position="replace">
-            <t t-if="not authentik_staff_entry">$0</t>
-        </xpath>
-    </template>
+    <function model="ir.model.data" name="_update_xmlids">
+        <value model="ir.ui.view" eval="[{'xml_id': 'authentik_sso.staff_login', 'record': obj(ref('authentik_sso_login.staff_login'))}]"/>
+    </function>
 </odoo>

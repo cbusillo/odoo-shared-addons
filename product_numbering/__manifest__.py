@@ -1,6 +1,6 @@
 {
     "name": "Product Numbering",
-    "version": "20.0.1.1.0",
+    "version": "20.0.1.2.0",
     "category": "Inventory",
     "depends": ["product_sequence"],
     "data": ["views/ir_sequence_views.xml"],

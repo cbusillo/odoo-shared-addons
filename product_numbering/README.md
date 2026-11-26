@@ -19,6 +19,13 @@ Sequences**.
   has no supplied barcode. A supplied reference or barcode is preserved.
   On an existing single-variant product or variant, enter `/` to request a new number.
 
+By default, entering `/` when creating a product requests a new number. Set
+the database Boolean parameter `product_numbering.literal_slash_on_create`
+to true when callers use `/` as source text. On creation, an explicitly
+supplied slash then reaches native validation and imports as supplied.
+Omitted and empty references use the configured allocator. Entering `/` on
+an existing product still requests a new number.
+
 Use an empty prefix and zero padding for short plain numbers. The addon clears
 the unused stock OCA prefix and padding on first install. It keeps existing
 sequence formatting once the counter has advanced. Leave date ranges off

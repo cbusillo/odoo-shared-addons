@@ -17,6 +17,24 @@ class ProductProduct(models.Model):
     _number_barcode = models.Index(NUMERIC_BARCODE_INDEX)
 
     @api.model
+    def _literal_slash_on_create(self) -> bool:
+        return self.env["ir.config_parameter"].sudo().get_bool("product_numbering.literal_slash_on_create")
+
+    @api.model
+    def _product_reference_defaults(self, defaults: dict) -> dict:
+        if defaults.get("default_code") == "/" and self._literal_slash_on_create():
+            defaults["default_code"] = False
+        return defaults
+
+    @api.model
+    def default_get(self, fields_list: list[str]) -> dict:
+        return self._product_reference_defaults(super().default_get(fields_list))
+
+    @api.model
+    def _is_product_sequence_placeholder(self, code: object) -> bool:
+        return super()._is_product_sequence_placeholder(code) and not self._literal_slash_on_create()
+
+    @api.model
     def _serialize_product_number_allocation(self) -> None:
         sequence = self.env.ref("product_sequence.seq_product_auto")
         self.env.cr.execute(SQL("UPDATE ir_sequence SET write_date = write_date WHERE id = %s", sequence.id))
@@ -72,7 +90,9 @@ class ProductProduct(models.Model):
 
     @api.model_create_multi
     def create(self, vals_list: list["odoo.values.product_product"]) -> Self:
-        if all(values.get("default_code", "/") != "/" for values in vals_list):
+        automatic_inputs = (False, None, "") if self._literal_slash_on_create() else ("/",)
+        needs_numbers = ["default_code" not in values or values["default_code"] in automatic_inputs for values in vals_list]
+        if not any(needs_numbers):
             return super().create(vals_list)
         self._serialize_product_number_allocation()
         prepared = []
@@ -86,8 +106,8 @@ class ProductProduct(models.Model):
         templates = self.env["product.template"].browse(
             [values["product_tmpl_id"] for values in vals_list if values.get("product_tmpl_id")]
         )
-        for values in vals_list:
-            if values.get("default_code", "/") == "/":
+        for values, needs_number in zip(vals_list, needs_numbers, strict=True):
+            if needs_number:
                 category = self.env["product.category"].browse(values.get("categ_id") or ())
                 template = templates.browse(values.get("product_tmpl_id") or ()).with_prefetch(templates.ids)
                 sequence = self.env["ir.sequence"].get_category_sequence_id(category or template.categ_id)
@@ -102,7 +122,9 @@ class ProductProduct(models.Model):
         return super().create(prepared)
 
     def write(self, vals: "odoo.values.product_product") -> Literal[True]:
-        if vals.get("default_code") != "/":
+        if vals.get("default_code") != "/" or (
+            self.env.context.get("numbering_template_create") and self._literal_slash_on_create()
+        ):
             return super().write(vals)
         self._serialize_product_number_allocation()
         reserved: defaultdict[str, set[str]] = defaultdict(set)

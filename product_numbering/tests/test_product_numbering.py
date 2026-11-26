@@ -171,7 +171,7 @@ class TestProductNumbering(TransactionCase):
         self.assertEqual((template.default_code, template.barcode), ("100001", "100001"))
         self.assertEqual(self.sequence.number_next_actual, 100002)
 
-    def test_manual_create_validates_literal_reference(self) -> None:
+    def test_manual_create_and_configured_edit_validate_literal_reference(self) -> None:
         self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash_on_create", True)
 
         @api.constrains("default_code")
@@ -181,9 +181,18 @@ class TestProductNumbering(TransactionCase):
 
         constraints = [*self.template_model._constraint_methods, validate_reference]
         with patch.object(type(self.template_model), "_constraint_methods", constraints):
-            self.assertTrue(self.template_model.create({"name": "Automatic reference"}).default_code)
+            part = self.template_model.create({"name": "Automatic reference"})
+            variant = part.product_variant_id
+            original = part.default_code
+            self.assertTrue(original)
             with self.assertRaisesRegex(ValidationError, "Use a catalogue reference"):
                 self.template_model.create({"name": "Typed reference", "default_code": "/"})
+
+            self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash", True)
+            with self.assertRaisesRegex(ValidationError, "Use a catalogue reference"):
+                part.write({"default_code": "/"})
+            self.env.invalidate_all()
+            self.assertEqual((part.default_code, variant.default_code), (original, original))
 
     def test_import_create_keeps_literal_reference_in_a_mixed_batch(self) -> None:
         self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash_on_create", True)
@@ -202,8 +211,8 @@ class TestProductNumbering(TransactionCase):
         variants[1].default_code = "/"
         self.assertEqual((variants[1].default_code, variants[1].barcode), ("100004", "SOURCE-SCAN"))
 
-    def test_untouched_form_default_allocates_beside_a_typed_slash(self) -> None:
-        self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash_on_create", True)
+    def test_literal_reference_can_be_supplied_on_create_and_variant_edit(self) -> None:
+        self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash", True)
         products = self.env["product.product"]
         defaults = products.default_get(["default_code"])
         generated, literal = products.create([dict(defaults, name="Form default"), {"name": "Typed slash", "default_code": "/"}])
@@ -213,6 +222,10 @@ class TestProductNumbering(TransactionCase):
         )
         self.assertEqual(templates.mapped("default_code"), ["100002", "/"])
         self.assertEqual(templates.product_variant_id.mapped("default_code"), ["100002", "/"])
+
+        generated.write({"default_code": "/"})
+        self.env.invalidate_all()
+        self.assertEqual(generated.default_code, "/")
 
     def test_template_create_inverse_keeps_literal_until_a_later_renumber(self) -> None:
         self.env["ir.config_parameter"].sudo().set_bool("product_numbering.literal_slash_on_create", True)

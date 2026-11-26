@@ -17,8 +17,12 @@ class ProductProduct(models.Model):
     _number_barcode = models.Index(NUMERIC_BARCODE_INDEX)
 
     @api.model
+    def _literal_slash(self) -> bool:
+        return self.env["ir.config_parameter"].sudo().get_bool("product_numbering.literal_slash")
+
+    @api.model
     def _literal_slash_on_create(self) -> bool:
-        return self.env["ir.config_parameter"].sudo().get_bool("product_numbering.literal_slash_on_create")
+        return self._literal_slash() or self.env["ir.config_parameter"].sudo().get_bool("product_numbering.literal_slash_on_create")
 
     @api.model
     def _product_reference_defaults(self, defaults: dict) -> dict:
@@ -125,7 +129,11 @@ class ProductProduct(models.Model):
         return super().create(prepared)
 
     def write(self, vals: "odoo.values.product_product") -> Literal[True]:
-        if vals.get("default_code") != "/" or (self.env.context.get("numbering_create_inverse") and self._literal_slash_on_create()):
+        if (
+            vals.get("default_code") != "/"
+            or self._literal_slash()
+            or (self.env.context.get("numbering_create_inverse") and self._literal_slash_on_create())
+        ):
             return super().write(vals)
         self._serialize_product_number_allocation()
         reserved: defaultdict[str, set[str]] = defaultdict(set)

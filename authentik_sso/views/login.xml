@@ -13,7 +13,7 @@
             </div>
         </xpath>
         <xpath expr="//form[@role='form']" position="attributes">
-            <attribute name="t-if">not authentik_staff_entry</attribute>
+            <attribute name="t-if" add="not authentik_staff_entry" separator=" and "/>
         </xpath>
     </template>
 </odoo>

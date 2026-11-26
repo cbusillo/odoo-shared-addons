@@ -51,16 +51,19 @@ are in [`.github/github.json`](.github/github.json).
   scoped app links) pass their destination to the login page. The switch
   selects the form by that destination. Direct `/web/login`, website and
   portal destinations, and invitation or reset links keep their existing
-  sign-in methods. A local administrator can use the ordinary login page
+  sign-in methods. A provider error that returns to login without a backend
+  destination also uses the ordinary form. A local administrator can use the ordinary login page
   with their existing credentials. The switch changes presentation only.
 
   For about 30 days of inactivity per device, set the native integer parameter
   `sessions.max_inactivity_seconds` to `2592000`. Both parameters use the
   existing `config_parameters` product payload. Set the Boolean to false to
-  turn the staff form off. Odoo applies the lifetime database-wide, including
-  portal sessions. It renews the persistent cookie on session refresh and
-  vacuums stale session files by modification time. A deployment sharing a
-  session directory between databases also shares the files each vacuum scans.
+  restore the ordinary staff form. The lifetime applies database-wide, including
+  portal sessions. Each browser profile keeps its own persistent cookie.
+  Session refresh renews the window, so an active session can last longer
+  than 30 days. Scheduled cleanup removes stale session files by modification
+  time. Where databases share one session directory, the shortest inactivity
+  window can expire sessions for all of them.
 - [`disable_odoo_online`](disable_odoo_online/README.md): skip the publisher-warranty
   phone-home call on self-hosted Odoo 20 Community.
 - `discuss_record_links`: Discuss/Chatter shortcuts for linking to business

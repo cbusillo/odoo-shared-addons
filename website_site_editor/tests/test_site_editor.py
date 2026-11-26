@@ -153,6 +153,43 @@ class TestSiteEditor(HttpCase):
             menus.save(site.id, {"data": [], "to_delete": [menu.id]})
             self.assertFalse(menu.exists())
 
+    def test_menu_tree_and_record_reads_follow_page_visibility(self) -> None:
+        site, page = self.second_site, self.second_page
+        admin = self.env.ref("base.user_admin")
+        menus = self.env["website.menu"].with_user(admin)
+        entry = {"id": "new-notebook", "name": "Notebook", "url": page.url, "parent_id": site.menu_id.id}
+        menus.save(site.id, {"data": [entry]})
+        menu = menus.browse(entry["id"])
+        self.assertEqual(menu.page_id, page)
+        self.assertFalse(menu.group_ids)
+
+        for values, visible_elsewhere in (
+            ({}, True),
+            ({"is_published": False}, False),
+            (
+                {
+                    "is_published": True,
+                    "visibility": "restricted_group",
+                    "group_ids": [Command.set([self.env.ref("base.group_system").id])],
+                },
+                False,
+            ),
+            ({"group_ids": [Command.set([self.env.ref("base.group_user").id])]}, True),
+            ({"visibility": "password"}, False),
+        ):
+            if values:
+                page.with_user(admin).write(values)
+            for user, visible in ((self.first_editor, visible_elsewhere), (self.second_editor, True), (admin, True)):
+                with self.subTest(values=values, user=user.login):
+                    user_menu = menu.with_user(user)
+                    children = user_menu.get_tree(site.id)["children"]
+                    self.assertEqual(menu.id in {child["fields"]["id"] for child in children}, visible)
+                    if visible:
+                        self.assertEqual(user_menu.read(["name", "url"])[0]["url"], page.url)
+                    else:
+                        with self.assertRaises(AccessError):
+                            user_menu.read(["name", "url"])
+
     def test_template_global_settings_and_site_binding_stay_admin_owned(self) -> None:
         editor = self.first_editor
         self.assertFalse(self.env["ir.ui.view"].with_user(editor).has_access("write"))

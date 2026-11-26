@@ -17,3 +17,5 @@ Select **Enable assigned body editing** and seed **Editable page body** in the w
 Install **Assigned Website Editor**. On the internal user's access-rights form choose **Assigned Website Editor** as the Website privilege. Use an account without Settings administration, Editor and Designer, or other independent content administration rights. On each permitted website form, add the user to **Assigned website editors**. Removing the user from the last site removes their assigned-site editing access. An ordinary Settings administrator retains native website administration.
 
 The site editor can change text and standard blocks inside the prepared region, URLs and indexing of site-specific pages, ordinary navigation entries, the website's name and homepage. Template code, custom code, shared pages, themes and global settings remain administrator-owned. Website visitors use Odoo's normal publication and visibility rules.
+
+On other websites, assigned editors can read ordinary navigation and links to published pages visible to their account. Draft and password-protected page links stay within the assigned site's editing workflow. Menu group restrictions still apply.

@@ -48,7 +48,9 @@ class TestProductNumbering(TransactionCase):
                 {"name": "Occupied barcode", "default_code": "SKU-8001", "barcode": "0008002"},
             ]
         )
-        self.sequence.write({"product_number_mode": "lowest_free", "product_number_floor": 8000, "padding": 6})
+        self.sequence.write(
+            {"product_number_mode": "lowest_free", "product_number_floor": 8000, "padding": 6, "product_number_as_barcode": True}
+        )
         first, second, manual = self.env["product.product"].create(
             [
                 {"name": "First gap"},
@@ -57,6 +59,7 @@ class TestProductNumbering(TransactionCase):
             ]
         )
         self.assertEqual((first.default_code, second.default_code), ("008001", "008005"))
+        self.assertEqual(first.barcode, first.default_code)
         self.assertEqual(second.barcode, "EXTERNAL-SCAN")
         self.assertEqual((manual.default_code, manual.barcode), ("08003", "8004"))
         self.assertEqual((archived.default_code, legacy.default_code, legacy.barcode), ("8000", "SKU-8001", "0008002"))
@@ -67,19 +70,33 @@ class TestProductNumbering(TransactionCase):
         self.assertTrue(numbered_service.default_code)
         self.sequence.product_number_goods_only = True
         self.sequence.product_number_as_barcode = True
+        choice = self.env["product.combo"].create(
+            {"name": "Services", "combo_item_ids": [Command.create({"product_id": numbered_service.product_variant_id.id})]}
+        )
         service, combo, goods = self.template_model.create(
             [
                 {"name": "Repair service", "type": "service", "barcode": "REPAIR"},
-                {"name": "Bundle", "type": "combo"},
+                {"name": "Bundle", "type": "combo", "combo_ids": [Command.link(choice.id)]},
                 {"name": "Part"},
             ]
         )
         self.assertEqual((service.default_code, service.barcode), (False, "REPAIR"))
         self.assertFalse(combo.default_code)
+        self.assertFalse(combo.barcode)
+        service_variant = self.env["product.product"].with_context(default_type="service").create({"name": "Service variant"})
+        self.assertFalse(service_variant.default_code)
         self.assertEqual((goods.default_code, goods.barcode), ("100002", "100002"))
 
     def test_prefixed_gap_numbers_reserve_the_exact_identifier(self) -> None:
-        self.sequence.write({"product_number_mode": "lowest_free", "product_number_floor": 7, "prefix": "P", "padding": 3})
+        self.sequence.write(
+            {
+                "product_number_mode": "lowest_free",
+                "product_number_floor": 7,
+                "prefix": "P",
+                "padding": 3,
+                "product_number_as_barcode": False,
+            }
+        )
         self.template_model.create(
             [
                 {"name": "Other format", "default_code": "P7", "barcode": "7"},
@@ -88,6 +105,7 @@ class TestProductNumbering(TransactionCase):
         )
         parts = self.template_model.create([{"name": "First"}, {"name": "Second"}])
         self.assertEqual(parts.mapped("default_code"), ["P007", "P009"])
+        self.assertFalse(any(parts.mapped("barcode")))
 
     def test_explicit_create_and_write_follow_native_identifier_rules(self) -> None:
         first, second = self.template_model.create(

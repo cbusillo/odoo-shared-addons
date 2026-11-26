@@ -153,6 +153,48 @@ class TestSiteEditor(HttpCase):
             menus.save(site.id, {"data": [], "to_delete": [menu.id]})
             self.assertFalse(menu.exists())
 
+    def test_menu_tree_and_record_reads_follow_page_visibility(self) -> None:
+        site = self.second_site
+        admin = self.env.ref("base.user_admin")
+        menus = self.env["website.menu"].with_user(admin)
+        visible, hidden = menus, menus
+        for name, published, visibility, group, visible_elsewhere in (
+            ("Fern", True, "public", None, True),
+            ("Iris", False, "public", None, False),
+            ("Maple", True, "restricted_group", "base.group_system", False),
+            ("Hazel", True, "restricted_group", "base.group_user", True),
+            ("Elm", True, "password", None, False),
+            ("Lily", True, "connected", None, True),
+        ):
+            page = self.second_page.copy({"website_id": site.id, "url": f"/{name.lower()}"})
+            page.write(
+                {
+                    "is_published": published,
+                    "visibility": visibility,
+                    "group_ids": [Command.set([self.env.ref(group).id])] if group else False,
+                }
+            )
+            entry = {"id": f"new-{name}", "name": name, "url": page.url, "parent_id": site.menu_id.id}
+            menus.save(site.id, {"data": [entry]})
+            menu = menus.browse(entry["id"])
+            self.assertEqual(menu.page_id, page)
+            self.assertFalse(menu.group_ids)
+            if visible_elsewhere:
+                visible |= menu
+            else:
+                hidden |= menu
+
+        entries = visible | hidden
+        for user, allowed in ((self.first_editor, visible), (self.second_editor, entries), (admin, entries)):
+            with self.subTest(user=user.login):
+                children = menus.with_user(user).get_tree(site.id)["children"]
+                tree_ids = {child["fields"]["id"] for child in children}
+                self.assertEqual(tree_ids.intersection(entries.ids), set(allowed.ids))
+                self.assertEqual(allowed.with_user(user).read(["name", "url"]), allowed.read(["name", "url"]))
+                for menu in entries - allowed:
+                    with self.assertRaises(AccessError):
+                        menu.with_user(user).read(["name", "url"])
+
     def test_template_global_settings_and_site_binding_stay_admin_owned(self) -> None:
         editor = self.first_editor
         self.assertFalse(self.env["ir.ui.view"].with_user(editor).has_access("write"))

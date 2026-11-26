@@ -1,7 +1,7 @@
 from typing import Literal
 from urllib.parse import urlsplit
 
-from odoo import api, models
+from odoo import api, fields, models
 
 from .access import denied, is_site_editor
 
@@ -11,6 +11,26 @@ class WebsiteMenu(models.Model):
     _inherit = ["website.site.editor.fields", "website.menu"]
 
     _site_editor_fields = frozenset({"name", "url", "manual_url", "page_id", "new_window", "sequence", "parent_id", "website_id"})
+
+    def _access_domain(self, operation: str) -> fields.Domain:
+        domain = super()._access_domain(operation)
+        if operation != "read" or not is_site_editor(self.env):
+            return domain
+
+        assigned_site = fields.Domain("site_editor_ids", "in", [self.env.uid])
+        assigned_menu = fields.Domain("website_id", "any!", assigned_site)
+        visible_view = fields.Domain("visibility", "in", ["public", "connected"]) | (
+            fields.Domain("visibility", "=", "restricted_group") & fields.Domain("group_ids", "in", self.env.user._get_group_ids())
+        )
+        published_page = fields.Domain("is_published", "=", True) & fields.Domain("view_id", "any!", visible_view)
+        editable_site = fields.Domain("website_id", "=", False) | fields.Domain("website_id", "any!", assigned_site)
+        for target in ("page_id", "controller_page_id"):
+            domain &= (
+                fields.Domain(target, "=", False)
+                | fields.Domain(target, "any!", published_page)
+                | (assigned_menu & fields.Domain(target, "any!", editable_site))
+            )
+        return domain
 
     def _check_site_menu_values(self, vals: "odoo.values.website_menu", site: "odoo.model.website") -> None:
         site._check_assigned_sites()

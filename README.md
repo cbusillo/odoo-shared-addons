@@ -26,6 +26,8 @@ are in [`.github/github.json`](.github/github.json).
 
 ## Addon Inventory
 
+- [`website_consent_analytics`](website_consent_analytics/README.md) loads GA4 after native optional-cookie consent on selected websites.
+
 - [`website_site_editor`](website_site_editor/README.md) lets assigned editors maintain prepared website pages, navigation and site settings.
 
 - [`web_hierarchy_d3`](web_hierarchy_d3/README.md): opt-in interactive chart for Odoo hierarchy views.

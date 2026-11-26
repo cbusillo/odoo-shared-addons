@@ -17,21 +17,30 @@ class IrSequence(models.Model):
     )
     product_number_floor = fields.Integer(string="Lowest Product Number", default=1)
     product_number_as_barcode = fields.Boolean(string="Use Product Number as Barcode")
+    product_number_goods_only = fields.Boolean(string="Automatically Number Goods Only")
 
-    def _available_product_numbers(self, reserved: set[str]) -> Iterator[str]:
+    def _uses_numeric_product_identity(self) -> bool:
+        return self.product_number_mode == "lowest_free" and not self.prefix and not self.suffix
+
+    def _available_product_numbers(self) -> Iterator[str]:
         self.ensure_one()
         products = self.env["product.product"]
         if self.product_number_mode == "lowest_free":
             if self.product_number_floor < 1:
                 raise ValidationError(self.env._("The lowest product number must be positive."))
-            numbers = (self.get_next_char(number) for number in count(self.product_number_floor))
+            numbers = count(self.product_number_floor)
             while True:
-                candidates = list(islice(numbers, GAP_SEARCH_BATCH))
-                occupied = products._occupied_product_numbers(candidates)
-                yield from (number for number in candidates if number not in occupied and number not in reserved)
+                batch = list(islice(numbers, GAP_SEARCH_BATCH))
+                if self._uses_numeric_product_identity():
+                    occupied = products._occupied_numeric_product_numbers([str(number) for number in batch])
+                    yield from (self.get_next_char(number) for number in batch if str(number) not in occupied)
+                else:
+                    candidates = [self.get_next_char(number) for number in batch]
+                    occupied = products._occupied_product_numbers(candidates)
+                    yield from (number for number in candidates if number not in occupied)
         if self.implementation == "no_gap" and not self.number_increment:
             raise ValidationError(self.env._("The product sequence step must be nonzero to skip occupied numbers."))
         while number := self.next_by_id():
-            if number not in reserved and not products._occupied_product_numbers([number]):
+            if not products._occupied_product_numbers([number]):
                 yield number
         raise ValidationError(self.env._("The product sequence did not return a number."))

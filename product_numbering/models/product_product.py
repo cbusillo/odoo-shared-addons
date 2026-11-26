@@ -1,3 +1,4 @@
+from collections import defaultdict
 from collections.abc import Iterator
 from typing import Literal, Self
 
@@ -5,10 +6,15 @@ from odoo import api, fields, models
 from odoo.tools import SQL
 
 NUMBER_FIELDS = ("default_code", "barcode")
+NUMERIC_CODE_INDEX = "USING hash (ltrim(default_code, '0')) WHERE default_code ~ '^[0-9]+$'"
+NUMERIC_BARCODE_INDEX = "USING hash (ltrim(barcode, '0')) WHERE barcode ~ '^[0-9]+$'"
 
 
 class ProductProduct(models.Model):
     _inherit = "product.product"
+
+    _number_code = models.Index(NUMERIC_CODE_INDEX)
+    _number_barcode = models.Index(NUMERIC_BARCODE_INDEX)
 
     @api.model
     def _serialize_product_number_allocation(self) -> None:
@@ -26,17 +32,38 @@ class ProductProduct(models.Model):
         )
 
     @api.model
+    def _occupied_numeric_product_numbers(self, numbers: list[str]) -> set[str]:
+        queries = []
+        for model in (self, self.env["product.template"]):
+            model.flush_model(NUMBER_FIELDS)
+            for field in NUMBER_FIELDS:
+                queries.append(
+                    SQL(
+                        "SELECT ltrim(%(field)s, '0') FROM %(table)s "
+                        "WHERE %(field)s ~ '^[0-9]+$' AND ltrim(%(field)s, '0') = ANY(%(numbers)s)",
+                        table=SQL.identifier(model._table),
+                        field=SQL.identifier(field),
+                        numbers=numbers,
+                    )
+                )
+        return {number for (number,) in self.env.execute_query(SQL(" UNION ALL ").join(queries))}
+
+    @api.model
     def _allocate_product_number(
         self,
         values: "odoo.values.product_product",
-        category: "odoo.model.product_category",
-        reserved: set[str],
+        sequence: "odoo.model.ir_sequence",
+        reserved: defaultdict[str, set[str]],
         candidates_by_sequence: dict[int, Iterator[str]],
     ) -> "odoo.values.product_product":
-        sequence = self.env["ir.sequence"].get_category_sequence_id(category)
-        candidates = candidates_by_sequence.setdefault(sequence.id, sequence._available_product_numbers(reserved))
-        number = next(candidates)
-        reserved.add(number)
+        candidates = candidates_by_sequence.setdefault(sequence.id, sequence._available_product_numbers())
+        numeric = sequence._uses_numeric_product_identity()
+        while True:
+            number = next(candidates)
+            aliases = reserved[number.lstrip("0")]
+            if not aliases or (not numeric and number not in aliases):
+                aliases.add(number)
+                break
         numbered = dict(values, default_code=number)
         if sequence.product_number_as_barcode and not values.get("barcode"):
             numbered["barcode"] = number
@@ -49,16 +76,27 @@ class ProductProduct(models.Model):
         self._serialize_product_number_allocation()
         prepared = []
         candidates_by_sequence: dict[int, Iterator[str]] = {}
-        reserved = {values[field] for values in vals_list for field in NUMBER_FIELDS if values.get(field)}
+        reserved: defaultdict[str, set[str]] = defaultdict(set)
+        for values in vals_list:
+            for field in NUMBER_FIELDS:
+                if value := values.get(field):
+                    number = str(value)
+                    reserved[number.lstrip("0")].add(number)
         templates = self.env["product.template"].browse(
             [values["product_tmpl_id"] for values in vals_list if values.get("product_tmpl_id")]
         )
         for values in vals_list:
             if values.get("default_code", "/") == "/":
                 category = self.env["product.category"].browse(values.get("categ_id") or ())
-                if not category and values.get("product_tmpl_id"):
-                    category = templates.browse(values["product_tmpl_id"]).with_prefetch(templates.ids).categ_id
-                values = self._allocate_product_number(values, category, reserved, candidates_by_sequence)
+                template = templates.browse(values.get("product_tmpl_id") or ()).with_prefetch(templates.ids)
+                sequence = self.env["ir.sequence"].get_category_sequence_id(category or template.categ_id)
+                if (
+                    sequence.product_number_goods_only
+                    and (values.get("type") or template.type or self.default_get(["type"]).get("type")) != "consu"
+                ):
+                    values = dict(values, default_code=False)
+                else:
+                    values = self._allocate_product_number(values, sequence, reserved, candidates_by_sequence)
             prepared.append(values)
         return super().create(prepared)
 
@@ -66,12 +104,13 @@ class ProductProduct(models.Model):
         if vals.get("default_code") != "/":
             return super().write(vals)
         self._serialize_product_number_allocation()
-        reserved: set[str] = set()
+        reserved: defaultdict[str, set[str]] = defaultdict(set)
         for product in self:
             category = self.env["product.category"].browse(vals["categ_id"]) if "categ_id" in vals else product.categ_id
             values = dict(vals)
             values.setdefault("barcode", product.barcode)
-            numbered = self._allocate_product_number(values, category, reserved, {})
+            sequence = self.env["ir.sequence"].get_category_sequence_id(category)
+            numbered = self._allocate_product_number(values, sequence, reserved, {})
             template = product.product_tmpl_id
             if template.product_variant_ids == product:
                 template.default_code = numbered["default_code"]

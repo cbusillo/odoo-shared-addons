@@ -10,6 +10,7 @@
                     <field name="product_number_mode"/>
                     <field name="product_number_floor" invisible="product_number_mode != 'lowest_free'"/>
                     <field name="product_number_as_barcode"/>
+                    <field name="product_number_goods_only"/>
                 </group>
             </field>
         </field>

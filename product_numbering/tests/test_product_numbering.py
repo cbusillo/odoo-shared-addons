@@ -41,17 +41,53 @@ class TestProductNumbering(TransactionCase):
         self.assertEqual((part.default_code, part.barcode), ("100001", "MANUAL-BARCODE"))
 
     def test_gap_mode_fills_lowest_gap_without_advancing_counter(self) -> None:
-        self.template_model.create(
+        other = self.env["res.company"].create({"name": "Other catalogue"})
+        archived, legacy = self.template_model.create(
             [
-                {"name": "Occupied floor", "default_code": "8000"},
-                {"name": "Occupied barcode", "default_code": "LEGACY", "barcode": "8002"},
+                {"name": "Occupied floor", "default_code": "8000", "company_id": other.id, "active": False},
+                {"name": "Occupied barcode", "default_code": "SKU-8001", "barcode": "0008002"},
             ]
         )
-        self.sequence.write({"product_number_mode": "lowest_free", "product_number_floor": 8000})
-        allocated = self.template_model.create([{"name": "First gap"}, {"name": "Second gap"}])
-        self.assertEqual(allocated.mapped("default_code"), ["8001", "8003"])
-        self.assertFalse(any(allocated.mapped("barcode")))
+        self.sequence.write({"product_number_mode": "lowest_free", "product_number_floor": 8000, "padding": 6})
+        first, second, manual = self.env["product.product"].create(
+            [
+                {"name": "First gap"},
+                {"name": "Second gap", "barcode": "EXTERNAL-SCAN"},
+                {"name": "Explicit batch identifiers", "default_code": "08003", "barcode": "8004"},
+            ]
+        )
+        self.assertEqual((first.default_code, second.default_code), ("008001", "008005"))
+        self.assertEqual(second.barcode, "EXTERNAL-SCAN")
+        self.assertEqual((manual.default_code, manual.barcode), ("08003", "8004"))
+        self.assertEqual((archived.default_code, legacy.default_code, legacy.barcode), ("8000", "SKU-8001", "0008002"))
         self.assertEqual(self.sequence.number_next_actual, 100001)
+
+    def test_automatic_numbering_can_be_limited_to_goods(self) -> None:
+        numbered_service = self.template_model.create({"name": "Numbered service", "type": "service"})
+        self.assertTrue(numbered_service.default_code)
+        self.sequence.product_number_goods_only = True
+        self.sequence.product_number_as_barcode = True
+        service, combo, goods = self.template_model.create(
+            [
+                {"name": "Repair service", "type": "service", "barcode": "REPAIR"},
+                {"name": "Bundle", "type": "combo"},
+                {"name": "Part"},
+            ]
+        )
+        self.assertEqual((service.default_code, service.barcode), (False, "REPAIR"))
+        self.assertFalse(combo.default_code)
+        self.assertEqual((goods.default_code, goods.barcode), ("100002", "100002"))
+
+    def test_prefixed_gap_numbers_reserve_the_exact_identifier(self) -> None:
+        self.sequence.write({"product_number_mode": "lowest_free", "product_number_floor": 7, "prefix": "P", "padding": 3})
+        self.template_model.create(
+            [
+                {"name": "Other format", "default_code": "P7", "barcode": "7"},
+                {"name": "Same format", "default_code": "P008"},
+            ]
+        )
+        parts = self.template_model.create([{"name": "First"}, {"name": "Second"}])
+        self.assertEqual(parts.mapped("default_code"), ["P007", "P009"])
 
     def test_explicit_create_and_write_follow_native_identifier_rules(self) -> None:
         first, second = self.template_model.create(

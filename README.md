@@ -31,7 +31,17 @@ are in [`.github/github.json`](.github/github.json).
 - [`web_hierarchy_d3`](web_hierarchy_d3/README.md): opt-in interactive chart for Odoo hierarchy views.
 - `authentik_sso`: Authentik OAuth2/OpenID Connect provider setup and group
   mapping helpers. Configuration methods are reserved for trusted callers.
-  Internal-template signup applies only to the configured Authentik provider.
+  On an Authentik settings apply, `callback_mode` defaults to `provision` for
+  internal-template signup and group mapping. Set it to `existing_user` to
+  link a verified email to one active internal user's login or email. Returning
+  users sign in by provider and subject. First linking trusts the provider to
+  verify the current address and the Odoo account's login and email to identify
+  its owner. These conditions must hold whenever a new identity links, including
+  after an email change. Both paths preserve groups and reject
+  invitation and reset tokens in this mode. An explicit `provision` or a new
+  Authentik settings block omitting the selector restores the default. A payload
+  without an Authentik block leaves the applied configuration in place. Unknown
+  mode values fail validation. [Authentik email verification](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/verify-email-address/)
   Other OAuth providers retain native signup, invitation, and portal-template
   behavior.
 - [`disable_odoo_online`](disable_odoo_online/README.md): skip the publisher-warranty

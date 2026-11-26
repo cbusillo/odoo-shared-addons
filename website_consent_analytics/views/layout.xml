@@ -1,0 +1,11 @@
+<odoo>
+    <template id="layout" inherit_id="website.layout" name="Consent-first website analytics">
+        <xpath expr="//script[@id='tracking_code_config']/../.." position="attributes">
+            <attribute name="t-if" add="not website.consent_first_ga4" separator=" and "/>
+        </xpath>
+        <xpath expr="//head" position="inside">
+            <meta t-if="website and website.consent_first_ga4 and not editable" name="consent-first-ga4"
+                  t-att-content="json.dumps(website._consent_ga4_config())"/>
+        </xpath>
+    </template>
+</odoo>

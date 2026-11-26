@@ -44,6 +44,40 @@ are in [`.github/github.json`](.github/github.json).
   mode values fail validation. [Authentik email verification](https://docs.goauthentik.io/add-secure-apps/providers/oauth2/verify-email-address/)
   Other OAuth providers retain native signup, invitation, and portal-template
   behavior.
+
+  To show only the configured Authentik button at the staff entry, set the
+  database Boolean parameter `authentik_sso.staff_login_only` to true. Its
+  default is false. The backend routes (`/odoo`, its deep links, `/web`, and
+  scoped app links) pass their destination to the login page. The switch
+  selects the form by that destination. Without the Website app, Odoo's
+  anonymous site root also leads to the backend. Portal users can enter at
+  `/my`. Direct `/web/login`, website and
+  portal destinations, and invitation or reset links keep their existing
+  sign-in methods. A provider error that returns to login without a backend
+  destination also uses the ordinary form. Local administrators can sign in
+  there with their existing credentials. The switch changes presentation only.
+
+  Declare product defaults in the versioned product addon's XML data and list
+  that file in its manifest. Odoo applies these native parameter setters on
+  module install and update:
+
+  ```xml
+  <odoo>
+      <function model="ir.config_parameter" name="set_bool" eval="('authentik_sso.staff_login_only', True)"/>
+      <function model="ir.config_parameter" name="set_int" eval="('sessions.max_inactivity_seconds', 2592000)"/>
+  </odoo>
+  ```
+
+  Products using the ordinary form can leave the Boolean unset. To turn it
+  off after enabling it, set it to `False` on update. The two settings are
+  independent. The integer sets about 30 days of inactivity database-wide,
+  including portal accounts. Each browser profile keeps its own persistent
+  cookie. Activity that refreshes the session renews the window, so an active
+  session can last longer than 30 days. Scheduled cleanup removes stale
+  session files by modification time. Where databases share one session
+  directory, the shortest inactivity window can expire sessions for all of
+  them. An absolute reauthentication interval at the identity provider is a
+  separate provider policy.
 - [`disable_odoo_online`](disable_odoo_online/README.md): skip the publisher-warranty
   phone-home call on self-hosted Odoo 20 Community.
 - `discuss_record_links`: Discuss/Chatter shortcuts for linking to business

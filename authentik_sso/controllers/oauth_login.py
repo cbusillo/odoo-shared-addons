@@ -13,7 +13,7 @@ from odoo.addons.authentik_sso.models.authentik_config import (
 )
 from odoo.addons.web.controllers.utils import ensure_db
 from odoo.api import Environment
-from odoo.http import request
+from odoo.http import Response, request
 from werkzeug.exceptions import BadRequest
 
 _logger = logging.getLogger(__name__)
@@ -83,8 +83,21 @@ class AuthentikOAuthLogin(BaseOAuthLogin):
         return providers
 
     @http.route()
-    def web_login(self, *args: object, **kwargs: object) -> object:
-        return super().web_login(*args, **kwargs)
+    def web_login(self, *args: object, **kwargs: object) -> Response:
+        response = super().web_login(*args, **kwargs)
+        if not response.is_qweb or response.qcontext.get("token"):
+            return response
+        target = (response.qcontext.get("redirect") or "").partition("?")[0]
+        if target not in ("/odoo", "/web", "/web/") and not target.startswith(("/odoo/", "/scoped_app/")):
+            return response
+        if request.env["ir.config_parameter"].sudo().get_bool("authentik_sso.staff_login_only"):
+            provider_name = _authentik_provider_name(request.env)
+            response.qcontext["authentik_staff_entry"] = True
+            response.qcontext["staff_provider"] = next(
+                (provider for provider in response.qcontext["providers"] if provider["name"] == provider_name),
+                None,
+            )
+        return response
 
     @http.route("/authentik/login", type="http", auth="none", sitemap=False)
     def authentik_login(self, **_kwargs: object) -> object:

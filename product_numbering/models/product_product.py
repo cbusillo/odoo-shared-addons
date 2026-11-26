@@ -3,7 +3,7 @@ from collections.abc import Iterator
 from typing import Literal, Self
 
 from odoo import api, fields, models
-from odoo.tools.sql import SQL
+from odoo.tools import SQL
 
 NUMBER_FIELDS = ("default_code", "barcode")
 NUMERIC_CODE_INDEX = "USING hash (ltrim(default_code, '0')) WHERE default_code ~ '^[0-9]+$'"
@@ -46,7 +46,9 @@ class ProductProduct(models.Model):
                         numbers=numbers,
                     )
                 )
-        return {number for (number,) in self.env.execute_query(SQL(" UNION ALL ").join(queries))}
+        # noinspection PyUnresolvedReferences
+        query = SQL(" UNION ALL ").join(queries)
+        return {number for (number,) in self.env.execute_query(query)}
 
     @api.model
     def _allocate_product_number(

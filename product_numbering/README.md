@@ -17,14 +17,19 @@ Sequences**.
   it off to number all product types.
 - **Use Product Number as Barcode** sets the same value on a new product that
   has no supplied barcode. A supplied reference or barcode is preserved.
-  On an existing single-variant product or variant, enter `/` to request a new number.
 
-By default, entering `/` when creating a product requests a new number. Set
-the database Boolean parameter `product_numbering.literal_slash_on_create`
-to true when callers use `/` as source text. On creation, an explicitly
-supplied slash then reaches native validation and imports as supplied.
-Omitted and empty references use the configured allocator. Entering `/` on
-an existing product still requests a new number, including in update imports.
+By default, entering `/` requests a new number when creating a product or
+editing an existing single-variant product or variant. Two database Boolean
+parameters let consumers pass explicitly supplied slashes to their own
+validation and imports:
+
+- Set `product_numbering.literal_slash` to true for both creates and edits,
+  including update imports.
+- Set only `product_numbering.literal_slash_on_create` to true for creates.
+  Edits still request a new number.
+
+With either option, omitted and empty references on new goods use the
+configured allocator. Both parameters default to false.
 Literal-slash mode requires a packaged `product_sequence` with the
 `_is_product_sequence_placeholder` hook on both variant create and write.
 

@@ -78,7 +78,8 @@ and integration credential clearing keep their existing meanings.
 Odoo 20's native cross-module HOOT runner selects the owned JS suites for
 desktop and mobile; addon-specific Python JS runner bridges are unnecessary.
 Browser fixtures use the native disposable filestore, preserving isolation
-without forcing database-only binary storage.
+without forcing database-only binary storage. Shared tours rely on Odoo to close
+each tour's own Chromium process and remove its temporary profile.
 
 The Addon tests lane runs the complete owned-addon suite on every PR head,
 main push and train branch. See the

@@ -39,7 +39,6 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
         cls._reset_web_assets_cache()
         cls._setup_test_user()
         cls._ensure_required_domain_data()
-        cls._cleanup_browser_processes()
 
     @classmethod
     def _reset_web_assets_cache(cls) -> None:
@@ -56,18 +55,6 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
     @classmethod
     def _ensure_required_domain_data(cls) -> None:
         """Hook for addons that need extra domain records before tours run."""
-
-    @classmethod
-    def _cleanup_browser_processes(cls) -> None:
-        """Clean up existing browser processes to prevent accumulation."""
-        import subprocess
-
-        try:
-            subprocess.run(["pkill", "-f", "chromium"], capture_output=True, timeout=5)
-            subprocess.run(["pkill", "-f", "chrome"], capture_output=True, timeout=5)
-            _logger.info("Cleaned up existing browser processes")
-        except Exception as cleanup_error:
-            _logger.warning("Failed to cleanup browser processes: %s", cleanup_error, exc_info=True)
 
     @classmethod
     def _resolve_optional_group_ids(cls) -> list[int]:
@@ -238,7 +225,6 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
         )
 
         try:
-            self._cleanup_browser_processes()
             url_with_database = self._with_db_param(url)
             super().start_tour(
                 url_with_database,
@@ -249,10 +235,7 @@ class SharedTourTestCaseBase(MultiWorkerHttpCaseBase):
             )
         except Exception as tour_error:
             _logger.error("Tour '%s' failed: %s", tour_name, tour_error)
-            self._cleanup_browser_processes()
             raise
-        finally:
-            self._cleanup_browser_processes()
 
     def register_tour(self, tour_definition: dict[str, Any]) -> None:  # noqa: ARG002
         """Register a tour definition (placeholder for compatibility)."""

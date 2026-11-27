@@ -1,6 +1,6 @@
 {
     "name": "Authentik Staff Login View",
-    "version": "20.0.1.0.0",
+    "version": "20.0.1.0.1",
     "category": "Authentication",
     "summary": "Staff entry presentation for Authentik SSO",
     "author": "Shiny Computers",

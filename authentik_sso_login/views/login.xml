@@ -5,7 +5,7 @@
             <t t-if="not authentik_staff_entry">$0</t>
         </xpath>
         <xpath expr="//form[@role='form']" position="before">
-            <div t-if="authentik_staff_entry" class="d-grid">
+            <div t-if="authentik_staff_entry" class="text-center">
                 <p t-if="error" class="alert alert-danger" role="alert" t-out="error"/>
                 <p t-if="message" class="alert alert-success" role="status" t-out="message"/>
                 <a t-if="staff_provider" class="btn btn-primary" t-att-href="staff_provider['auth_link']"

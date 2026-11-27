@@ -48,17 +48,19 @@ are in [`.github/github.json`](.github/github.json).
   Other OAuth providers retain native signup, invitation, and portal-template
   behavior.
 
-  To show only the configured Authentik button at the staff entry, set the
-  database Boolean parameter `authentik_sso.staff_login_only` to true. Its
-  default is false. The backend routes (`/odoo`, its deep links, `/web`, and
-  scoped app links) pass their destination to the login page. The switch
-  selects the form by that destination. Without the Website app, Odoo's
-  anonymous site root also leads to the backend. Portal users can enter at
-  `/my`. Direct `/web/login`, website and
-  portal destinations, and invitation or reset links keep their existing
-  sign-in methods. A provider error that returns to login without a backend
-  destination also uses the ordinary form. Local administrators can sign in
-  there with their existing credentials. The switch changes presentation only.
+  Set the database Boolean parameter `authentik_sso.staff_login_only` to true
+  to send signed-out staff directly to the configured Authentik provider from
+  `/odoo`, backend deep links, `/web`, and scoped app links. After sign-in,
+  Odoo returns them to the requested backend destination. Without Website,
+  Odoo's anonymous site root also leads to the backend. Staff entry shows an
+  error if the provider is disabled or missing its Odoo configuration. Signing out of the backend leaves a
+  confirmation and a button to sign in again. Provider callback errors return
+  to Odoo's ordinary login form.
+
+  Local administrators sign in with their existing credentials at `/web/login`.
+  Direct login, website and portal destinations (including `/my`), invitation
+  and reset links, and products using the default false setting retain their
+  ordinary Odoo sign-in methods.
 
   Declare product defaults in the versioned product addon's XML data and list
   that file in its manifest. Odoo applies these native parameter setters on
